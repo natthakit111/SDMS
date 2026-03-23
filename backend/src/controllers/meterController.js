@@ -57,10 +57,11 @@ const createReading = async (req, res, next) => {
 
     const duplicate = await MeterModel.findByRoomMonthYear(room_id, meter_type, reading_month, reading_year);
     if (duplicate) {
-      return sendBadRequest(
-        res,
-        `A ${meter_type} reading for room ${room_id} in ${reading_month}/${reading_year} already exists. Use PUT to update.`
-      );
+      return res.status(400).json({
+        success: false,
+        error_code: 'meters.error.alreadyExists',
+        message: `A ${meter_type} reading for room ${room_id} in ${reading_month}/${reading_year} already exists.`
+      });
     }
 
     if (!rate_per_unit) {

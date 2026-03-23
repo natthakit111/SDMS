@@ -14,9 +14,10 @@ const {
 // GET /api/tenants  — admin: list all (with optional ?search=)
 const getAllTenants = async (req, res, next) => {
   try {
-    const { search } = req.query;
-    // model.findAll accepts { search } object
-    const tenants = await TenantModel.findAll({ search: search || null });
+    const { search, inactive } = req.query;
+    // inactive=true → ดูผู้เช่าเก่าที่ถูกลบ, ค่าเริ่มต้น → ผู้เช่าปัจจุบัน
+    const isActive = inactive === 'true' ? false : true;
+    const tenants = await TenantModel.findAll({ search: search || null, isActive });
     return sendSuccess(res, tenants);
   } catch (err) { next(err); }
 };
@@ -128,29 +129,12 @@ const updateMyProfile = async (req, res, next) => {
 
 // DELETE /api/tenants/:id  — admin soft-deactivates user account
 const deleteTenant = async (req, res, next) => {
-  const conn = await pool.getConnection();
   try {
     const tenant = await TenantModel.findById(req.params.id);
     if (!tenant) return sendNotFound(res, 'Tenant not found');
-
-    // ป้องกันลบผู้เช่าที่มีสัญญา active อยู่
-    const [activeContracts] = await conn.query(
-      `SELECT contract_id FROM contracts WHERE tenant_id = ? AND status = 'active' LIMIT 1`,
-      [req.params.id]
-    );
-    if (activeContracts.length > 0) {
-      return sendBadRequest(res, 'Cannot delete tenant with an active contract');
-    }
-
-    // Soft-delete: deactivate user account โดยตรงแทนการเรียก UserModel.deactivateUser
-    await conn.query(
-      'UPDATE users SET is_active = 0 WHERE user_id = ?',
-      [tenant.user_id]
-    );
-
-    return sendSuccess(res, null, 'Tenant account deactivated successfully');
+    await UserModel.deactivateUser(tenant.user_id);
+    return sendSuccess(res, null, 'Tenant account deactivated');
   } catch (err) { next(err); }
-  finally { conn.release(); }
 };
 
 module.exports = {

@@ -23,6 +23,8 @@ const LanguageContext = createContext<LanguageContextType | undefined>(
 // ── Translations ──────────────────────────────────────────────────────────────
 const translations: Record<string, { th: string; en: string }> = {
   // ── Common ─────────────────────────────────────────────────────────────────
+  "common.sending": { th: "กำลังส่ง...", en: "Sending..." },
+  "common.saving": { th: "กำลังบันทึก...", en: "Saving..." },
   "common.home": { th: "หน้าแรก", en: "Home" },
   "common.dashboard": { th: "แดชบอร์ด", en: "Dashboard" },
   "common.settings": { th: "ตั้งค่า", en: "Settings" },
@@ -73,6 +75,90 @@ const translations: Record<string, { th: string; en: string }> = {
   "common.saveSuccess": { th: "บันทึกสำเร็จ", en: "Saved successfully" },
   "common.deleteSuccess": { th: "ลบสำเร็จ", en: "Deleted successfully" },
   "common.confirmDelete": { th: "ยืนยันการลบ?", en: "Confirm delete?" },
+
+  // ── Login ──────────────────────────────────────────────────────────────────
+  "login.subtitle": {
+    th: "ระบบบริหารจัดการหอพัก",
+    en: "Dormitory Management System",
+  },
+  "login.orLoginWith": { th: "หรือเข้าสู่ระบบด้วย", en: "or continue with" },
+  "login.usernamePlaceholder": { th: "กรอก username", en: "Enter username" },
+  "login.rememberMe": { th: "จดจำฉัน", en: "Remember me" },
+  "login.forgotPassword": { th: "ลืมรหัสผ่าน?", en: "Forgot password?" },
+  "login.submit": { th: "เข้าสู่ระบบ", en: "Sign In" },
+  "login.loggingIn": { th: "กำลังเข้าสู่ระบบ...", en: "Signing in..." },
+  "login.noAccount": { th: "ยังไม่มีบัญชี?", en: "Don't have an account?" },
+  "login.register": { th: "สมัครสมาชิก", en: "Register" },
+
+  // ── Forgot Password ────────────────────────────────────────────────────────
+  "forgotPassword.title": { th: "ลืมรหัสผ่าน", en: "Forgot Password" },
+  "forgotPassword.subtitle": {
+    th: "กรอก Username เพื่อรับลิงก์รีเซ็ตรหัสผ่าน",
+    en: "Enter your username to receive a reset link",
+  },
+  "forgotPassword.usernameLabel": {
+    th: "ชื่อผู้ใช้ (Username)",
+    en: "Username",
+  },
+  "forgotPassword.usernamePlaceholder": {
+    th: "กรอก username ของคุณ",
+    en: "Enter your username",
+  },
+  "forgotPassword.submit": {
+    th: "ส่งลิงก์รีเซ็ตรหัสผ่าน",
+    en: "Send Reset Link",
+  },
+  "forgotPassword.backToLogin": {
+    th: "กลับไปหน้าเข้าสู่ระบบ",
+    en: "Back to Login",
+  },
+  "forgotPassword.linkExpiry": {
+    th: "ลิงก์จะหมดอายุใน",
+    en: "Link expires in",
+  },
+  "forgotPassword.minutes": { th: "นาที", en: "minutes" },
+
+  // ── Reset Password ─────────────────────────────────────────────────────────
+  "resetPassword.title": { th: "ตั้งรหัสผ่านใหม่", en: "Reset Password" },
+  "resetPassword.subtitle": {
+    th: "กรอกรหัสผ่านใหม่ที่ต้องการ",
+    en: "Enter your new password",
+  },
+  "resetPassword.newPassword": { th: "รหัสผ่านใหม่", en: "New Password" },
+  "resetPassword.confirmPassword": {
+    th: "ยืนยันรหัสผ่านใหม่",
+    en: "Confirm New Password",
+  },
+  "resetPassword.submit": { th: "ตั้งรหัสผ่านใหม่", en: "Set New Password" },
+  "resetPassword.invalidLink": { th: "ลิงก์ไม่ถูกต้อง", en: "Invalid Link" },
+  "resetPassword.invalidLinkDesc": {
+    th: "ลิงก์รีเซ็ตรหัสผ่านหมดอายุหรือไม่ถูกต้อง",
+    en: "The reset link has expired or is invalid",
+  },
+  "resetPassword.requestNew": { th: "ขอลิงก์ใหม่", en: "Request New Link" },
+  "resetPassword.success": {
+    th: "เปลี่ยนรหัสผ่านสำเร็จ!",
+    en: "Password changed successfully!",
+  },
+  "resetPassword.redirecting": {
+    th: "กำลังพาคุณไปหน้าเข้าสู่ระบบ...",
+    en: "Redirecting to login...",
+  },
+  "resetPassword.loginNow": { th: "เข้าสู่ระบบเลย", en: "Login Now" },
+
+  // ── Password strength ──────────────────────────────────────────────────────
+  "password.strength": { th: "ความแข็งแรง", en: "Strength" },
+  "password.veryWeak": { th: "อ่อนมาก", en: "Very Weak" },
+  "password.weak": { th: "อ่อน", en: "Weak" },
+  "password.medium": { th: "ปานกลาง", en: "Medium" },
+  "password.strong": { th: "แข็งแรง", en: "Strong" },
+  "password.veryStrong": { th: "แข็งแรงมาก", en: "Very Strong" },
+  "password.match": { th: "รหัสผ่านตรงกัน", en: "Passwords match" },
+  "password.noMatch": { th: "รหัสผ่านไม่ตรงกัน", en: "Passwords do not match" },
+  "password.minLength": {
+    th: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร",
+    en: "Password must be at least 6 characters",
+  },
 
   // ── Status ─────────────────────────────────────────────────────────────────
   "status.active": { th: "ใช้งานอยู่", en: "Active" },
@@ -139,6 +225,11 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "ค้นหาหมายเลขห้อง...",
     en: "Search room number...",
   },
+  "rooms.sqm": { th: "ตร.ม.", en: "sqm" },
+  "rooms.cannotDeleteOccupied": {
+    th: "ไม่สามารถลบห้องที่มีผู้เช่า",
+    en: "Cannot delete an occupied room",
+  },
 
   // ── Tenants ────────────────────────────────────────────────────────────────
   "tenants.title": { th: "จัดการผู้เช่า", en: "Tenant Management" },
@@ -180,6 +271,9 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "ไม่สามารถลบผู้เช่าที่มีสัญญาอยู่ได้",
     en: "Cannot delete tenant with active contract",
   },
+  "tenants.viewCurrent": { th: "ดูผู้เช่าปัจจุบัน", en: "Current Tenants" },
+  "tenants.viewHistory": { th: "ประวัติผู้เช่าเก่า", en: "Former Tenants" },
+  "tenants.deleted": { th: "ถูกลบแล้ว", en: "Deleted" },
 
   // ── Contracts ──────────────────────────────────────────────────────────────
   "contracts.title": { th: "สัญญาเช่า", en: "Rental Contracts" },
@@ -290,6 +384,28 @@ const translations: Record<string, { th: string; en: string }> = {
   "bills.searchPlaceholder": {
     th: "ค้นหาหมายเลขห้อง หรือชื่อผู้เช่า...",
     en: "Search room or tenant...",
+  },
+
+  // ── Bill Errors ─────────────────────────────────────────────────────────
+  "bills.error.alreadyExists": {
+    th: "มีบิลเดือนนี้แล้ว",
+    en: "Bill already exists for this month",
+  },
+  "bills.error.noContract": {
+    th: "ห้องนี้ยังไม่มีสัญญาเช่า",
+    en: "No active contract for this room",
+  },
+  "bills.error.noElectricMeter": {
+    th: "กรุณาบันทึกมิเตอร์ไฟก่อนสร้างบิล",
+    en: "Electric meter reading not found",
+  },
+  "bills.error.noWaterMeter": {
+    th: "กรุณาบันทึกมิเตอร์น้ำก่อนสร้างบิล",
+    en: "Water meter reading not found",
+  },
+  "bills.error.meterHint": {
+    th: "กรุณาบันทึกมิเตอร์ก่อนสร้างบิล",
+    en: "Please record meter readings before generating the bill",
   },
 
   // ── Payments (admin shared) ────────────────────────────────────────────────
@@ -410,7 +526,7 @@ const translations: Record<string, { th: string; en: string }> = {
   // ── Maintenance ────────────────────────────────────────────────────────────
   "maintenance.title": { th: "จัดการแจ้งซ่อม", en: "Maintenance Management" },
   "maintenance.subtitle": {
-    th: "รับและจัดการรายการแจ้งซ่อมจากผู้เช่า",
+    th: "รับและจัดการคำขอซ่อมแซมจากผู้เช่า",
     en: "Receive and manage repair requests from tenants",
   },
   "maintenance.allStatuses": { th: "สถานะทั้งหมด", en: "All Statuses" },
@@ -422,12 +538,16 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "มี {n} รายการที่รอดำเนินการ",
     en: "{n} items pending action",
   },
-  "maintenance.listTitle": { th: "รายการแจ้งซ่อม", en: "Maintenance Requests" },
-  "maintenance.list": { th: "รายการแจ้งซ่อม", en: "Maintenance List" },
+  // "maintenance.list": { th: "รายการแจ้งซ่อม", en: "Maintenance List" },
   "maintenance.totalItems": {
     th: "ทั้งหมด {n} รายการ",
     en: "{n} records total",
   },
+  "maintenance.pending": {
+    th: "รายการแจ้งซ่อมที่รอดำเนินการ",
+    en: "Pending Maintenance",
+  },
+
   "maintenance.colReporter": { th: "ผู้แจ้ง", en: "Reporter" },
   "maintenance.colCategory": { th: "หมวดหมู่", en: "Category" },
   "maintenance.colPriority": { th: "ความสำคัญ", en: "Priority" },
@@ -570,6 +690,10 @@ const translations: Record<string, { th: string; en: string }> = {
   "meters.errorWaterOrder": {
     th: "น้ำ: ค่าปัจจุบันต้องมากกว่าก่อนหน้า",
     en: "Water: current must be greater than previous",
+  },
+  "meters.error.alreadyExists": {
+    th: "มีข้อมูลมิเตอร์เดือนนี้แล้ว กรุณาแก้ไขแทน",
+    en: "Meter reading already exists for this month"
   },
   "meters.saveSuccess": {
     th: "บันทึกมิเตอร์เรียบร้อย",
@@ -1241,6 +1365,21 @@ const translations: Record<string, { th: string; en: string }> = {
     en: "Dormitory announcements will appear here",
   },
 
+  // Tenant status (สำหรับ TenantStatusBadge)
+  "tenant.status.active": { th: "กำลังเช่า", en: "Active" },
+  "tenant.status.pending": { th: "รอเข้าพัก", en: "Pending" },
+  "tenant.status.moved_out": { th: "ย้ายออกแล้ว", en: "Moved Out" },
+
+  // Priority urgent (ที่ขาด)
+  "priority.urgent": { th: "เร่งด่วน", en: "Urgent" },
+
+  // Status partial (ที่ขาด)
+  "status.partial": { th: "ชำระบางส่วน", en: "Partial" },
+  "status.reserved": { th: "จอง", en: "Reserved" },
+
+  // Stats card
+  "common.fromLastMonth": { th: "จากเดือนที่แล้ว", en: "from last month" },
+
   // ── Months ─────────────────────────────────────────────────────────────────
   "month.1": { th: "มกราคม", en: "January" },
   "month.2": { th: "กุมภาพันธ์", en: "February" },
@@ -1255,6 +1394,8 @@ const translations: Record<string, { th: string; en: string }> = {
   "month.11": { th: "พฤศจิกายน", en: "November" },
   "month.12": { th: "ธันวาคม", en: "December" },
 };
+
+
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 

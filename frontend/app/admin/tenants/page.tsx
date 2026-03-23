@@ -106,18 +106,22 @@ export default function TenantsPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [formData, setFormData] = useState<FormData>(emptyForm);
+  const [showInactive, setShowInactive] = useState(false);
 
   const fetchTenants = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await tenantAPI.getAll({ search: searchQuery || undefined });
+      const res = await tenantAPI.getAll({
+        search: searchQuery || undefined,
+        inactive: showInactive ? "true" : undefined,
+      });
       setTenants(res.data ?? []);
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? t("common.error"));
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, t]);
+  }, [searchQuery, showInactive, t]);
 
   useEffect(() => {
     const timer = setTimeout(fetchTenants, 300);
@@ -206,7 +210,8 @@ export default function TenantsPage() {
     setIsAddDialogOpen(false);
   };
 
-  const set = (field: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set =
+    (field: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement>) =>
       setFormData((prev) => ({ ...prev, [field]: e.target.value }));
 
   return (
@@ -217,141 +222,182 @@ export default function TenantsPage() {
           <p className="text-muted-foreground">{t("tenants.subtitle")}</p>
         </div>
 
-        <Dialog
-          open={isAddDialogOpen}
-          onOpenChange={(open) => {
-            if (!open) resetForm();
-            setIsAddDialogOpen(open);
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              {t("tenants.add")}
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={showInactive ? "default" : "outline"}
+            onClick={() => {
+              setShowInactive(!showInactive);
+              setStatusFilter("all");
+            }}
+          >
+            {showInactive ? t("tenants.viewCurrent") : t("tenants.viewHistory")}
+          </Button>
 
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>
-                {editingTenant ? t("tenants.edit") : t("tenants.addNew")}
-              </DialogTitle>
-              <DialogDescription>
-                {editingTenant ? t("tenants.editDesc") : t("tenants.addDesc")}
-              </DialogDescription>
-            </DialogHeader>
+          {!showInactive && (
+            <Dialog
+              open={isAddDialogOpen}
+              onOpenChange={(open) => {
+                if (!open) resetForm();
+                setIsAddDialogOpen(open);
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("tenants.add")}
+                </Button>
+              </DialogTrigger>
 
-            <form onSubmit={handleSubmit}>
-              <FieldGroup>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field>
-                    <FieldLabel htmlFor="first_name">{t("common.firstName")}</FieldLabel>
-                    <Input
-                      id="first_name"
-                      value={formData.first_name}
-                      onChange={set("first_name")}
-                      required
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="last_name">{t("common.lastName")}</FieldLabel>
-                    <Input
-                      id="last_name"
-                      value={formData.last_name}
-                      onChange={set("last_name")}
-                      required
-                    />
-                  </Field>
-                </div>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingTenant ? t("tenants.edit") : t("tenants.addNew")}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {editingTenant
+                      ? t("tenants.editDesc")
+                      : t("tenants.addDesc")}
+                  </DialogDescription>
+                </DialogHeader>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <Field>
-                    <FieldLabel htmlFor="email">{t("common.email")}</FieldLabel>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={set("email")}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="phone">{t("common.phone")}</FieldLabel>
-                    <Input
-                      id="phone"
-                      value={formData.phone}
-                      onChange={set("phone")}
-                      required
-                    />
-                  </Field>
-                </div>
+                <form onSubmit={handleSubmit}>
+                  <FieldGroup>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field>
+                        <FieldLabel htmlFor="first_name">
+                          {t("common.firstName")}
+                        </FieldLabel>
+                        <Input
+                          id="first_name"
+                          value={formData.first_name}
+                          onChange={set("first_name")}
+                          required
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="last_name">
+                          {t("common.lastName")}
+                        </FieldLabel>
+                        <Input
+                          id="last_name"
+                          value={formData.last_name}
+                          onChange={set("last_name")}
+                          required
+                        />
+                      </Field>
+                    </div>
 
-                <Field>
-                  <FieldLabel htmlFor="id_card_number">{t("tenants.idCard")}</FieldLabel>
-                  <Input
-                    id="id_card_number"
-                    value={formData.id_card_number}
-                    onChange={set("id_card_number")}
-                    required
-                    disabled={!!editingTenant}
-                  />
-                </Field>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field>
+                        <FieldLabel htmlFor="email">
+                          {t("common.email")}
+                        </FieldLabel>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={formData.email}
+                          onChange={set("email")}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="phone">
+                          {t("common.phone")}
+                        </FieldLabel>
+                        <Input
+                          id="phone"
+                          value={formData.phone}
+                          onChange={set("phone")}
+                          required
+                        />
+                      </Field>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <Field>
-                    <FieldLabel htmlFor="emergency_contact_name">{t("tenants.emergencyName")}</FieldLabel>
-                    <Input
-                      id="emergency_contact_name"
-                      value={formData.emergency_contact_name}
-                      onChange={set("emergency_contact_name")}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="emergency_contact_phone">{t("tenants.emergencyPhone")}</FieldLabel>
-                    <Input
-                      id="emergency_contact_phone"
-                      value={formData.emergency_contact_phone}
-                      onChange={set("emergency_contact_phone")}
-                    />
-                  </Field>
-                </div>
-
-                {!editingTenant && (
-                  <div className="grid grid-cols-2 gap-4">
                     <Field>
-                      <FieldLabel htmlFor="username">{t("common.username")}</FieldLabel>
+                      <FieldLabel htmlFor="id_card_number">
+                        {t("tenants.idCard")}
+                      </FieldLabel>
                       <Input
-                        id="username"
-                        value={formData.username}
-                        onChange={set("username")}
+                        id="id_card_number"
+                        value={formData.id_card_number}
+                        onChange={set("id_card_number")}
                         required
+                        disabled={!!editingTenant}
                       />
                     </Field>
-                    <Field>
-                      <FieldLabel htmlFor="password">{t("common.password")}</FieldLabel>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={formData.password}
-                        onChange={set("password")}
-                        required
-                      />
-                    </Field>
-                  </div>
-                )}
-              </FieldGroup>
 
-              <DialogFooter className="mt-6">
-                <Button type="button" variant="outline" onClick={resetForm} disabled={submitting}>
-                  {t("common.cancel")}
-                </Button>
-                <Button type="submit" disabled={submitting}>
-                  {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {editingTenant ? t("common.save") : t("tenants.add")}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field>
+                        <FieldLabel htmlFor="emergency_contact_name">
+                          {t("tenants.emergencyName")}
+                        </FieldLabel>
+                        <Input
+                          id="emergency_contact_name"
+                          value={formData.emergency_contact_name}
+                          onChange={set("emergency_contact_name")}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="emergency_contact_phone">
+                          {t("tenants.emergencyPhone")}
+                        </FieldLabel>
+                        <Input
+                          id="emergency_contact_phone"
+                          value={formData.emergency_contact_phone}
+                          onChange={set("emergency_contact_phone")}
+                        />
+                      </Field>
+                    </div>
+
+                    {!editingTenant && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field>
+                          <FieldLabel htmlFor="username">
+                            {t("common.username")}
+                          </FieldLabel>
+                          <Input
+                            id="username"
+                            value={formData.username}
+                            onChange={set("username")}
+                            required
+                          />
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor="password">
+                            {t("common.password")}
+                          </FieldLabel>
+                          <Input
+                            id="password"
+                            type="password"
+                            value={formData.password}
+                            onChange={set("password")}
+                            required
+                          />
+                        </Field>
+                      </div>
+                    )}
+                  </FieldGroup>
+
+                  <DialogFooter className="mt-6">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={resetForm}
+                      disabled={submitting}
+                    >
+                      {t("common.cancel")}
+                    </Button>
+                    <Button type="submit" disabled={submitting}>
+                      {submitting && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      {editingTenant ? t("common.save") : t("tenants.add")}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       </div>
 
       <Card>
@@ -372,8 +418,12 @@ export default function TenantsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t("common.allStatus")}</SelectItem>
-                <SelectItem value="active">{t("tenants.hasContract")}</SelectItem>
-                <SelectItem value="no_contract">{t("tenants.noContract")}</SelectItem>
+                <SelectItem value="active">
+                  {t("tenants.hasContract")}
+                </SelectItem>
+                <SelectItem value="no_contract">
+                  {t("tenants.noContract")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -386,7 +436,9 @@ export default function TenantsPage() {
             <Users className="h-5 w-5" />
             {t("tenants.list")}
           </CardTitle>
-          <CardDescription>{t("common.total")} {filteredTenants.length}</CardDescription>
+          <CardDescription>
+            {t("common.total")} {filteredTenants.length}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -403,7 +455,9 @@ export default function TenantsPage() {
                   <TableHead>{t("rooms.roomNumber")}</TableHead>
                   <TableHead>{t("tenants.contractStatus")}</TableHead>
                   <TableHead>{t("common.createdAt")}</TableHead>
-                  <TableHead className="text-right">{t("common.actions")}</TableHead>
+                  <TableHead className="text-right">
+                    {t("common.actions")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -435,37 +489,58 @@ export default function TenantsPage() {
                     </TableCell>
                     <TableCell>
                       {tenant.room_number ? (
-                        <span className="font-medium">{tenant.room_number}</span>
+                        <span className="font-medium">
+                          {tenant.room_number}
+                        </span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      <TenantStatusBadge
-                        status={tenant.contract_status === "active" ? "active" : "pending"}
-                      />
+                      {showInactive ? (
+                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                          {t("tenants.deleted")}
+                        </span>
+                      ) : (
+                        <TenantStatusBadge
+                          status={
+                            tenant.contract_status === "active"
+                              ? "active"
+                              : "pending"
+                          }
+                        />
+                      )}
                     </TableCell>
                     <TableCell>{formatDate(tenant.created_at)}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(tenant)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(tenant)}
-                          disabled={tenant.contract_status === "active"}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      {!showInactive && (
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(tenant)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(tenant)}
+                            disabled={tenant.contract_status === "active"}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
                 {filteredTenants.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell
+                      colSpan={6}
+                      className="text-center py-8 text-muted-foreground"
+                    >
                       {t("common.noData")}
                     </TableCell>
                   </TableRow>

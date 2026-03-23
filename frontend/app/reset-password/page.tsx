@@ -8,6 +8,7 @@ import Link from "next/link";
 import { authAPI } from "@/lib/api/auth.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useLanguage } from "@/context/language-context";
 import {
   Card,
   CardContent,
@@ -29,6 +30,7 @@ import {
 type Status = "idle" | "loading" | "success" | "error";
 
 function ResetPasswordForm() {
+  const { t } = useLanguage(); // ← เพิ่มตรงนี้
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get("token");
@@ -40,7 +42,6 @@ function ResetPasswordForm() {
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
 
-  /* ── Password strength indicator ── */
   const getStrength = (pw: string) => {
     if (!pw) return 0;
     let score = 0;
@@ -55,12 +56,13 @@ function ResetPasswordForm() {
   const strength = getStrength(newPassword);
   const strengthLabel = [
     "",
-    "อ่อนมาก",
-    "อ่อน",
-    "ปานกลาง",
-    "แข็งแรง",
-    "แข็งแรงมาก",
+    t("password.veryWeak"),
+    t("password.weak"),
+    t("password.medium"),
+    t("password.strong"),
+    t("password.veryStrong"),
   ][strength];
+
   const strengthColor = [
     "",
     "bg-red-500",
@@ -70,19 +72,18 @@ function ResetPasswordForm() {
     "bg-green-500",
   ][strength];
 
-  /* ── No token in URL ── */
   if (!token) {
     return (
       <div className="flex flex-col items-center gap-3 py-4 text-center">
         <div className="p-3 rounded-full bg-destructive/10">
           <XCircle className="h-8 w-8 text-destructive" />
         </div>
-        <p className="font-medium">ลิงก์ไม่ถูกต้อง</p>
+        <p className="font-medium">{t("resetPassword.invalidLink")}</p>
         <p className="text-sm text-muted-foreground">
-          ลิงก์รีเซ็ตรหัสผ่านหมดอายุหรือไม่ถูกต้อง
+          {t("resetPassword.invalidLinkDesc")}
         </p>
         <Button asChild className="mt-2 w-full">
-          <Link href="/forgot-password">ขอลิงก์ใหม่</Link>
+          <Link href="/forgot-password">{t("resetPassword.requestNew")}</Link>
         </Button>
       </div>
     );
@@ -93,13 +94,13 @@ function ResetPasswordForm() {
 
     if (newPassword !== confirmPassword) {
       setStatus("error");
-      setMessage("รหัสผ่านทั้งสองช่องไม่ตรงกัน");
+      setMessage(t("password.noMatch"));
       return;
     }
 
     if (newPassword.length < 6) {
       setStatus("error");
-      setMessage("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+      setMessage(t("password.minLength"));
       return;
     }
 
@@ -109,16 +110,14 @@ function ResetPasswordForm() {
     try {
       const res = await authAPI.resetPassword(token, newPassword);
       setStatus("success");
-      setMessage(res.message || "เปลี่ยนรหัสผ่านสำเร็จ");
+      setMessage(res.message || t("resetPassword.success"));
 
       setTimeout(() => {
         router.push("/login");
       }, 2500);
     } catch (err: any) {
       setStatus("error");
-      setMessage(
-        err.response?.data?.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
-      );
+      setMessage(err.response?.data?.message || t("common.error"));
     }
   };
 
@@ -129,13 +128,13 @@ function ResetPasswordForm() {
           <div className="p-3 rounded-full bg-green-100 dark:bg-green-900/30">
             <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
           </div>
-          <p className="font-medium">เปลี่ยนรหัสผ่านสำเร็จ!</p>
+          <p className="font-medium">{t("resetPassword.success")}</p>
           <p className="text-sm text-muted-foreground">
-            กำลังพาคุณไปหน้าเข้าสู่ระบบ...
+            {t("resetPassword.redirecting")}
           </p>
         </div>
         <Button asChild className="w-full">
-          <Link href="/login">เข้าสู่ระบบเลย</Link>
+          <Link href="/login">{t("resetPassword.loginNow")}</Link>
         </Button>
       </div>
     );
@@ -144,9 +143,10 @@ function ResetPasswordForm() {
   return (
     <form onSubmit={handleSubmit}>
       <FieldGroup>
-        {/* New password */}
         <Field>
-          <FieldLabel htmlFor="new-password">รหัสผ่านใหม่</FieldLabel>
+          <FieldLabel htmlFor="new-password">
+            {t("resetPassword.newPassword")}
+          </FieldLabel>
           <div className="relative">
             <Input
               id="new-password"
@@ -176,7 +176,6 @@ function ResetPasswordForm() {
             </button>
           </div>
 
-          {/* Strength bar */}
           {newPassword && (
             <div className="mt-2 space-y-1">
               <div className="flex gap-1">
@@ -190,7 +189,7 @@ function ResetPasswordForm() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                ความแข็งแรง:{" "}
+                {t("password.strength")}:{" "}
                 <span className="font-medium text-foreground">
                   {strengthLabel}
                 </span>
@@ -199,9 +198,10 @@ function ResetPasswordForm() {
           )}
         </Field>
 
-        {/* Confirm password */}
         <Field>
-          <FieldLabel htmlFor="confirm-password">ยืนยันรหัสผ่านใหม่</FieldLabel>
+          <FieldLabel htmlFor="confirm-password">
+            {t("resetPassword.confirmPassword")}
+          </FieldLabel>
           <div className="relative">
             <Input
               id="confirm-password"
@@ -230,7 +230,6 @@ function ResetPasswordForm() {
             </button>
           </div>
 
-          {/* Match indicator */}
           {confirmPassword && (
             <p
               className={`text-xs mt-1 ${
@@ -240,8 +239,8 @@ function ResetPasswordForm() {
               }`}
             >
               {newPassword === confirmPassword
-                ? "✓ รหัสผ่านตรงกัน"
-                : "✗ รหัสผ่านไม่ตรงกัน"}
+                ? `✓ ${t("password.match")}`
+                : `✗ ${t("password.noMatch")}`}
             </p>
           )}
         </Field>
@@ -266,10 +265,10 @@ function ResetPasswordForm() {
           {status === "loading" ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              กำลังบันทึก...
+              {t("common.saving")}
             </>
           ) : (
-            "ตั้งรหัสผ่านใหม่"
+            t("resetPassword.submit")
           )}
         </Button>
       </FieldGroup>
@@ -278,6 +277,8 @@ function ResetPasswordForm() {
 }
 
 export default function ResetPasswordPage() {
+  const { t } = useLanguage(); // ← เพิ่มตรงนี้
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -287,8 +288,8 @@ export default function ResetPasswordPage() {
               <Building2 className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl">ตั้งรหัสผ่านใหม่</CardTitle>
-          <CardDescription>กรอกรหัสผ่านใหม่ที่ต้องการ</CardDescription>
+          <CardTitle className="text-2xl">{t("resetPassword.title")}</CardTitle>
+          <CardDescription>{t("resetPassword.subtitle")}</CardDescription>
         </CardHeader>
 
         <CardContent>

@@ -5,7 +5,7 @@
 
 const { pool } = require('../config/db');
 
-const findAll = async ({ search = null } = {}) => {
+const findAll = async ({ search = null, isActive = true } = {}) => {
   let sql = `
     SELECT
       t.*,
@@ -17,8 +17,11 @@ const findAll = async ({ search = null } = {}) => {
     LEFT JOIN contracts c ON c.tenant_id = t.tenant_id AND c.status = 'active'
     LEFT JOIN rooms r ON r.room_id = c.room_id`;
   const params = [];
+  // กรองตาม is_active: true = ผู้เช่าปัจจุบัน, false = ผู้เช่าเก่า (ถูกลบ)
+  sql += ` WHERE u.is_active = ?`;
+  params.push(isActive ? 1 : 0);
   if (search) {
-    sql += ` WHERE t.first_name LIKE ? OR t.last_name LIKE ? OR t.phone LIKE ? OR t.id_card_number LIKE ?`;
+    sql += ` AND (t.first_name LIKE ? OR t.last_name LIKE ? OR t.phone LIKE ? OR t.id_card_number LIKE ?)`;
     const s = `%${search}%`;
     params.push(s, s, s, s);
   }
@@ -26,7 +29,6 @@ const findAll = async ({ search = null } = {}) => {
   const [rows] = await pool.query(sql, params);
   return rows;
 };
-
 const findById = async (tenantId) => {
   const [rows] = await pool.query(
     `SELECT t.*, u.username, u.telegram_chat_id, u.is_active

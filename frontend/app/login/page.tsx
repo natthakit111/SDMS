@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
+import { useLanguage } from "@/context/language-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,7 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
-import { Building2, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Building2, Eye, EyeOff, Loader2, Globe } from "lucide-react";
 
 /* ── OAuth brand icons (inline SVG) ── */
 const GoogleIcon = () => (
@@ -59,6 +60,9 @@ const BACKEND_URL =
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
+  const { t } = useLanguage();
+  const { language, setLanguage } = useLanguage();
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -79,7 +83,7 @@ export default function LoginPage() {
     if (result.success && result.user) {
       router.push(result.user.role === "admin" ? "/admin" : "/tenant");
     } else {
-      setError(result.error || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+      setError(result.error || t("common.error")); // ← แก้ตรงนี้
       setPassword("");
     }
 
@@ -100,7 +104,33 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md relative">
+        {/* Language Switcher */}
+        <div className="absolute top-3 right-3">
+          <div className="flex items-center rounded-full border bg-muted p-0.5">
+            <button
+              onClick={() => setLanguage("th")}
+              className={`px-2 py-1 text-xs rounded-full transition ${
+                language === "th"
+                  ? "bg-primary text-white"
+                  : "text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              TH
+            </button>
+            <button
+              onClick={() => setLanguage("en")}
+              className={`px-2 py-1 text-xs rounded-full transition ${
+                language === "en"
+                  ? "bg-primary text-white"
+                  : "text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              EN
+            </button>
+          </div>
+        </div>
+
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 rounded-full bg-primary/10">
@@ -108,11 +138,10 @@ export default function LoginPage() {
             </div>
           </div>
           <CardTitle className="text-2xl">DormFlow</CardTitle>
-          <CardDescription>ระบบบริหารจัดการหอพัก</CardDescription>
+          <CardDescription>{t("login.subtitle")}</CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* OAuth buttons */}
           <div className="grid grid-cols-2 gap-3">
             <Button
               type="button"
@@ -145,27 +174,27 @@ export default function LoginPage() {
             </Button>
           </div>
 
-          {/* Divider */}
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-card px-2 text-muted-foreground">
-                หรือเข้าสู่ระบบด้วย
+                {t("login.orLoginWith")}
               </span>
             </div>
           </div>
 
-          {/* Username / Password form */}
           <form onSubmit={handleSubmit}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="username">ชื่อผู้ใช้</FieldLabel>
+                <FieldLabel htmlFor="username">
+                  {t("common.username")}
+                </FieldLabel>
                 <Input
                   id="username"
                   type="text"
-                  placeholder="กรอก username"
+                  placeholder={t("login.usernamePlaceholder")}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
@@ -174,7 +203,9 @@ export default function LoginPage() {
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="password">รหัสผ่าน</FieldLabel>
+                <FieldLabel htmlFor="password">
+                  {t("common.password")}
+                </FieldLabel>
                 <div className="relative">
                   <Input
                     id="password"
@@ -209,13 +240,13 @@ export default function LoginPage() {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     disabled={isAnyLoading}
                   />
-                  จดจำฉัน
+                  {t("login.rememberMe")}
                 </label>
                 <Link
                   href="/forgot-password"
                   className="text-sm text-primary hover:underline"
                 >
-                  ลืมรหัสผ่าน?
+                  {t("login.forgotPassword")}
                 </Link>
               </div>
 
@@ -229,19 +260,19 @@ export default function LoginPage() {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    กำลังเข้าสู่ระบบ...
+                    {t("login.loggingIn")}
                   </>
                 ) : (
-                  "เข้าสู่ระบบ"
+                  t("login.submit")
                 )}
               </Button>
             </FieldGroup>
           </form>
 
           <p className="text-center text-sm text-muted-foreground">
-            ยังไม่มีบัญชี?{" "}
+            {t("login.noAccount")}{" "}
             <Link href="/register" className="text-primary hover:underline">
-              สมัครสมาชิก
+              {t("login.register")}
             </Link>
           </p>
         </CardContent>

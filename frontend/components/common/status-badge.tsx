@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/context/language-context";
 
 type StatusVariant =
   | "success"
@@ -17,107 +18,149 @@ interface StatusBadgeProps {
 
 // Room status
 export function RoomStatusBadge({ status }: { status: string }) {
-  const config: Record<string, { label: string; variant: StatusVariant }> = {
-    available: { label: "ว่าง", variant: "success" },
-    occupied: { label: "มีผู้เช่า", variant: "default" },
-    maintenance: { label: "ซ่อมบำรุง", variant: "warning" },
-    reserved: { label: "จอง", variant: "secondary" },
+  const { t } = useLanguage();
+  const config: Record<string, { labelKey: string; variant: StatusVariant }> = {
+    available: { labelKey: "status.available", variant: "success" },
+    occupied: { labelKey: "status.occupied", variant: "default" },
+    maintenance: { labelKey: "status.maintenance", variant: "warning" },
+    reserved: { labelKey: "status.reserved", variant: "secondary" },
   };
-  const { label, variant } = config[status] || {
-    label: status,
-    variant: "default",
+  const { labelKey, variant } = config[status] || {
+    labelKey: status,
+    variant: "default" as StatusVariant,
   };
-  return <StatusBadge status={label} variant={variant} />;
+  return (
+    <StatusBadge
+      status={t(labelKey) === labelKey ? status : t(labelKey)}
+      variant={variant}
+    />
+  );
 }
 
 // Bill status
 export function BillStatusBadge({ status }: { status: string }) {
-  const config: Record<string, { label: string; variant: StatusVariant }> = {
-    pending: { label: "รอชำระ", variant: "warning" },
-    paid: { label: "ชำระแล้ว", variant: "success" },
-    overdue: { label: "เกินกำหนด", variant: "destructive" },
-    partial: { label: "ชำระบางส่วน", variant: "secondary" },
-    cancelled: { label: "ยกเลิก", variant: "secondary" },
+  const { t } = useLanguage();
+  const config: Record<string, { labelKey: string; variant: StatusVariant }> = {
+    pending: { labelKey: "status.pending", variant: "warning" },
+    paid: { labelKey: "status.paid", variant: "success" },
+    overdue: { labelKey: "status.overdue", variant: "destructive" },
+    partial: { labelKey: "status.partial", variant: "secondary" },
+    cancelled: { labelKey: "status.cancelled", variant: "secondary" },
   };
-  const { label, variant } = config[status] || {
-    label: status,
-    variant: "default",
+  const { labelKey, variant } = config[status] || {
+    labelKey: status,
+    variant: "default" as StatusVariant,
   };
-  return <StatusBadge status={label} variant={variant} />;
+  return (
+    <StatusBadge
+      status={t(labelKey) === labelKey ? status : t(labelKey)}
+      variant={variant}
+    />
+  );
 }
 
-// Payment status — รองรับ pending_verify (backend จริง) และ pending (mock เดิม)
+// Payment status
 export function PaymentStatusBadge({ status }: { status: string }) {
-  const config: Record<string, { label: string; variant: StatusVariant }> = {
-    pending_verify: { label: "รอตรวจสอบ", variant: "warning" },
-    pending: { label: "รอตรวจสอบ", variant: "warning" },
-    verified: { label: "ตรวจสอบแล้ว", variant: "success" },
-    rejected: { label: "ปฏิเสธ", variant: "destructive" },
+  const { t } = useLanguage();
+  const config: Record<string, { labelKey: string; variant: StatusVariant }> = {
+    pending_verify: { labelKey: "status.pending_verify", variant: "warning" },
+    pending: { labelKey: "status.pending_verify", variant: "warning" },
+    verified: { labelKey: "status.verified", variant: "success" },
+    rejected: { labelKey: "status.rejected", variant: "destructive" },
   };
-  const { label, variant } = config[status] || {
-    label: status,
-    variant: "default",
+  const { labelKey, variant } = config[status] || {
+    labelKey: status,
+    variant: "default" as StatusVariant,
   };
-  return <StatusBadge status={label} variant={variant} />;
+  return (
+    <StatusBadge
+      status={t(labelKey) === labelKey ? status : t(labelKey)}
+      variant={variant}
+    />
+  );
 }
 
-// Maintenance status — รองรับ resolved (backend จริง) และ completed (mock เดิม)
+// Maintenance status
 export function MaintenanceStatusBadge({ status }: { status: string }) {
-  const config: Record<string, { label: string; variant: StatusVariant }> = {
-    pending: { label: "รอดำเนินการ", variant: "warning" },
-    in_progress: { label: "กำลังดำเนินการ", variant: "default" },
-    resolved: { label: "เสร็จสิ้น", variant: "success" },
-    completed: { label: "เสร็จสิ้น", variant: "success" },
-    cancelled: { label: "ยกเลิก", variant: "destructive" },
+  const { t } = useLanguage();
+  const config: Record<string, { labelKey: string; variant: StatusVariant }> = {
+    pending: { labelKey: "status.pending", variant: "warning" },
+    in_progress: { labelKey: "status.in_progress", variant: "default" },
+    resolved: { labelKey: "status.resolved", variant: "success" },
+    completed: { labelKey: "status.resolved", variant: "success" },
+    cancelled: { labelKey: "status.cancelled", variant: "destructive" },
   };
-  const { label, variant } = config[status] || {
-    label: status,
-    variant: "default",
+  const { labelKey, variant } = config[status] || {
+    labelKey: status,
+    variant: "default" as StatusVariant,
   };
-  return <StatusBadge status={label} variant={variant} />;
+  return (
+    <StatusBadge
+      status={t(labelKey) === labelKey ? status : t(labelKey)}
+      variant={variant}
+    />
+  );
 }
 
 // Priority badge
 export function PriorityBadge({ priority }: { priority: string }) {
-  const config: Record<string, { label: string; variant: StatusVariant }> = {
-    low: { label: "ต่ำ", variant: "secondary" },
-    medium: { label: "ปานกลาง", variant: "default" },
-    high: { label: "สูง", variant: "warning" },
-    urgent: { label: "เร่งด่วน", variant: "destructive" },
+  const { t } = useLanguage();
+  const config: Record<string, { labelKey: string; variant: StatusVariant }> = {
+    low: { labelKey: "priority.low", variant: "secondary" },
+    medium: { labelKey: "priority.medium", variant: "default" },
+    high: { labelKey: "priority.high", variant: "warning" },
+    urgent: { labelKey: "priority.urgent", variant: "destructive" },
   };
-  const { label, variant } = config[priority] || {
-    label: priority,
-    variant: "default",
+  const { labelKey, variant } = config[priority] || {
+    labelKey: priority,
+    variant: "default" as StatusVariant,
   };
-  return <StatusBadge status={label} variant={variant} />;
+  return (
+    <StatusBadge
+      status={t(labelKey) === labelKey ? priority : t(labelKey)}
+      variant={variant}
+    />
+  );
 }
 
 // Contract status
 export function ContractStatusBadge({ status }: { status: string }) {
-  const config: Record<string, { label: string; variant: StatusVariant }> = {
-    active: { label: "ใช้งาน", variant: "success" },
-    expired: { label: "หมดอายุ", variant: "destructive" },
-    terminated: { label: "ยกเลิก", variant: "secondary" },
+  const { t } = useLanguage();
+  const config: Record<string, { labelKey: string; variant: StatusVariant }> = {
+    active: { labelKey: "status.active", variant: "success" },
+    expired: { labelKey: "status.expired", variant: "destructive" },
+    terminated: { labelKey: "status.terminated", variant: "secondary" },
   };
-  const { label, variant } = config[status] || {
-    label: status,
-    variant: "default",
+  const { labelKey, variant } = config[status] || {
+    labelKey: status,
+    variant: "default" as StatusVariant,
   };
-  return <StatusBadge status={label} variant={variant} />;
+  return (
+    <StatusBadge
+      status={t(labelKey) === labelKey ? status : t(labelKey)}
+      variant={variant}
+    />
+  );
 }
 
 // Tenant status
 export function TenantStatusBadge({ status }: { status: string }) {
-  const config: Record<string, { label: string; variant: StatusVariant }> = {
-    active: { label: "กำลังเช่า", variant: "success" },
-    pending: { label: "รอเข้าพัก", variant: "warning" },
-    moved_out: { label: "ย้ายออก", variant: "secondary" },
+  const { t } = useLanguage();
+  const config: Record<string, { labelKey: string; variant: StatusVariant }> = {
+    active: { labelKey: "tenant.status.active", variant: "success" },
+    pending: { labelKey: "tenant.status.pending", variant: "warning" },
+    moved_out: { labelKey: "tenant.status.moved_out", variant: "secondary" },
   };
-  const { label, variant } = config[status] || {
-    label: status,
-    variant: "default",
+  const { labelKey, variant } = config[status] || {
+    labelKey: status,
+    variant: "default" as StatusVariant,
   };
-  return <StatusBadge status={label} variant={variant} />;
+  return (
+    <StatusBadge
+      status={t(labelKey) === labelKey ? status : t(labelKey)}
+      variant={variant}
+    />
+  );
 }
 
 // Base status badge component

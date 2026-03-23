@@ -7,6 +7,7 @@ import Link from "next/link";
 import { authAPI } from "@/lib/api/auth.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useLanguage } from "@/context/language-context";
 import {
   Card,
   CardContent,
@@ -26,6 +27,8 @@ import {
 type Status = "idle" | "loading" | "success" | "error";
 
 export default function ForgotPasswordPage() {
+  const { t } = useLanguage(); // ← ต้องอยู่ใน component
+
   const [username, setUsername] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
@@ -40,12 +43,10 @@ export default function ForgotPasswordPage() {
     try {
       const res = await authAPI.forgotPassword(username.trim());
       setStatus("success");
-      setMessage(res.message || "ส่งลิงก์รีเซ็ตรหัสผ่านเรียบร้อยแล้ว");
+      setMessage(res.message || t("common.success"));
     } catch (err: any) {
       setStatus("error");
-      setMessage(
-        err.response?.data?.message || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
-      );
+      setMessage(err.response?.data?.message || t("common.error"));
     }
   };
 
@@ -58,15 +59,14 @@ export default function ForgotPasswordPage() {
               <Building2 className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl">ลืมรหัสผ่าน</CardTitle>
-          <CardDescription>
-            กรอก Username เพื่อรับลิงก์รีเซ็ตรหัสผ่าน
-          </CardDescription>
+          <CardTitle className="text-2xl">
+            {t("forgotPassword.title")}
+          </CardTitle>
+          <CardDescription>{t("forgotPassword.subtitle")}</CardDescription>
         </CardHeader>
 
         <CardContent>
           {status === "success" ? (
-            /* ── Success state ── */
             <div className="space-y-4">
               <div className="flex flex-col items-center gap-3 py-4 text-center">
                 <div className="p-3 rounded-full bg-green-100 dark:bg-green-900/30">
@@ -76,29 +76,30 @@ export default function ForgotPasswordPage() {
                   {message}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  ลิงก์จะหมดอายุใน{" "}
-                  <span className="font-medium text-foreground">15 นาที</span>
+                  {t("forgotPassword.linkExpiry")}{" "}
+                  <span className="font-medium text-foreground">
+                    15 {t("forgotPassword.minutes")}
+                  </span>
                 </p>
               </div>
               <Button asChild className="w-full" variant="outline">
                 <Link href="/login">
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  กลับไปหน้าเข้าสู่ระบบ
+                  {t("forgotPassword.backToLogin")}
                 </Link>
               </Button>
             </div>
           ) : (
-            /* ── Form state ── */
             <form onSubmit={handleSubmit}>
               <FieldGroup>
                 <Field>
                   <FieldLabel htmlFor="username">
-                    ชื่อผู้ใช้ (Username)
+                    {t("forgotPassword.usernameLabel")}
                   </FieldLabel>
                   <Input
                     id="username"
                     type="text"
-                    placeholder="กรอก username ของคุณ"
+                    placeholder={t("forgotPassword.usernamePlaceholder")}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     required
@@ -122,10 +123,10 @@ export default function ForgotPasswordPage() {
                   {status === "loading" ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      กำลังส่ง...
+                      {t("common.sending")}
                     </>
                   ) : (
-                    "ส่งลิงก์รีเซ็ตรหัสผ่าน"
+                    t("forgotPassword.submit")
                   )}
                 </Button>
               </FieldGroup>
@@ -139,7 +140,7 @@ export default function ForgotPasswordPage() {
                 className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ArrowLeft className="h-3 w-3" />
-                กลับไปหน้าเข้าสู่ระบบ
+                {t("forgotPassword.backToLogin")}
               </Link>
             </div>
           )}

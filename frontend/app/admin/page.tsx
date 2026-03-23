@@ -215,7 +215,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-warning-foreground">
-                      {t("maintenance.pending")}
+                      {t("status.pending")}
                     </h3>
                     <p className="text-sm text-muted-foreground">
                       {pendingMaintenance.length} {t("maintenance.list")}

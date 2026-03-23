@@ -166,7 +166,7 @@ export default function RoomsPage() {
 
   const handleDelete = async (room: Room) => {
     if (room.status === "occupied") {
-      toast.error("ไม่สามารถลบห้องที่มีผู้เช่า");
+      toast.error(t("rooms.cannotDeleteOccupied"));
       return;
     }
     if (!confirm(`${t("common.delete")} ${room.room_number}?`)) return;
@@ -426,7 +426,9 @@ export default function RoomsPage() {
                     <TableCell>{room.floor}</TableCell>
                     <TableCell>{room.room_type}</TableCell>
                     <TableCell>
-                      {room.area_sqm ? `${room.area_sqm} ตร.ม.` : "-"}
+                      {room.area_sqm
+                        ? `${room.area_sqm} ${t("rooms.sqm")}`
+                        : "-"}
                     </TableCell>
                     <TableCell>{formatCurrency(room.base_rent)}</TableCell>
                     <TableCell>

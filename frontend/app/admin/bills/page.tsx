@@ -242,9 +242,7 @@ export default function BillsPage() {
       const errorMsg = errorCode
         ? t(errorCode)
         : (data?.message ?? t("common.error"));
-      const isMeterError =
-        errorCode === "bills.error.noElectricMeter" ||
-        errorCode === "bills.error.noWaterMeter";
+      const isMeterError = errorCode === "bills.error.noWaterMeter";
       toast.error(errorMsg, {
         description: isMeterError ? t("bills.error.meterHint") : undefined,
         duration: 6000,

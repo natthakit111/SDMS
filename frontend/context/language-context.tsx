@@ -538,7 +538,8 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "มี {n} รายการที่รอดำเนินการ",
     en: "{n} items pending action",
   },
-  // "maintenance.list": { th: "รายการแจ้งซ่อม", en: "Maintenance List" },
+  "maintenance.list": { th: "รายการแจ้งซ่อม", en: "Maintenance List" },
+
   "maintenance.totalItems": {
     th: "ทั้งหมด {n} รายการ",
     en: "{n} records total",
@@ -691,9 +692,30 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "น้ำ: ค่าปัจจุบันต้องมากกว่าก่อนหน้า",
     en: "Water: current must be greater than previous",
   },
+  // ── Meters – backend error codes ──────────────────────────────────────────
+  "meters.error.noContract": {
+    th: "ห้องนี้ยังไม่มีสัญญาเช่าที่ใช้งานอยู่",
+    en: "This room has no active rental contract",
+  },
   "meters.error.alreadyExists": {
     th: "มีข้อมูลมิเตอร์เดือนนี้แล้ว กรุณาแก้ไขแทน",
-    en: "Meter reading already exists for this month"
+    en: "Meter reading already exists for this month",
+  },
+  "meters.error.noElectricRate": {
+    th: "ยังไม่ได้ตั้งค่าอัตราค่าไฟฟ้า กรุณาตั้งค่าใน Utility Rates ก่อน",
+    en: "No electric rate configured. Please set a rate in Utility Rates first.",
+  },
+  "meters.error.noWaterRate": {
+    th: "ยังไม่ได้ตั้งค่าอัตราค่าน้ำประปา กรุณาตั้งค่าใน Utility Rates ก่อน",
+    en: "No water rate configured. Please set a rate in Utility Rates first.",
+  },
+  "meters.error.unitLessThanPrev": {
+    th: "เลขมิเตอร์ปัจจุบันต้องไม่น้อยกว่าเลขก่อนหน้า",
+    en: "Current reading cannot be less than the previous reading",
+  },
+  "meters.error.notFound": {
+    th: "ไม่พบข้อมูลมิเตอร์",
+    en: "Meter reading not found",
   },
   "meters.saveSuccess": {
     th: "บันทึกมิเตอร์เรียบร้อย",
@@ -1394,8 +1416,6 @@ const translations: Record<string, { th: string; en: string }> = {
   "month.11": { th: "พฤศจิกายน", en: "November" },
   "month.12": { th: "ธันวาคม", en: "December" },
 };
-
-
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 

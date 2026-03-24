@@ -224,7 +224,7 @@ export default function MaintenancePage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Wrench className="h-5 w-5" />
-            {t("maintenance.listTitle")}
+            {t("maintenance.list")}
           </CardTitle>
           <CardDescription>
             {t("maintenance.totalItems").replace(

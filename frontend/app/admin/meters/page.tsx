@@ -362,7 +362,13 @@ export default function MetersPage() {
       resetDialog();
       fetchAll();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? t("meters.saveError"));
+      const errCode = err?.response?.data?.error_code as string | undefined;
+      const errMsg = errCode
+        ? t(errCode) !== errCode // key พบใน translations
+          ? t(errCode)
+          : err?.response?.data?.message // fallback ข้อความ raw จาก server
+        : (err?.response?.data?.message ?? t("meters.saveError"));
+      toast.error(errMsg ?? t("meters.saveError"));
     } finally {
       setSubmitting(false);
     }

@@ -2,6 +2,13 @@
  * controllers/meterController.js
  * Admin records monthly water/electric meter readings per room.
  * Optionally uploads a meter photo for evidence.
+ *
+ * ── Error response shape ───────────────────────────────────────────────────
+ * Every 4xx response now includes an `error_code` field that matches a key
+ * in the frontend translations (language-context.tsx).  The frontend reads
+ * `error_code` first, calls `t(error_code)` to get a localised message, and
+ * only falls back to the raw `message` string when the key is unknown.
+ * ──────────────────────────────────────────────────────────────────────────
  */
 
 const { validationResult } = require('express-validator');
@@ -9,6 +16,18 @@ const MeterModel       = require('../models/meter.model');
 const UtilityRateModel = require('../models/utilityRate.model');
 const ContractModel    = require('../models/contract.model');
 const { sendSuccess, sendCreated, sendBadRequest, sendNotFound } = require('../utils/response');
+
+// ── helpers ────────────────────────────────────────────────────────────────
+
+/** Sends a 400 response with an i18n-ready error_code AND a raw message. */
+const sendBadRequestCoded = (res, error_code, message) =>
+  res.status(400).json({ success: false, error_code, message });
+
+/** Sends a 404 response with an i18n-ready error_code AND a raw message. */
+const sendNotFoundCoded = (res, error_code, message) =>
+  res.status(404).json({ success: false, error_code, message });
+
+// ── controllers ────────────────────────────────────────────────────────────
 
 // GET /api/meters?room_id=&meter_type=&month=&year=
 const getAllReadings = async (req, res, next) => {
@@ -23,7 +42,8 @@ const getAllReadings = async (req, res, next) => {
 const getReadingById = async (req, res, next) => {
   try {
     const reading = await MeterModel.findById(req.params.id);
-    if (!reading) return sendNotFound(res, 'Meter reading not found');
+    if (!reading)
+      return sendNotFoundCoded(res, 'meters.error.notFound', 'Meter reading not found');
     return sendSuccess(res, reading);
   } catch (err) { next(err); }
 };
@@ -50,35 +70,51 @@ const createReading = async (req, res, next) => {
     const { room_id, meter_type, reading_month, reading_year, current_unit, other_amount } = req.body;
     let { rate_per_unit } = req.body;
 
+    // ── 1. ต้องมีสัญญา active ─────────────────────────────────────────────
     const activeContract = await ContractModel.findActiveByRoom(room_id);
     if (!activeContract) {
-      return sendBadRequest(res, `Room ${room_id} has no active contract — cannot record meter`);
+      return sendBadRequestCoded(
+        res,
+        'meters.error.noContract',
+        `Room ${room_id} has no active contract — cannot record meter`,
+      );
     }
 
+    // ── 2. ห้ามบันทึกซ้ำเดือนเดียวกัน ────────────────────────────────────
     const duplicate = await MeterModel.findByRoomMonthYear(room_id, meter_type, reading_month, reading_year);
     if (duplicate) {
-      return res.status(400).json({
-        success: false,
-        error_code: 'meters.error.alreadyExists',
-        message: `A ${meter_type} reading for room ${room_id} in ${reading_month}/${reading_year} already exists.`
-      });
+      return sendBadRequestCoded(
+        res,
+        'meters.error.alreadyExists',
+        `A ${meter_type} reading for room ${room_id} in ${reading_month}/${reading_year} already exists.`,
+      );
     }
 
+    // ── 3. ต้องมีอัตราค่าไฟ/น้ำ ──────────────────────────────────────────
     if (!rate_per_unit) {
       const currentRate = await UtilityRateModel.getCurrentRate(meter_type);
       if (!currentRate) {
-        return sendBadRequest(res, `No ${meter_type} rate configured. Please set a rate in Utility Rates first.`);
+        const errorCode = meter_type === 'water'
+          ? 'meters.error.noWaterRate'
+          : 'meters.error.noElectricRate';
+        return sendBadRequestCoded(
+          res,
+          errorCode,
+          `No ${meter_type} rate configured. Please set a rate in Utility Rates first.`,
+        );
       }
       rate_per_unit = currentRate.rate_per_unit;
     }
 
+    // ── 4. เลขปัจจุบันต้องไม่น้อยกว่าก่อนหน้า ───────────────────────────
     const previousReading = await MeterModel.findLatestByRoomAndType(room_id, meter_type);
     const previous_unit = previousReading ? parseFloat(previousReading.current_unit) : 0;
 
     if (parseFloat(current_unit) < previous_unit) {
-      return sendBadRequest(
+      return sendBadRequestCoded(
         res,
-        `Current unit (${current_unit}) cannot be less than previous unit (${previous_unit})`
+        'meters.error.unitLessThanPrev',
+        `Current unit (${current_unit}) cannot be less than previous unit (${previous_unit})`,
       );
     }
 
@@ -105,7 +141,8 @@ const createReading = async (req, res, next) => {
 const updateReading = async (req, res, next) => {
   try {
     const reading = await MeterModel.findById(req.params.id);
-    if (!reading) return sendNotFound(res, 'Meter reading not found');
+    if (!reading)
+      return sendNotFoundCoded(res, 'meters.error.notFound', 'Meter reading not found');
 
     const { current_unit, rate_per_unit } = req.body;
     // ✅ Cloudinary: req.file.path คือ URL เต็ม ไม่ต้อง replace backslash
@@ -114,7 +151,11 @@ const updateReading = async (req, res, next) => {
     const updates = {};
     if (current_unit !== undefined) {
       if (parseFloat(current_unit) < parseFloat(reading.previous_unit)) {
-        return sendBadRequest(res, `Current unit cannot be less than previous unit (${reading.previous_unit})`);
+        return sendBadRequestCoded(
+          res,
+          'meters.error.unitLessThanPrev',
+          `Current unit cannot be less than previous unit (${reading.previous_unit})`,
+        );
       }
       updates.current_unit = parseFloat(current_unit);
     }

@@ -77,6 +77,32 @@ const formatDate = (d: string) =>
     day: "numeric",
   });
 
+// ── กฎการเรียงลำดับ ──────────────────────────────────────────────────────────
+// กลุ่ม "รอดำเนินการ / กำลังดำเนินการ" อยู่บนเสมอ เรียงตามความสำคัญ (ด่วนก่อน)
+// ถ้าความสำคัญเท่ากัน เอาที่แจ้งมานานสุดขึ้นก่อน (รอมานานสุด = เร่งด่วนกว่า)
+// กลุ่ม "เสร็จสิ้น / ยกเลิก" ตกไปอยู่ล่างสุด เรียงใหม่สุดก่อน
+const ACTIVE_STATUSES = ["pending", "in_progress"];
+const PRIORITY_WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1 };
+
+const sortRequests = (list: MaintenanceRequest[]) =>
+  [...list].sort((a, b) => {
+    const aActive = ACTIVE_STATUSES.includes(a.status);
+    const bActive = ACTIVE_STATUSES.includes(b.status);
+
+    if (aActive !== bActive) return aActive ? -1 : 1;
+
+    if (aActive) {
+      const priorityDiff =
+        (PRIORITY_WEIGHT[b.priority] ?? 0) - (PRIORITY_WEIGHT[a.priority] ?? 0);
+      if (priorityDiff !== 0) return priorityDiff;
+      return (
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+    }
+
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function MaintenancePage() {
@@ -122,6 +148,9 @@ export default function MaintenancePage() {
       r.tenant_name?.toLowerCase().includes(q)
     );
   });
+
+  // ── เรียงลำดับ: งานค้างอยู่บน (ตามความสำคัญ), งานจบแล้วอยู่ล่าง (ใหม่สุดก่อน) ──
+  const sortedRequests = sortRequests(filteredRequests);
 
   const pendingCount = requests.filter((r) => r.status === "pending").length;
 
@@ -255,7 +284,7 @@ export default function MaintenancePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRequests.map((request) => (
+                {sortedRequests.map((request) => (
                   <TableRow key={request.request_id}>
                     <TableCell className="font-medium">
                       {request.room_number}
@@ -287,7 +316,7 @@ export default function MaintenancePage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {filteredRequests.length === 0 && (
+                {sortedRequests.length === 0 && (
                   <TableRow>
                     <TableCell
                       colSpan={7}

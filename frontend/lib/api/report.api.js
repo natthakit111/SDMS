@@ -1,10 +1,11 @@
 /**
- * frondend/lib/api/report.api.js
+ * frontend/lib/api/report.api.js
  * Backend: /api/reports  (Admin only)
  *
  * GET /revenue?year=2025&format=excel|pdf
  * GET /rooms?format=excel|pdf
  * GET /payments?month=3&year=2025&format=excel|pdf
+ * GET /system-export        — export ข้อมูลระบบทั้งหมด (Excel, multi-sheet)
  */
 import api from './axiosInstance';
 
@@ -41,6 +42,15 @@ export const reportAPI = {
       params: { month, year, format },
       responseType: 'blob',
     });
-    triggerDownload(res.data, `payments-${year}-${String(month).padStart(2,'0')}.${format === 'pdf' ? 'pdf' : 'xlsx'}`);
+    triggerDownload(res.data, `payments-${year}-${String(month).padStart(2, '0')}.${format === 'pdf' ? 'pdf' : 'xlsx'}`);
+  },
+
+  // ⚠️ Export ข้อมูลระบบทั้งหมด (ห้อง/ผู้เช่า/สัญญา/บิล/การชำระ) → ไฟล์ .xlsx เดียว หลายชีท
+  getSystemExport: async () => {
+    const res = await api.get('/reports/system-export', {
+      responseType: 'blob',
+    });
+    const today = new Date().toISOString().slice(0, 10);
+    triggerDownload(res.data, `system-export-${today}.xlsx`);
   },
 };

@@ -1,14 +1,20 @@
 /**
- * controllers/billController.js (Phase 5 — Telegram wired in)
+ * controllers/billController.js (Phase 5 — Telegram wired in + PDF invoice export)
+ *
+ * PDF invoice export ใช้ Puppeteer (HTML/CSS → PDF) แทน pdfkit
+ * ดู services/pdf.service.js (browser singleton) และ services/invoiceTemplate.js (เทมเพลต HTML)
  */
 
 const { validationResult } = require('express-validator');
-const BillModel          = require('../models/bill.model');
-const ContractModel      = require('../models/contract.model');
+const QRCode              = require('qrcode');
+const BillModel           = require('../models/bill.model');
+const ContractModel       = require('../models/contract.model');
 const { calculateBill, getDefaultDueDate } = require('../services/bill.service');
 const { generatePromptPayQR } = require('../services/qr.service');
-const TelegramService    = require('../services/telegram.service');
-const TenantModel        = require('../models/tenant.model');
+const TelegramService     = require('../services/telegram.service');
+const TenantModel         = require('../models/tenant.model');
+const { htmlToPdfBuffer } = require('../services/pdf.service');
+const { renderInvoiceHtml } = require('../services/invoiceTemplate');
 const { sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendError } = require('../utils/response');
 
 const getAllBills = async (req, res, next) => {
@@ -141,4 +147,54 @@ const getMonthlyReport = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { getAllBills, getMyBills, getBillById, getBillQR, generateBill, cancelBill, getMonthlyReport };
+// ── ข้อมูลบริษัท — ปรับผ่าน env ได้ ไม่ต้องแก้โค้ด ──
+const COMPANY = {
+  name: process.env.COMPANY_NAME || 'Smart Dormitory',
+  sub: process.env.COMPANY_SUB || 'Smart Dormitory Management System',
+  address: process.env.COMPANY_ADDRESS || '123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110',
+  taxId: process.env.COMPANY_TAX_ID || '0-1055-12345-67-8',
+  phone: process.env.COMPANY_PHONE || '02-123-4567',
+  bankAccountName: process.env.BANK_ACCOUNT_NAME || 'Smart Dormitory Management',
+  promptpayId: process.env.PROMPTPAY_ID || null,
+};
+
+// ── Export single bill as PDF invoice (HTML/CSS → Puppeteer, โทนขาว-ฟ้า) ──
+const exportBillInvoice = async (req, res, next) => {
+  try {
+    const bill = await BillModel.findByIdWithMeters(req.params.id);
+    if (!bill) return sendNotFound(res, 'Bill not found');
+
+    if (req.user.role === 'tenant') {
+      const tenant = await TenantModel.findByUserId(req.user.user_id);
+      if (!tenant || tenant.tenant_id !== bill.tenant_id) return sendNotFound(res, 'Bill not found');
+    }
+
+    let qrDataUrl = null;
+    if (bill.qr_payload) {
+      try {
+        qrDataUrl = await QRCode.toDataURL(bill.qr_payload, { margin: 1, width: 240 });
+      } catch (_) { /* ข้าม QR ถ้าสร้างรูปไม่สำเร็จ */ }
+    }
+
+    const html = renderInvoiceHtml({ bill, qrDataUrl, company: COMPANY });
+    const pdfBuffer = await htmlToPdfBuffer(html);
+
+    // ⚠️ สำคัญ: ต้องบังคับแปลงเป็น Buffer จริง ๆ ก่อนส่ง
+    // เพราะ Express res.send() จะเรียก res.json() ให้อัตโนมัติถ้า argument
+    // เป็น object แต่ไม่ใช่ Buffer แท้ (Buffer.isBuffer() === false)
+    // ซึ่งบางเวอร์ชันของ Puppeteer คืนค่า page.pdf() เป็น Uint8Array ธรรมดา
+    // ไม่ใช่ Node Buffer ทำให้ Express stringify เป็น JSON แทนที่จะส่งไบต์ตรงๆ
+    const buffer = Buffer.from(pdfBuffer);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=invoice_${bill.bill_id}.pdf`);
+    res.setHeader('Content-Length', buffer.length);
+    // ใช้ res.end() แทน res.send() เพื่อส่ง binary ตรงๆ โดยไม่ผ่านการเดา type ของ Express
+    return res.end(buffer);
+  } catch (err) { next(err); }
+};
+
+module.exports = {
+  getAllBills, getMyBills, getBillById, getBillQR, generateBill,
+  cancelBill, getMonthlyReport, exportBillInvoice,
+};

@@ -23,8 +23,14 @@ export const contractAPI = {
 
   update: (id, data) =>
     api.put(`/contracts/${id}`, data).then((r) => r.data),
-  // data: { end_date?, rent_amount? }
+  // data: { end_date?, rent_amount? } — ใช้ได้เฉพาะสัญญาที่ status = 'active' เท่านั้น
 
-  terminate: (id) =>
-    api.put(`/contracts/${id}/terminate`).then((r) => r.data),
+  renew: (id, data) =>
+    api.put(`/contracts/${id}/renew`, data).then((r) => r.data),
+  // data: { end_date, rent_amount? } — ใช้กับสัญญาที่ status = 'expired' เท่านั้น (ต่อสัญญากลับเป็น active)
+
+  terminate: (id, data) =>
+    api.put(`/contracts/${id}/terminate`, data).then((r) => r.data),
+  // data?: { checkout_date? } — ใช้ได้กับสัญญา status = 'active' (ยกเลิกก่อนกำหนด)
+  // หรือ 'expired' (แอดมินเคลียร์ห้องหลังหมดสัญญา / ทำเรื่องย้ายออก) ไม่มีค่าปรับถ้าเช็คเอาท์หลังวันหมดสัญญา
 };

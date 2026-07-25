@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
-import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Plus,
   Megaphone,
@@ -40,6 +40,7 @@ import {
   Info,
   Bell,
   Loader2,
+  Send,
 } from "lucide-react";
 import { announcementAPI } from "@/lib/api/announcement.api";
 import { toast } from "sonner";
@@ -225,8 +226,14 @@ export default function AnnouncementsPage() {
             </Button>
           </DialogTrigger>
 
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
+          {/*
+            Fix kept from before: the dialog is a flex column capped at 85vh
+            with a scrollable body and an always-visible footer. This is what
+            actually caused "พิมพ์เสร็จแล้วกดต่อไม่ได้" — nothing to do with
+            room targeting, just a layout bug in the original modal.
+          */}
+          <DialogContent className="max-w-lg max-h-[85vh] flex flex-col p-0 gap-0">
+            <DialogHeader className="p-6 pb-2">
               <DialogTitle>
                 {editingAnn
                   ? t("announcements.edit")
@@ -239,71 +246,100 @@ export default function AnnouncementsPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit}>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="title">
-                    {t("announcements.titleField")}
-                  </FieldLabel>
-                  <Input
-                    id="title"
-                    value={formData.title}
-                    onChange={set("title")}
-                    required
-                  />
-                </Field>
+            <form
+              onSubmit={handleSubmit}
+              className="flex flex-col flex-1 min-h-0"
+            >
+              <ScrollArea className="flex-1 px-6">
+                <FieldGroup className="pb-4">
+                  <Field>
+                    <FieldLabel htmlFor="title">
+                      {t("announcements.titleField")}
+                    </FieldLabel>
+                    <Input
+                      id="title"
+                      value={formData.title}
+                      onChange={set("title")}
+                      required
+                    />
+                  </Field>
 
-                <Field>
-                  <FieldLabel htmlFor="content">
-                    {t("announcements.content")}
-                  </FieldLabel>
-                  <Textarea
-                    id="content"
-                    value={formData.content}
-                    onChange={set("content")}
-                    rows={5}
-                    required
-                  />
-                </Field>
+                  <Field>
+                    <FieldLabel htmlFor="content">
+                      {t("announcements.content")}
+                    </FieldLabel>
+                    <Textarea
+                      id="content"
+                      value={formData.content}
+                      onChange={set("content")}
+                      rows={5}
+                      required
+                    />
+                  </Field>
 
-                <Field>
-                  <FieldLabel>{t("announcements.audience")}</FieldLabel>
-                  <Select
-                    value={formData.target_audience}
-                    onValueChange={(v) =>
-                      setFormData((p) => ({
-                        ...p,
-                        target_audience: v as FormData["target_audience"],
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">
-                        {t("announcements.everyone")}
-                      </SelectItem>
-                      <SelectItem value="tenant">
-                        {t("announcements.tenantOnly")}
-                      </SelectItem>
-                      <SelectItem value="admin">
-                        {t("announcements.adminOnly")}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </FieldGroup>
+                  <Field>
+                    <FieldLabel>{t("announcements.audience")}</FieldLabel>
+                    <Select
+                      value={formData.target_audience}
+                      onValueChange={(v) =>
+                        setFormData((p) => ({
+                          ...p,
+                          target_audience: v as FormData["target_audience"],
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">
+                          {t("announcements.everyone")}
+                        </SelectItem>
+                        <SelectItem value="tenant">
+                          {t("announcements.tenantOnly")}
+                        </SelectItem>
+                        <SelectItem value="admin">
+                          {t("announcements.adminOnly")}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
 
-              <DialogFooter className="mt-6">
+                  {/* Per spec: send to a specific floor. Only meaningful
+                      when targeting tenants (not admin-only announcements). */}
+                  {formData.target_audience !== "admin" && (
+                    <Field>
+                      <FieldLabel htmlFor="target_floor">
+                        {t("announcements.floor")}
+                      </FieldLabel>
+                      <Input
+                        id="target_floor"
+                        type="number"
+                        min={1}
+                        placeholder={t("announcements.floorPlaceholder")}
+                        value={formData.target_floor}
+                        onChange={set("target_floor")}
+                      />
+                    </Field>
+                  )}
+                </FieldGroup>
+              </ScrollArea>
+
+              {/* Footer is sticky at the bottom of the dialog, always visible
+                  regardless of how tall the form body scrolls. */}
+              <DialogFooter className="p-6 pt-4 border-t shrink-0">
                 <Button type="button" variant="outline" onClick={resetForm}>
                   {t("common.cancel")}
                 </Button>
-                <Button type="submit">
-                  {submitting && (
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="mr-2 h-4 w-4" />
                   )}
-                  {t("common.save")}
+                  {editingAnn
+                    ? t("common.save")
+                    : t("announcements.sendViaTelegram")}
                 </Button>
               </DialogFooter>
             </form>
@@ -335,6 +371,9 @@ export default function AnnouncementsPage() {
                     <CardTitle>{ann.title}</CardTitle>
                     <CardDescription>
                       {getAudienceLabel(ann.target_audience)}
+                      {ann.target_floor
+                        ? ` · ${t("announcements.floorBadge")} ${ann.target_floor}`
+                        : ""}
                     </CardDescription>
                   </div>
                 </div>

@@ -5,10 +5,11 @@
  *
  * Routes:
  *   GET /api/reports/revenue?year=&format=excel|pdf  — monthly revenue report
- *   GET /api/reports/rooms?format=excel              — room occupancy report
- *   GET /api/reports/payments?month=&year=&format=   — payment summary
+ *   GET /api/reports/rooms?format=excel               — room occupancy report
+ *   GET /api/reports/payments?month=&year=&format=    — payment summary
+ *   GET /api/reports/system-export                    — export ข้อมูลระบบทั้งหมด (Excel, multi-sheet)
  */
-
+const path = require('path');
 const ExcelJS = require('exceljs')
 const PDFDocument = require('pdfkit')
 const BillModel  = require('../models/bill.model')
@@ -92,8 +93,14 @@ const getRevenueReport = async (req, res, next) => {
     res.setHeader('Content-Disposition', `attachment; filename=revenue_${year}.pdf`)
     doc.pipe(res)
 
-    doc.fontSize(18).text(`รายงานรายรับประจำปี ${year + 543}`, { align: 'center' })
-    doc.fontSize(10).text(`สร้างเมื่อ: ${new Date().toLocaleDateString('th-TH')}`, { align: 'center' })
+    // --- ลงทะเบียนฟอนต์ไทย (ต้องทำก่อนเรียกใช้ .font() เสมอ) ---
+    const fontRegular = path.join(__dirname, '../assets/fonts/Sarabun-Regular.ttf');
+    const fontBold = path.join(__dirname, '../assets/fonts/Sarabun-Bold.ttf');
+    doc.registerFont('Sarabun', fontRegular);
+    doc.registerFont('Sarabun-Bold', fontBold);
+
+    doc.font('Sarabun-Bold').fontSize(18).text(`รายงานรายรับประจำปี ${year + 543}`, { align: 'center' })
+    doc.font('Sarabun').fontSize(10).text(`สร้างเมื่อ: ${new Date().toLocaleDateString('th-TH')}`, { align: 'center' })
     doc.moveDown(1.5)
 
     // Simple table
@@ -103,7 +110,7 @@ const getRevenueReport = async (req, res, next) => {
 
     // Header row
     doc.rect(x, y, cols.reduce((a,b)=>a+b,0), 20).fill('#1a1a2e')
-    doc.fillColor('white').fontSize(9)
+    doc.font('Sarabun-Bold').fillColor('white').fontSize(9)
     let cx = x
     headers.forEach((h, i) => { doc.text(h, cx + 3, y + 5, { width: cols[i]-6 }); cx += cols[i] })
     doc.fillColor('black')
@@ -114,7 +121,7 @@ const getRevenueReport = async (req, res, next) => {
       const total = parseFloat(d.total_billed || 0)
       grand += total
       if (idx % 2 === 0) doc.rect(x, y, cols.reduce((a,b)=>a+b,0), 18).fill('#f8f7f4')
-      doc.fillColor('#1a1a2e').fontSize(8.5)
+      doc.font('Sarabun').fillColor('#1a1a2e').fontSize(8.5)
       const row = [THAI_MONTHS[d.bill_month], d.bill_count, d.paid_count, fmt(d.total_rent), fmt(d.total_electric), fmt(d.total_water), fmt(total)]
       cx = x
       row.forEach((v, i) => { doc.text(String(v), cx + 3, y + 4, { width: cols[i]-6 }); cx += cols[i] })
@@ -123,7 +130,7 @@ const getRevenueReport = async (req, res, next) => {
 
     // Total
     doc.rect(x, y, cols.reduce((a,b)=>a+b,0), 20).fill('#e8e6ff')
-    doc.fillColor('#1a1a2e').fontSize(9).font('Helvetica-Bold')
+    doc.font('Sarabun-Bold').fillColor('#1a1a2e').fontSize(9)
     doc.text(`รวมทั้งปี: ${Number(grand).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿`, x + 3, y + 5)
     doc.end()
 
@@ -237,4 +244,96 @@ const getPaymentsReport = async (req, res, next) => {
   } catch (err) { next(err) }
 }
 
-module.exports = { getRevenueReport, getRoomsReport, getPaymentsReport }
+// ── Full System Export (all core tables → one .xlsx, multi-sheet) ─────
+const getSystemExport = async (req, res, next) => {
+  try {
+    const wb = new ExcelJS.Workbook()
+    wb.creator = 'Smart Dormitory'
+
+    const addSheet = (name, headers, widths, dataRows) => {
+      const ws = wb.addWorksheet(name)
+      const hRow = ws.addRow(headers)
+      hRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+      hRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1a1a2e' } }
+      ws.columns = widths.map(w => ({ width: w }))
+      dataRows.forEach(r => ws.addRow(r))
+      ws.eachRow(row => row.eachCell(cell => {
+        cell.border = { top: {style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} }
+      }))
+    }
+
+    // ── ห้องพัก ──
+    const [rooms] = await pool.query(`
+      SELECT r.room_number, r.floor, r.room_type, r.base_rent, r.status,
+             CONCAT(t.first_name,' ',t.last_name) AS tenant_name
+      FROM rooms r
+      LEFT JOIN contracts c ON c.room_id = r.room_id AND c.status = 'active'
+      LEFT JOIN tenants t ON c.tenant_id = t.tenant_id
+      ORDER BY r.floor, r.room_number
+    `)
+    addSheet('ห้องพัก', ['ห้อง','ชั้น','ประเภท','ค่าเช่าตั้งต้น','สถานะ','ผู้เช่าปัจจุบัน'],
+      [10,8,12,14,12,20],
+      rooms.map(r => [r.room_number, r.floor, r.room_type, fmt(r.base_rent), r.status, r.tenant_name || '-']))
+
+    // ── ผู้เช่า ──
+    const [tenants] = await pool.query(`
+      SELECT tenant_id, first_name, last_name, phone FROM tenants ORDER BY tenant_id
+    `)
+    addSheet('ผู้เช่า', ['รหัส','ชื่อ','นามสกุล','เบอร์โทร'],
+      [8,14,14,14],
+      tenants.map(t => [t.tenant_id, t.first_name, t.last_name, t.phone || '-']))
+
+    // ── สัญญาเช่า ──
+    const [contracts] = await pool.query(`
+      SELECT c.contract_id, r.room_number, CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
+             c.start_date, c.end_date, c.rent_amount, c.status
+      FROM contracts c
+      JOIN rooms r ON c.room_id = r.room_id
+      JOIN tenants t ON c.tenant_id = t.tenant_id
+      ORDER BY c.contract_id DESC
+    `)
+    addSheet('สัญญาเช่า', ['รหัสสัญญา','ห้อง','ผู้เช่า','วันเริ่ม','วันสิ้นสุด','ค่าเช่า','สถานะ'],
+      [10,10,20,14,14,12,12],
+      contracts.map(c => [c.contract_id, c.room_number, c.tenant_name,
+        c.start_date ? new Date(c.start_date).toLocaleDateString('th-TH') : '-',
+        c.end_date ? new Date(c.end_date).toLocaleDateString('th-TH') : '-',
+        fmt(c.rent_amount), c.status]))
+
+    // ── บิลค่าเช่า ──
+    const [bills] = await pool.query(`
+      SELECT b.bill_id, r.room_number, CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
+             b.bill_month, b.bill_year, b.total_amount, b.status, b.due_date
+      FROM bills b
+      JOIN rooms r ON b.room_id = r.room_id
+      JOIN contracts c ON b.contract_id = c.contract_id
+      JOIN tenants t ON c.tenant_id = t.tenant_id
+      ORDER BY b.bill_year DESC, b.bill_month DESC
+    `)
+    addSheet('บิลค่าเช่า', ['รหัสบิล','ห้อง','ผู้เช่า','เดือน','ปี(พ.ศ.)','ยอดรวม','สถานะ','กำหนดชำระ'],
+      [10,10,20,10,10,12,12,14],
+      bills.map(b => [b.bill_id, b.room_number, b.tenant_name, THAI_MONTHS[b.bill_month], b.bill_year + 543,
+        fmt(b.total_amount), b.status, b.due_date ? new Date(b.due_date).toLocaleDateString('th-TH') : '-']))
+
+    // ── การชำระเงิน ──
+    const [payments] = await pool.query(`
+      SELECT p.payment_id, r.room_number, CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
+             p.amount_paid, p.payment_method, p.status, p.paid_at
+      FROM payments p
+      JOIN bills b ON p.bill_id = b.bill_id
+      JOIN rooms r ON b.room_id = r.room_id
+      JOIN tenants t ON p.tenant_id = t.tenant_id
+      ORDER BY p.paid_at DESC
+    `)
+    addSheet('การชำระเงิน', ['รหัส','ห้อง','ผู้เช่า','จำนวนเงิน','วิธีชำระ','สถานะ','วันที่ชำระ'],
+      [10,10,20,14,14,14,16],
+      payments.map(p => [p.payment_id, p.room_number, p.tenant_name, fmt(p.amount_paid),
+        p.payment_method, p.status, p.paid_at ? new Date(p.paid_at).toLocaleString('th-TH') : '-']))
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', `attachment; filename=system_export_${new Date().toISOString().slice(0,10)}.xlsx`)
+    await wb.xlsx.write(res)
+    return res.end()
+  } catch (err) { next(err) }
+}
+
+module.exports = { getRevenueReport, getRoomsReport, getPaymentsReport, getSystemExport }

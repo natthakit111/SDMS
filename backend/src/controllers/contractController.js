@@ -72,14 +72,52 @@ const updateContract = async (req, res, next) => {
   } catch (err) { next(err) }
 }
 
+// ✅ NEW: ต่อสัญญาที่หมดอายุแล้ว (admin only, ต่างจาก updateContract ที่ใช้กับสัญญา active)
+const renewContract = async (req, res, next) => {
+  try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array())
+
+    const contract = await ContractModel.findById(req.params.id)
+    if (!contract) return sendNotFound(res, 'Contract not found')
+    if (contract.status !== 'expired') {
+      return sendBadRequest(res, 'Only expired contracts can be renewed — use update for active contracts')
+    }
+
+    const { end_date, rent_amount } = req.body
+    if (!end_date) return sendBadRequest(res, 'end_date is required')
+
+    const newEndDate = new Date(end_date)
+    if (Number.isNaN(newEndDate.getTime()) || newEndDate <= new Date()) {
+      return sendBadRequest(res, 'end_date must be a valid date in the future')
+    }
+
+    await ContractModel.update(req.params.id, {
+      end_date,
+      ...(rent_amount ? { rent_amount } : {}),
+    })
+    await ContractModel.updateStatus(req.params.id, 'active')
+
+    const renewed = await ContractModel.findById(req.params.id)
+    return sendSuccess(res, renewed, `ต่อสัญญาสำเร็จ — ห้อง ${renewed.room_number} มีผลถึง ${end_date}`)
+  } catch (err) { next(err) }
+}
+
 const terminateContract = async (req, res, next) => {
   try {
     const contract = await ContractModel.findById(req.params.id)
     if (!contract) return sendNotFound(res, 'Contract not found')
-    if (contract.status !== 'active') return sendBadRequest(res, 'Contract is already terminated or expired')
 
-    // ✅ Tenant can only terminate their OWN contract
+    // ✅ รองรับทั้งสัญญา active (ยกเลิกก่อนกำหนด) และ expired (แอดมินเคลียร์ห้องหลังหมดสัญญา)
+    if (!['active', 'expired'].includes(contract.status)) {
+      return sendBadRequest(res, 'Contract is already terminated')
+    }
+
+    // ✅ Tenant can only terminate their OWN active contract
     if (req.user.role === 'tenant') {
+      if (contract.status !== 'active') {
+        return sendForbidden(res, 'ไม่สามารถแจ้งย้ายออกสำหรับสัญญาที่หมดอายุแล้วได้ กรุณาติดต่อแอดมิน')
+      }
       const tenant = await TenantModel.findByUserId(req.user.user_id)
       if (!tenant || tenant.tenant_id !== contract.tenant_id) {
         return sendForbidden(res, 'คุณสามารถแจ้งย้ายออกได้เฉพาะสัญญาของตัวเองเท่านั้น')
@@ -91,6 +129,7 @@ const terminateContract = async (req, res, next) => {
     const deposit       = parseFloat(contract.deposit_amount || 0)
     const rent          = parseFloat(contract.rent_amount || 0)
     const daysRemaining = Math.ceil((endDate - checkoutDate) / (1000 * 60 * 60 * 24))
+    // หมดสัญญาไปแล้ว (daysRemaining <= 0) ไม่ถือว่าออกก่อนกำหนด จึงไม่มีค่าปรับ
     const fine_amount   = daysRemaining > 30 ? rent : 0
     const net_refund    = Math.max(0, deposit - fine_amount)
 
@@ -114,4 +153,7 @@ const terminateContract = async (req, res, next) => {
   } catch (err) { next(err) }
 }
 
-module.exports = { getAllContracts, getContractById, getMyContract, createContract, updateContract, terminateContract }
+module.exports = {
+  getAllContracts, getContractById, getMyContract,
+  createContract, updateContract, renewContract, terminateContract,
+}

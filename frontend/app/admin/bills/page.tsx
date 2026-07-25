@@ -50,6 +50,7 @@ import {
   Droplets,
   Camera,
   ImageIcon,
+  Download,
 } from "lucide-react";
 import { billAPI } from "@/lib/api/bill.api";
 import { roomAPI } from "@/lib/api/room.api";
@@ -137,6 +138,7 @@ export default function BillsPage() {
   const [viewingBill, setViewingBill] = useState<Bill | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>(emptyForm);
+  const [exportingId, setExportingId] = useState<number | null>(null);
 
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString(language === "th" ? "th-TH" : "en-GB", {
@@ -266,6 +268,21 @@ export default function BillsPage() {
       fetchBills();
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? t("common.noData"));
+    }
+  };
+
+  // ── Export invoice (PDF) ─────────────────────────────────────────────────
+  const handleExportInvoice = async (bill: Bill) => {
+    setExportingId(bill.bill_id);
+    try {
+      await billAPI.exportInvoice(
+        bill.bill_id,
+        `invoice-${bill.room_number}-${bill.bill_month}-${bill.bill_year}.pdf`,
+      );
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? t("common.error"));
+    } finally {
+      setExportingId(null);
     }
   };
 
@@ -527,6 +544,19 @@ export default function BillsPage() {
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleExportInvoice(bill)}
+                          disabled={exportingId === bill.bill_id}
+                          title={t("bills.exportInvoice") ?? "Export invoice"}
+                        >
+                          {exportingId === bill.bill_id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
+                        </Button>
                         {(bill.status === "pending" ||
                           bill.status === "overdue") && (
                           <Button
@@ -645,6 +675,23 @@ export default function BillsPage() {
                   {t("bills.dueDate")}
                 </span>
                 <span>{formatDate(viewingBill.due_date)}</span>
+              </div>
+
+              {/* Export invoice from detail dialog too */}
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => handleExportInvoice(viewingBill)}
+                  disabled={exportingId === viewingBill.bill_id}
+                >
+                  {exportingId === viewingBill.bill_id ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" />
+                  )}
+                  {t("bills.exportInvoice") ?? "Export Invoice PDF"}
+                </Button>
               </div>
 
               {/* Meter images */}

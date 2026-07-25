@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useLanguage } from "@/context/language-context"; // <-- เพิ่มบรรทัดนี้
+import { useLanguage } from "@/context/language-context";
 import {
   Card,
   CardContent,
@@ -52,7 +52,6 @@ import { formatDate } from "@/lib/mock-data";
 import { tenantAPI } from "@/lib/api/tenant.api";
 import { toast } from "sonner";
 
-// ... (ส่วน Types และ emptyForm คงเดิม) ...
 interface Tenant {
   tenant_id: number;
   user_id: number;
@@ -83,6 +82,9 @@ interface FormData {
   emergency_contact_phone: string;
 }
 
+// ✅ เพิ่มใหม่ — เก็บ error รายฟิลด์ (key = ชื่อ field, value = ข้อความ error)
+type FieldErrors = Partial<Record<keyof FormData, string>>;
+
 const emptyForm: FormData = {
   first_name: "",
   last_name: "",
@@ -95,8 +97,45 @@ const emptyForm: FormData = {
   emergency_contact_phone: "",
 };
 
+// ✅ เพิ่มใหม่ — backend ส่ง "error code" กลับมา (เช่น PHONE_FORMAT, ID_CARD_LENGTH)
+// แทนที่จะเป็นข้อความสำเร็จรูป เพราะ backend ไม่รู้ว่า user เลือกภาษาอะไร
+// ฝั่ง frontend นี้เป็นคนแปล code → ข้อความ ตามภาษาที่เลือกไว้ (t() มีทั้ง TH/EN อยู่แล้ว)
+function translateErrorCode(t: (key: string) => string, code: string): string {
+  const translated = t(`errors.${code}`);
+  if (!translated || translated === `errors.${code}`) {
+    return code.replace(/_/g, " ").toLowerCase();
+  }
+  return translated;
+}
+
+// ✅ แปลง error array จาก express-validator ให้เป็น { field: message (แปลแล้ว) }
+function parseFieldErrors(
+  err: any,
+  t: (key: string) => string,
+): { fieldErrors: FieldErrors; generalMessage: string | null } {
+  const data = err?.response?.data;
+  const rawErrors: any[] =
+    data?.errors ?? data?.details ?? (Array.isArray(data) ? data : []);
+
+  const fieldErrors: FieldErrors = {};
+  if (Array.isArray(rawErrors)) {
+    rawErrors.forEach((e) => {
+      const field = e?.path ?? e?.param ?? e?.field;
+      const rawMsg = e?.msg ?? e?.message;
+      if (field && rawMsg) {
+        (fieldErrors as any)[field] = translateErrorCode(t, rawMsg);
+      }
+    });
+  }
+
+  const generalMessage =
+    Object.keys(fieldErrors).length > 0 ? null : (data?.message ?? null);
+
+  return { fieldErrors, generalMessage };
+}
+
 export default function TenantsPage() {
-  const { t } = useLanguage(); // <-- เรียกใช้ useLanguage
+  const { t } = useLanguage();
 
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +146,7 @@ export default function TenantsPage() {
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [formData, setFormData] = useState<FormData>(emptyForm);
   const [showInactive, setShowInactive] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({}); // ✅ เพิ่มใหม่
 
   const fetchTenants = useCallback(async () => {
     try {
@@ -138,6 +178,7 @@ export default function TenantsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    setFieldErrors({}); // ✅ เคลียร์ error เก่าก่อนส่งใหม่ทุกครั้ง
     try {
       if (editingTenant) {
         await tenantAPI.update(editingTenant.tenant_id, {
@@ -167,7 +208,21 @@ export default function TenantsPage() {
       resetForm();
       fetchTenants();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? t("common.error"));
+      // ✅ แก้จุดหลัก — ดึง error รายฟิลด์มาแสดงใต้ input แทน toast ลอยๆ (แปลตามภาษาที่เลือก)
+      const { fieldErrors: parsedErrors, generalMessage } = parseFieldErrors(
+        err,
+        t,
+      );
+      if (Object.keys(parsedErrors).length > 0) {
+        setFieldErrors(parsedErrors);
+        toast.error(
+          t("tenants.checkFormErrors") ?? "กรุณาตรวจสอบข้อมูลที่กรอก",
+        );
+      } else {
+        toast.error(
+          generalMessage ?? err?.response?.data?.message ?? t("common.error"),
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -175,6 +230,7 @@ export default function TenantsPage() {
 
   const handleEdit = (tenant: Tenant) => {
     setEditingTenant(tenant);
+    setFieldErrors({}); // ✅ เคลียร์ error ตอนเปิดฟอร์มแก้ไข
     setFormData({
       first_name: tenant.first_name,
       last_name: tenant.last_name,
@@ -207,12 +263,28 @@ export default function TenantsPage() {
   const resetForm = () => {
     setFormData(emptyForm);
     setEditingTenant(null);
+    setFieldErrors({}); // ✅ เคลียร์ error ตอนปิด/รีเซ็ตฟอร์ม
     setIsAddDialogOpen(false);
   };
 
   const set =
-    (field: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    (field: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
       setFormData((prev) => ({ ...prev, [field]: e.target.value }));
+      // ✅ ล้าง error ของ field นั้นทันทีที่ผู้ใช้เริ่มพิมพ์แก้ไข
+      if (fieldErrors[field]) {
+        setFieldErrors((prev) => {
+          const next = { ...prev };
+          delete next[field];
+          return next;
+        });
+      }
+    };
+
+  // ✅ helper แสดงข้อความ error ใต้ field (ใช้ซ้ำหลายจุด)
+  const FieldError = ({ field }: { field: keyof FormData }) =>
+    fieldErrors[field] ? (
+      <p className="text-xs text-destructive mt-1">{fieldErrors[field]}</p>
+    ) : null;
 
   return (
     <div className="space-y-6">
@@ -271,8 +343,13 @@ export default function TenantsPage() {
                           id="first_name"
                           value={formData.first_name}
                           onChange={set("first_name")}
+                          aria-invalid={!!fieldErrors.first_name}
+                          className={
+                            fieldErrors.first_name ? "border-destructive" : ""
+                          }
                           required
                         />
+                        <FieldError field="first_name" />
                       </Field>
                       <Field>
                         <FieldLabel htmlFor="last_name">
@@ -282,8 +359,13 @@ export default function TenantsPage() {
                           id="last_name"
                           value={formData.last_name}
                           onChange={set("last_name")}
+                          aria-invalid={!!fieldErrors.last_name}
+                          className={
+                            fieldErrors.last_name ? "border-destructive" : ""
+                          }
                           required
                         />
+                        <FieldError field="last_name" />
                       </Field>
                     </div>
 
@@ -297,7 +379,12 @@ export default function TenantsPage() {
                           type="email"
                           value={formData.email}
                           onChange={set("email")}
+                          aria-invalid={!!fieldErrors.email}
+                          className={
+                            fieldErrors.email ? "border-destructive" : ""
+                          }
                         />
+                        <FieldError field="email" />
                       </Field>
                       <Field>
                         <FieldLabel htmlFor="phone">
@@ -307,8 +394,14 @@ export default function TenantsPage() {
                           id="phone"
                           value={formData.phone}
                           onChange={set("phone")}
+                          aria-invalid={!!fieldErrors.phone}
+                          className={
+                            fieldErrors.phone ? "border-destructive" : ""
+                          }
+                          placeholder="0812345678"
                           required
                         />
+                        <FieldError field="phone" />
                       </Field>
                     </div>
 
@@ -320,9 +413,15 @@ export default function TenantsPage() {
                         id="id_card_number"
                         value={formData.id_card_number}
                         onChange={set("id_card_number")}
+                        aria-invalid={!!fieldErrors.id_card_number}
+                        className={
+                          fieldErrors.id_card_number ? "border-destructive" : ""
+                        }
+                        placeholder="เลขบัตรประชาชน 13 หลัก"
                         required
                         disabled={!!editingTenant}
                       />
+                      <FieldError field="id_card_number" />
                     </Field>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -334,7 +433,14 @@ export default function TenantsPage() {
                           id="emergency_contact_name"
                           value={formData.emergency_contact_name}
                           onChange={set("emergency_contact_name")}
+                          aria-invalid={!!fieldErrors.emergency_contact_name}
+                          className={
+                            fieldErrors.emergency_contact_name
+                              ? "border-destructive"
+                              : ""
+                          }
                         />
+                        <FieldError field="emergency_contact_name" />
                       </Field>
                       <Field>
                         <FieldLabel htmlFor="emergency_contact_phone">
@@ -344,7 +450,14 @@ export default function TenantsPage() {
                           id="emergency_contact_phone"
                           value={formData.emergency_contact_phone}
                           onChange={set("emergency_contact_phone")}
+                          aria-invalid={!!fieldErrors.emergency_contact_phone}
+                          className={
+                            fieldErrors.emergency_contact_phone
+                              ? "border-destructive"
+                              : ""
+                          }
                         />
+                        <FieldError field="emergency_contact_phone" />
                       </Field>
                     </div>
 
@@ -358,8 +471,13 @@ export default function TenantsPage() {
                             id="username"
                             value={formData.username}
                             onChange={set("username")}
+                            aria-invalid={!!fieldErrors.username}
+                            className={
+                              fieldErrors.username ? "border-destructive" : ""
+                            }
                             required
                           />
+                          <FieldError field="username" />
                         </Field>
                         <Field>
                           <FieldLabel htmlFor="password">
@@ -370,8 +488,13 @@ export default function TenantsPage() {
                             type="password"
                             value={formData.password}
                             onChange={set("password")}
+                            aria-invalid={!!fieldErrors.password}
+                            className={
+                              fieldErrors.password ? "border-destructive" : ""
+                            }
                             required
                           />
+                          <FieldError field="password" />
                         </Field>
                       </div>
                     )}

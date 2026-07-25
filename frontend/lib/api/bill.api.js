@@ -1,10 +1,21 @@
 /**
- * frondend/lib/api/bill.api.js
+ * frontend/lib/api/bill.api.js
  * Backend: /api/bills
  *
  * ⚠️ QR อยู่ที่ GET /bills/:id/qr  (ไม่ใช่ /payments/qr/:id)
  */
 import api from './axiosInstance';
+
+const triggerDownload = (blobData, filename) => {
+  const url = URL.createObjectURL(new Blob([blobData]));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
 
 export const billAPI = {
   // ── Tenant ───────────────────────────────────────────────
@@ -34,4 +45,12 @@ export const billAPI = {
   getQR: (id) =>
     api.get(`/bills/${id}/qr`).then((r) => r.data),
   // returns: { qr_data_url, amount, bill_id }
+
+  // ⚠️ ดาวน์โหลดใบแจ้งหนี้เป็น PDF (backend: GET /bills/:id/invoice-pdf)
+  exportInvoice: async (id, filename) => {
+    const res = await api.get(`/bills/${id}/invoice-pdf`, {
+      responseType: 'blob',
+    });
+    triggerDownload(res.data, filename || `invoice-${id}.pdf`);
+  },
 };

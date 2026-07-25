@@ -1,3 +1,5 @@
+//settings/page.tsx
+
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -36,9 +38,11 @@ import {
   RefreshCw,
   CheckCircle2,
   Bell,
+  Download,
 } from "lucide-react";
 import { settingsAPI } from "@/lib/api/settings.api";
 import { utilityRateAPI } from "@/lib/api/utilityRate.api";
+import { reportAPI } from "@/lib/api/report.api";
 import api from "@/lib/api/axiosInstance";
 import { useLanguage } from "@/context/language-context";
 import { useAuth } from "@/context/auth-context";
@@ -55,6 +59,9 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const [pageLoading, setPageLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("dorm");
+
+  /* ── System export ── */
+  const [exportingSystem, setExportingSystem] = useState(false);
 
   /* ── Dorm info ── */
   const [dormName, setDormName] = useState("");
@@ -162,6 +169,21 @@ export default function SettingsPage() {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, [loadSettings]);
+
+  /* ── System export ── */
+  const handleSystemExport = async () => {
+    setExportingSystem(true);
+    try {
+      await reportAPI.getSystemExport();
+      toast.success(
+        language === "th" ? "ดาวน์โหลดข้อมูลสำเร็จ" : "Export downloaded",
+      );
+    } catch {
+      toast.error(language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred");
+    } finally {
+      setExportingSystem(false);
+    }
+  };
 
   /* ── Save dorm ── */
   const handleSaveDorm = async () => {
@@ -358,11 +380,27 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold">{t("settings.title")}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t("settings.subtitle")}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold">
+            {t("settings.title")}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {t("settings.subtitle")}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={handleSystemExport}
+          disabled={exportingSystem}
+        >
+          {exportingSystem ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="mr-2 h-4 w-4" />
+          )}
+          {language === "th" ? "Export ข้อมูลระบบ" : "Export System Data"}
+        </Button>
       </div>
 
       <Tabs

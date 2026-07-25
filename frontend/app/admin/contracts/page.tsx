@@ -1,3 +1,5 @@
+//contracts/page.tsx
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -21,7 +23,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Field, FieldLabel, FieldGroup } from "@/components/ui/field";
-import { FileText, Plus, Eye, XCircle, Loader2, Search } from "lucide-react";
+import {
+  FileText,
+  Plus,
+  Eye,
+  XCircle,
+  Loader2,
+  Search,
+  RefreshCw,
+  LogOut,
+} from "lucide-react";
 import { contractAPI } from "@/lib/api/contract.api";
 import { tenantAPI } from "@/lib/api/tenant.api";
 import { roomAPI } from "@/lib/api/room.api";
@@ -54,6 +65,15 @@ interface FormData {
   note: string;
 }
 
+interface RenewFormData {
+  end_date: string;
+  rent_amount: string;
+}
+
+interface CheckoutFormData {
+  checkout_date: string;
+}
+
 const emptyForm: FormData = {
   tenant_id: "",
   room_id: "",
@@ -62,6 +82,15 @@ const emptyForm: FormData = {
   rent_amount: "",
   deposit_amount: "",
   note: "",
+};
+
+const emptyRenewForm: RenewFormData = {
+  end_date: "",
+  rent_amount: "",
+};
+
+const emptyCheckoutForm: CheckoutFormData = {
+  checkout_date: "",
 };
 
 const formatDate = (d: string) =>
@@ -93,6 +122,20 @@ export default function ContractsPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [viewingContract, setViewingContract] = useState<Contract | null>(null);
   const [formData, setFormData] = useState<FormData>(emptyForm);
+
+  // ── Renew contract ──────────────────────────────────────────────────────
+  const [renewingContract, setRenewingContract] = useState<Contract | null>(
+    null,
+  );
+  const [renewForm, setRenewForm] = useState<RenewFormData>(emptyRenewForm);
+  const [renewSubmitting, setRenewSubmitting] = useState(false);
+
+  // ── Checkout / ทำเรื่องย้ายออก (สำหรับสัญญา expired) ───────────────────────
+  const [checkingOutContract, setCheckingOutContract] =
+    useState<Contract | null>(null);
+  const [checkoutForm, setCheckoutForm] =
+    useState<CheckoutFormData>(emptyCheckoutForm);
+  const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
 
   // ── Fetch contracts ───────────────────────────────────────────────────────
   const fetchContracts = useCallback(async () => {
@@ -195,6 +238,70 @@ export default function ContractsPage() {
     }
   };
 
+  // ── Renew contract ────────────────────────────────────────────────────────
+  const openRenewDialog = (contract: Contract) => {
+    setRenewForm({
+      end_date: "",
+      rent_amount: String(contract.rent_amount ?? ""),
+    });
+    setRenewingContract(contract);
+  };
+
+  const handleRenewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renewingContract) return;
+    setRenewSubmitting(true);
+    try {
+      const res = await contractAPI.renew(renewingContract.contract_id, {
+        end_date: renewForm.end_date,
+        rent_amount: renewForm.rent_amount
+          ? parseFloat(renewForm.rent_amount)
+          : undefined,
+      });
+      toast.success(res.message ?? t("contracts.renewSuccess"));
+      setRenewingContract(null);
+      setRenewForm(emptyRenewForm);
+      setViewingContract(null);
+      fetchContracts();
+      fetchFormOptions();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? t("contracts.renewError"));
+    } finally {
+      setRenewSubmitting(false);
+    }
+  };
+
+  // ── Checkout (ทำเรื่องย้ายออก) ────────────────────────────────────────────
+  // ใช้ endpoint terminate ตัวเดิม เพราะ backend relax เงื่อนไขให้รองรับสัญญา
+  // expired แล้ว (ปลดห้องว่าง + คำนวณคืนเงินมัดจำให้อัตโนมัติ)
+  const openCheckoutDialog = (contract: Contract) => {
+    setCheckoutForm({
+      checkout_date: new Date().toISOString().slice(0, 10),
+    });
+    setCheckingOutContract(contract);
+  };
+
+  const handleCheckoutSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!checkingOutContract) return;
+    setCheckoutSubmitting(true);
+    try {
+      const res = await contractAPI.terminate(checkingOutContract.contract_id, {
+        checkout_date: checkoutForm.checkout_date,
+      });
+      toast.success(res.message ?? t("contracts.checkoutSuccess"));
+      setCheckingOutContract(null);
+      setCheckoutForm(emptyCheckoutForm);
+      setViewingContract(null);
+      fetchContracts();
+      fetchFormOptions();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? t("contracts.checkoutError"));
+    } finally {
+      setCheckoutSubmitting(false);
+    }
+  };
+
   const resetForm = () => {
     setFormData(emptyForm);
     setIsAddDialogOpen(false);
@@ -204,6 +311,15 @@ export default function ContractsPage() {
     (field: keyof FormData) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setFormData((p) => ({ ...p, [field]: e.target.value }));
+
+  const setRenewField =
+    (field: keyof RenewFormData) => (e: React.ChangeEvent<HTMLInputElement>) =>
+      setRenewForm((p) => ({ ...p, [field]: e.target.value }));
+
+  const setCheckoutField =
+    (field: keyof CheckoutFormData) =>
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      setCheckoutForm((p) => ({ ...p, [field]: e.target.value }));
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -641,8 +757,165 @@ export default function ContractsPage() {
                   {t("contracts.terminateAction")}
                 </Button>
               )}
+              {viewingContract.status === "expired" && (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    className="flex-1 gap-2"
+                    onClick={() => openRenewDialog(viewingContract)}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    {t("contracts.renewAction")}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="flex-1 gap-2"
+                    onClick={() => openCheckoutDialog(viewingContract)}
+                  >
+                    <LogOut className="w-4 h-4" />
+                    {t("contracts.moveOutAction")}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Renew Dialog */}
+      <Dialog
+        open={!!renewingContract}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenewingContract(null);
+            setRenewForm(emptyRenewForm);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("contracts.renewTitle")}</DialogTitle>
+            <DialogDescription>
+              {renewingContract?.tenant_name} • {t("contracts.room")}{" "}
+              {renewingContract?.room_number}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleRenewSubmit}>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="renew_end_date">
+                  {t("contracts.newEndDate")}
+                </FieldLabel>
+                <Input
+                  id="renew_end_date"
+                  type="date"
+                  value={renewForm.end_date}
+                  onChange={setRenewField("end_date")}
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="renew_rent_amount">
+                  {t("contracts.rentAmountBaht")}
+                </FieldLabel>
+                <Input
+                  id="renew_rent_amount"
+                  type="number"
+                  value={renewForm.rent_amount}
+                  onChange={setRenewField("rent_amount")}
+                  placeholder={t("contracts.useRoomRent")}
+                />
+              </Field>
+            </FieldGroup>
+
+            <DialogFooter className="mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setRenewingContract(null);
+                  setRenewForm(emptyRenewForm);
+                }}
+                disabled={renewSubmitting}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button
+                type="submit"
+                disabled={renewSubmitting || !renewForm.end_date}
+              >
+                {renewSubmitting && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {t("contracts.renewConfirm")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Checkout Dialog (ทำเรื่องย้ายออก / เคลียร์ห้องสำหรับสัญญาหมดอายุ) */}
+      <Dialog
+        open={!!checkingOutContract}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCheckingOutContract(null);
+            setCheckoutForm(emptyCheckoutForm);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("contracts.moveOutTitle")}</DialogTitle>
+            <DialogDescription>
+              {checkingOutContract?.tenant_name} • {t("contracts.room")}{" "}
+              {checkingOutContract?.room_number}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCheckoutSubmit}>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="checkout_date">
+                  {t("contracts.moveOutDate")}
+                </FieldLabel>
+                <Input
+                  id="checkout_date"
+                  type="date"
+                  value={checkoutForm.checkout_date}
+                  onChange={setCheckoutField("checkout_date")}
+                  required
+                />
+              </Field>
+              <p className="text-xs text-muted-foreground">
+                {t("contracts.checkoutDepositNote")}
+              </p>
+            </FieldGroup>
+
+            <DialogFooter className="mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setCheckingOutContract(null);
+                  setCheckoutForm(emptyCheckoutForm);
+                }}
+                disabled={checkoutSubmitting}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={checkoutSubmitting || !checkoutForm.checkout_date}
+              >
+                {checkoutSubmitting && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {t("contracts.moveOutConfirm")}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

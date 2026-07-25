@@ -197,6 +197,7 @@ const translations: Record<string, { th: string; en: string }> = {
   "menu.meters": { th: "บันทึกมิเตอร์", en: "Meter Readings" },
   "menu.bills": { th: "บิล", en: "Bills" },
   "menu.payments": { th: "การชำระเงิน", en: "Payments" },
+  "menu.deposits": { th: "เงินประกัน", en: "Deposits" },
   "menu.maintenance": { th: "แจ้งซ่อม", en: "Maintenance" },
   "menu.announcements": { th: "ประกาศ", en: "Announcements" },
   "menu.settings": { th: "ตั้งค่า", en: "Settings" },
@@ -267,6 +268,7 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "ผู้ติดต่อฉุกเฉิน",
     en: "Emergency Contact Name",
   },
+
   "tenants.cannotDeleteActive": {
     th: "ไม่สามารถลบผู้เช่าที่มีสัญญาอยู่ได้",
     en: "Cannot delete tenant with active contract",
@@ -274,6 +276,50 @@ const translations: Record<string, { th: string; en: string }> = {
   "tenants.viewCurrent": { th: "ดูผู้เช่าปัจจุบัน", en: "Current Tenants" },
   "tenants.viewHistory": { th: "ประวัติผู้เช่าเก่า", en: "Former Tenants" },
   "tenants.deleted": { th: "ถูกลบแล้ว", en: "Deleted" },
+  "errors.PHONE_REQUIRED": {
+    th: "กรุณากรอกเบอร์โทรศัพท์",
+    en: "Phone number is required",
+  },
+  "errors.PHONE_FORMAT": {
+    th: "เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องขึ้นต้นด้วย 0 และมี 9-10 หลัก)",
+    en: "Invalid phone number (must start with 0, 9-10 digits)",
+  },
+  "errors.EMERGENCY_PHONE_FORMAT": {
+    th: "เบอร์ติดต่อฉุกเฉินไม่ถูกต้อง (ต้องขึ้นต้นด้วย 0 และมี 9-10 หลัก)",
+    en: "Invalid emergency contact number (must start with 0, 9-10 digits)",
+  },
+  "errors.ID_CARD_LENGTH": {
+    th: "เลขบัตรประชาชนต้องมี 13 หลัก",
+    en: "ID card number must be 13 digits",
+  },
+  "errors.EMAIL_FORMAT": {
+    th: "รูปแบบอีเมลไม่ถูกต้อง",
+    en: "Invalid email format",
+  },
+  "errors.FIRST_NAME_REQUIRED": {
+    th: "กรุณากรอกชื่อ",
+    en: "First name is required",
+  },
+  "errors.LAST_NAME_REQUIRED": {
+    th: "กรุณากรอกนามสกุล",
+    en: "Last name is required",
+  },
+  "errors.USERNAME_LENGTH": {
+    th: "ชื่อผู้ใช้ต้องมี 3-50 ตัวอักษร",
+    en: "Username must be 3-50 characters",
+  },
+  "errors.USERNAME_FORMAT": {
+    th: "ชื่อผู้ใช้ใช้ได้เฉพาะตัวอักษร ตัวเลข และ _",
+    en: "Username can only contain letters, numbers, and underscore",
+  },
+  "errors.PASSWORD_MIN_LENGTH": {
+    th: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร",
+    en: "Password must be at least 6 characters",
+  },
+  "tenants.checkFormErrors": {
+    th: "กรุณาตรวจสอบข้อมูลที่กรอก",
+    en: "Please check the information you entered",
+  },
 
   // ── Contracts ──────────────────────────────────────────────────────────────
   "contracts.title": { th: "สัญญาเช่า", en: "Rental Contracts" },
@@ -361,6 +407,58 @@ const translations: Record<string, { th: string; en: string }> = {
   "contracts.terminateError": {
     th: "ยกเลิกสัญญาไม่สำเร็จ",
     en: "Failed to terminate contract",
+  },
+  "contracts.renewAction": {
+    th: "ต่อสัญญา",
+    en: "Renew Contract",
+  },
+  "contracts.renewTitle": {
+    th: "ต่อสัญญาเช่า",
+    en: "Renew Lease Contract",
+  },
+  "contracts.newEndDate": {
+    th: "วันหมดอายุสัญญาใหม่",
+    en: "New Contract End Date",
+  },
+  "contracts.renewConfirm": {
+    th: "ยืนยันต่อสัญญา",
+    en: "Confirm Renewal",
+  },
+  "contracts.renewSuccess": {
+    th: "ต่อสัญญาสำเร็จ",
+    en: "Contract renewed successfully",
+  },
+  "contracts.renewError": {
+    th: "ไม่สามารถต่อสัญญาได้",
+    en: "Failed to renew contract",
+  },
+  "contracts.moveOutAction": {
+    th: "ทำเรื่องย้ายออก",
+    en: "Process Move-out",
+  },
+  "contracts.moveOutTitle": {
+    th: "ทำเรื่องย้ายออก / เคลียร์ห้อง",
+    en: "Move-out / Clear Room",
+  },
+  "contracts.moveOutDate": {
+    th: "วันที่ย้ายออก (เช็คเอาท์)",
+    en: "Move-out (Checkout) Date",
+  },
+  "contracts.moveOutConfirm": {
+    th: "ยืนยันย้ายออก",
+    en: "Confirm Move-out",
+  },
+  "contracts.checkoutDepositNote": {
+    th: "ระบบจะคำนวณเงินมัดจำคืนให้อัตโนมัติ หากเช็คเอาท์หลังวันหมดสัญญาจะไม่มีค่าปรับ",
+    en: "The deposit refund will be calculated automatically. No penalty applies if checkout is after the contract end date.",
+  },
+  "contracts.checkoutSuccess": {
+    th: "ทำเรื่องย้ายออกสำเร็จ",
+    en: "Move-out processed successfully",
+  },
+  "contracts.checkoutError": {
+    th: "ไม่สามารถทำเรื่องย้ายออกได้",
+    en: "Failed to process move-out",
   },
 
   // ── Bills ──────────────────────────────────────────────────────────────────
@@ -596,7 +694,6 @@ const translations: Record<string, { th: string; en: string }> = {
   "announcements.titleField": { th: "หัวข้อประกาศ", en: "Announcement Title" },
   "announcements.content": { th: "เนื้อหา", en: "Content" },
   "announcements.audience": { th: "กลุ่มเป้าหมาย", en: "Target Audience" },
-  "announcements.floor": { th: "เฉพาะชั้น", en: "Specific Floor" },
   "announcements.pinned": { th: "ปักหมุด", en: "Pinned" },
   "announcements.expires": { th: "วันหมดอายุ", en: "Expiry Date" },
   "announcements.everyone": { th: "ทุกคน", en: "Everyone" },
@@ -608,7 +705,31 @@ const translations: Record<string, { th: string; en: string }> = {
   },
   "announcements.others": { th: "ประกาศอื่น", en: "Other Announcements" },
   "announcements.empty": { th: "ยังไม่มีประกาศ", en: "No announcements yet" },
-
+  "announcements.floor": {
+    th: "ส่งเฉพาะชั้น (ไม่บังคับ)",
+    en: "Target floor (optional)",
+  },
+  "announcements.floorPlaceholder": {
+    th: "เว้นว่าง = ส่งทุกชั้น",
+    en: "Leave blank to send to all floors",
+  },
+  "announcements.sendViaTelegram": {
+    th: "ส่งประกาศผ่าน Telegram",
+    en: "Send via Telegram",
+  },
+  "announcements.floorBadge": { th: "ชั้น", en: "Floor" },
+  "announcements.createNew": {
+    th: "สร้างประกาศใหม่",
+    en: "Create new announcement",
+  },
+  "announcements.created": {
+    th: "สร้างประกาศสำเร็จ",
+    en: "Announcement created successfully",
+  },
+  "announcements.updated": {
+    th: "แก้ไขประกาศสำเร็จ",
+    en: "Announcement updated successfully",
+  },
   // ── Meters ─────────────────────────────────────────────────────────────────
   "meters.title": { th: "บันทึกมิเตอร์", en: "Meter Readings" },
   "meters.subtitle": {
@@ -1421,12 +1542,10 @@ const translations: Record<string, { th: string; en: string }> = {
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>("th");
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("language") as Language | null;
     if (saved === "th" || saved === "en") setLanguage(saved);
-    setMounted(true);
   }, []);
 
   const handleSetLanguage = (lang: Language) => {
@@ -1439,8 +1558,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     if (!trans) return key;
     return trans[language] || key;
   };
-
-  if (!mounted) return <>{children}</>;
 
   return (
     <LanguageContext.Provider

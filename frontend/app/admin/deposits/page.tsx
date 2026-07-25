@@ -23,7 +23,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { PiggyBank, Check, Loader2 } from "lucide-react";
 import StatusBadge from "@/components/common/status-badge";
-import { contractAPI } from "@/lib/api/contract.api";
+import { depositAPI } from "@/lib/api/deposit.api";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 
@@ -61,8 +61,7 @@ export default function DepositsPage() {
   const fetchContracts = useCallback(async () => {
     try {
       setLoading(true);
-      // ดึงทุก contract ที่มี deposit_amount > 0
-      const res = await contractAPI.getAll();
+      const res = await depositAPI.getAll(); // ✅ ใช้ endpoint ใหม่ ได้ deposit_status มาตรงๆ ไม่ต้อง derive เอง
       const data: Contract[] = res?.data ?? res ?? [];
       setContracts(data.filter((c) => Number(c.deposit_amount) > 0));
     } catch {
@@ -114,9 +113,11 @@ export default function DepositsPage() {
     if (!selectedContract || !refundAmount) return;
     try {
       setActionLoading(true);
-      // contractAPI.terminate ใน contract.api.js ไม่รับ body
-      // ต้องใช้ contractAPI.update หรือเรียก terminate แล้วส่ง note ผ่าน update
-      await contractAPI.terminate(selectedContract.contract_id);
+      // ✅ ส่ง refund_amount กับ note จริงๆ แทนที่จะเรียก terminate เฉยๆ
+      await depositAPI.refund(selectedContract.contract_id, {
+        refund_amount: Number(refundAmount),
+        note: refundNotes,
+      });
       toast.success(t("deposits.refundSuccess"));
       setRefundDialogOpen(false);
       setRefundNotes("");
@@ -129,7 +130,7 @@ export default function DepositsPage() {
       setActionLoading(false);
     }
   };
-
+  
   const formatDate = (d: string | null) => {
     if (!d) return "-";
     return new Date(d).toLocaleDateString("th-TH");

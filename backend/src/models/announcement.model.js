@@ -1,10 +1,12 @@
 /**
  * models/announcement.model.js
  * Supports target_floor: NULL = all floors, 1/2/3 = specific floor only.
+ * findAll now filters by the requesting tenant's own floor when tenant_floor
+ * is passed in (announcements with target_floor = NULL still show to everyone).
  */
 const { pool } = require('../config/db')
 
-const findAll = async ({ target_audience, is_pinned } = {}) => {
+const findAll = async ({ target_audience, is_pinned, tenant_floor } = {}) => {
   let sql = `
     SELECT a.*, u.username AS published_by_name
     FROM announcements a
@@ -17,6 +19,12 @@ const findAll = async ({ target_audience, is_pinned } = {}) => {
     params.push(target_audience)
   }
   if (is_pinned !== undefined) { sql += ' AND a.is_pinned = ?'; params.push(is_pinned ? 1 : 0) }
+  // NEW: only show floor-scoped announcements to tenants on that floor.
+  // Announcements with target_floor IS NULL (i.e. "all floors") always show.
+  if (tenant_floor !== undefined && tenant_floor !== null) {
+    sql += ' AND (a.target_floor IS NULL OR a.target_floor = ?)'
+    params.push(tenant_floor)
+  }
   sql += ' ORDER BY a.is_pinned DESC, a.published_at DESC'
   const [rows] = await pool.query(sql, params)
   return rows

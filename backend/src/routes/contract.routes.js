@@ -23,6 +23,11 @@ const updateValidation = [
   body('rent_amount').optional().isFloat({ min: 0 }),
 ];
 
+const renewValidation = [
+  body('end_date').isDate(),
+  body('rent_amount').optional().isFloat({ min: 0 }),
+];
+
 router.use(authenticate);
 
 // ── Tenant self-service — BEFORE /:id ────────────────────────
@@ -37,6 +42,7 @@ router.post('/',  authorizeRoles('admin'), createContractValidation, ctrl.create
 // ── Wildcard paths LAST ───────────────────────────────────────
 router.get('/:id',              ctrl.getContractById);
 router.put('/:id',              authorizeRoles('admin'), updateValidation, ctrl.updateContract);
+router.put('/:id/renew',        authorizeRoles('admin'), renewValidation, ctrl.renewContract);
 router.put('/:id/terminate',    authorizeRoles('admin', 'tenant'), ctrl.terminateContract);
 
 module.exports = router;

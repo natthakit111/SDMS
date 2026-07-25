@@ -28,6 +28,8 @@
     "passport-telegram": "^1.0.0",
     "pdfkit": "^0.15.0",
     "promptpay-qr": "^0.4.0",
+    "puppeteer": "^25.3.0",
+    "qrcode": "^1.5.4",
     "winston": "^3.13.0"
   },
   "devDependencies": {

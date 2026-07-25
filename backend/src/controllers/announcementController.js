@@ -1,16 +1,42 @@
 /**
  * controllers/announcementController.js
- * Supports target_floor for floor-specific announcements (13.1.4)
+ * Supports target_floor for floor-specific announcements.
+ * getAll now resolves the requesting tenant's own floor (via their active
+ * contract/room) and filters the list so a tenant only sees announcements
+ * meant for "all floors" or for their own floor.
  */
 const { validationResult } = require('express-validator')
+const { pool }          = require('../config/db')
 const AnnouncementModel = require('../models/announcement.model')
 const TelegramService   = require('../services/telegram.service')
 const { sendSuccess, sendCreated, sendBadRequest, sendNotFound } = require('../utils/response')
 
+// ── Helper: find the floor of the room a tenant currently has an active contract on ──
+const getTenantFloor = async (userId) => {
+  const [rows] = await pool.query(
+    `SELECT r.floor
+     FROM tenants t
+     JOIN contracts c ON c.tenant_id = t.tenant_id AND c.status = 'active'
+     JOIN rooms r ON r.room_id = c.room_id
+     WHERE t.user_id = ?
+     LIMIT 1`,
+    [userId]
+  )
+  return rows[0]?.floor ?? null
+}
+
 const getAll = async (req, res, next) => {
   try {
-    const audience = req.user.role === 'admin' ? undefined : 'tenant'
-    const items = await AnnouncementModel.findAll({ target_audience: audience })
+    const isAdmin = req.user.role === 'admin'
+    const audience = isAdmin ? undefined : 'tenant'
+    // Admins see everything regardless of floor; tenants only see
+    // announcements for "all floors" or their own floor.
+    const tenantFloor = isAdmin ? null : await getTenantFloor(req.user.user_id)
+
+    const items = await AnnouncementModel.findAll({
+      target_audience: audience,
+      tenant_floor: tenantFloor,
+    })
     return sendSuccess(res, items)
   } catch (err) { next(err) }
 }

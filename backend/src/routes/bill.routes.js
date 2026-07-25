@@ -44,6 +44,10 @@ router.get('/:id/qr',
   authenticate,
   ctrl.getBillQR
 );
+router.get('/:id/invoice-pdf',
+  authenticate,
+  ctrl.exportBillInvoice
+);
 router.get('/:id',
   authenticate,
   ctrl.getBillById

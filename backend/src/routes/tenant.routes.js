@@ -1,6 +1,10 @@
 /**
  * routes/tenant.routes.js
  * Base path: /api/tenants
+ *
+ * หมายเหตุ: withMessage() ใช้ "error code" (SCREAMING_SNAKE_CASE) แทนข้อความสำเร็จรูป
+ * เพื่อให้ frontend แปลเป็นภาษาที่ผู้ใช้เลือกไว้ (TH/EN) ผ่านระบบ t() ที่มีอยู่แล้ว
+ * ห้ามใส่ข้อความภาษาใดภาษาหนึ่งตรงๆ ที่นี่ เพราะ backend ไม่รู้ว่า user เลือกภาษาอะไร
  */
 const express = require('express');
 const { body } = require('express-validator');
@@ -8,26 +12,62 @@ const router = express.Router();
 const ctrl = require('../controllers/tenantController');
 const { authenticate, authorizeRoles } = require('../middlewares/auth.middleware');
 
-const createValidation = [
-  body('username').trim().isLength({ min: 3, max: 50 }).matches(/^[a-zA-Z0-9_]+$/),
-  body('password').isLength({ min: 6 }),
-  body('first_name').trim().notEmpty().withMessage('First name is required'),
-  body('last_name').trim().notEmpty().withMessage('Last name is required'),
+// เบอร์โทรไทย: ขึ้นต้นด้วย 0, ตามด้วย 1-9, รวม 9-10 หลัก (รองรับทั้งมือถือและเบอร์บ้าน)
+const THAI_PHONE_REGEX = /^0[1-9]\d{7,8}$/;
 
-  // ✅ FIX: strip dashes ก่อน validate เพราะ user กรอก "1-2345-67890-12-3" (17 ตัว)
+const createValidation = [
+  body('username')
+    .trim().isLength({ min: 3, max: 50 }).withMessage('USERNAME_LENGTH')
+    .bail()
+    .matches(/^[a-zA-Z0-9_]+$/).withMessage('USERNAME_FORMAT'),
+
+  body('password').isLength({ min: 6 }).withMessage('PASSWORD_MIN_LENGTH'),
+
+  body('first_name').trim().notEmpty().withMessage('FIRST_NAME_REQUIRED'),
+  body('last_name').trim().notEmpty().withMessage('LAST_NAME_REQUIRED'),
+
   body('id_card_number')
     .trim()
-    .customSanitizer((val) => val.replace(/-/g, ''))   // ลบขีดออก → เหลือ 13 ตัว
+    .customSanitizer((val) => val.replace(/-/g, ''))
     .isLength({ min: 13, max: 13 })
-    .withMessage('ID card must be 13 digits'),
+    .withMessage('ID_CARD_LENGTH'),
 
-  body('phone').trim().notEmpty().withMessage('Phone is required'),
-  body('email').optional().isEmail(),
+  body('phone')
+    .trim()
+    .customSanitizer((val) => val.replace(/[\s-]/g, ''))
+    .notEmpty().withMessage('PHONE_REQUIRED')
+    .bail()
+    .matches(THAI_PHONE_REGEX)
+    .withMessage('PHONE_FORMAT'),
+
+  body('email').optional().isEmail().withMessage('EMAIL_FORMAT'),
+
+  body('emergency_contact_phone')
+    .optional({ checkFalsy: true })
+    .trim()
+    .customSanitizer((val) => val.replace(/[\s-]/g, ''))
+    .matches(THAI_PHONE_REGEX)
+    .withMessage('EMERGENCY_PHONE_FORMAT'),
 ];
 
 const updateValidation = [
-  body('phone').optional().notEmpty(),
-  body('email').optional().isEmail(),
+  body('phone')
+    .optional()
+    .trim()
+    .customSanitizer((val) => val.replace(/[\s-]/g, ''))
+    .notEmpty().withMessage('PHONE_REQUIRED')
+    .bail()
+    .matches(THAI_PHONE_REGEX)
+    .withMessage('PHONE_FORMAT'),
+
+  body('email').optional().isEmail().withMessage('EMAIL_FORMAT'),
+
+  body('emergency_contact_phone')
+    .optional({ checkFalsy: true })
+    .trim()
+    .customSanitizer((val) => val.replace(/[\s-]/g, ''))
+    .matches(THAI_PHONE_REGEX)
+    .withMessage('EMERGENCY_PHONE_FORMAT'),
 ];
 
 // Tenant self-service (must come BEFORE /:id to avoid route conflict)

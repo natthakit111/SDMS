@@ -68,7 +68,7 @@
    สำหรับ Frontend:
    ```bash
    cd frontend
-   npm install
+   pnpm install
    ```
 
 4. **Environment Variables (.env):**

@@ -95,7 +95,7 @@
    เปิด Terminal หน้าต่างที่ 2 (รัน Frontend):
    ```bash
    cd frontend
-   npm start
+   pnpm start
    ```
 
 ---

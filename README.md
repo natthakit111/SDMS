@@ -1,4 +1,4 @@
-# 🏢 DormFlow - Smart Dormitory Management System
+# 🏢 Smart Dormitory Management System
 
 **ระบบบริหารจัดการหอพักและแจ้งเตือนอัตโนมัติ (Smart Dormitory Management System with Automated Notification)**
 

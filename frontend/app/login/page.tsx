@@ -137,7 +137,7 @@ export default function LoginPage() {
               <Building2 className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl">DormFlow</CardTitle>
+          <CardTitle className="text-2xl">SDMS</CardTitle>
           <CardDescription>{t("login.subtitle")}</CardDescription>
         </CardHeader>
 

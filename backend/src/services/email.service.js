@@ -54,7 +54,7 @@ const sendResetPasswordEmail = async (toEmail, username, token) => {
     <body>
       <div class="container">
         <div class="header">
-          <h1>🏠 DormFlow</h1>
+          <h1>🏠 SDMS</h1>
         </div>
         <div class="body">
           <p>สวัสดี <strong>${username}</strong>,</p>
@@ -70,7 +70,7 @@ const sendResetPasswordEmail = async (toEmail, username, token) => {
           </p>
         </div>
         <div class="footer">
-          DormFlow — ระบบบริหารจัดการหอพัก
+          SDMS — ระบบบริหารจัดการหอพัก
         </div>
       </div>
     </body>
@@ -78,9 +78,9 @@ const sendResetPasswordEmail = async (toEmail, username, token) => {
   `;
 
   await transporter.sendMail({
-    from: `"DormFlow" <${process.env.GMAIL_USER}>`,
+    from: `"SDMS" <${process.env.GMAIL_USER}>`,
     to: toEmail,
-    subject: '🔐 รีเซ็ตรหัสผ่าน DormFlow',
+    subject: '🔐 รีเซ็ตรหัสผ่าน SDMS',
     html,
   });
 };

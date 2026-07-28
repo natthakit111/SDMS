@@ -6,7 +6,8 @@ const express = require('express');
 const { body } = require('express-validator');
 const router = express.Router();
 const ctrl = require('../controllers/moveOutController');
-const { authenticate, authorizeRoles } = require('../middlewares/auth.middleware');
+const { authenticate } = require('../middlewares/auth.middleware');
+const { authorizeRoles } = require('../middlewares/role.middleware');
 
 const createValidation = [
   body('move_out_date').isDate().withMessage('move_out_date must be a valid date'),

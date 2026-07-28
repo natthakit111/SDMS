@@ -14,9 +14,9 @@ const notoSansThai = Noto_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: "DormFlow - ระบบจัดการหอพัก",
+  title: "ระบบบริหารจัดการหอพัก",
   description:
-    "ระบบจัดการหอพัก จัดการห้องพัก ผู้เช่า บิล และการชำระเงินได้ง่ายๆ",
+    "ระบบบริหารจัดการหอพักและแจ้งเตือนอัตโนมัติ จัดการห้องพัก ผู้เช่า บิล และการชำระเงินได้ง่ายๆ",
 };
 
 export const viewport: Viewport = {

@@ -65,7 +65,7 @@ export function TenantNavbar() {
             {t("tenant.myRoom")} {roomNumber}
           </p>
           <p className="text-xs text-muted-foreground hidden sm:block">
-            DormFlow
+            SDMS
           </p>
         </div>
       </div>

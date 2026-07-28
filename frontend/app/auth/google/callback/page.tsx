@@ -91,7 +91,7 @@ export default function GoogleCallbackPage() {
               <Building2 className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-xl">DormFlow</CardTitle>
+          <CardTitle className="text-xl">SDMS</CardTitle>
           <CardDescription>เข้าสู่ระบบด้วย Google</CardDescription>
         </CardHeader>
         <CardContent>

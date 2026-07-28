@@ -5,7 +5,8 @@ const express = require('express');
 const { body, query } = require('express-validator');
 const router = express.Router();
 const ctrl = require('../controllers/roomController');
-const { authenticate, authorizeRoles } = require('../middlewares/auth.middleware');
+const { authenticate } = require('../middlewares/auth.middleware');
+const { authorizeRoles } = require('../middlewares/role.middleware');
 
 const roomValidation = [
   body('room_number').trim().notEmpty().withMessage('Room number is required'),

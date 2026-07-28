@@ -6,7 +6,8 @@ const express = require('express');
 const { body } = require('express-validator');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const { authenticate, authorizeRoles } = require('../middlewares/auth.middleware');
+const { authenticate } = require('../middlewares/auth.middleware');
+const { authorizeRoles } = require('../middlewares/role.middleware');
 
 const registerValidation = [
   body('username').trim().isLength({ min: 3, max: 50 }).withMessage('Username must be 3–50 characters')

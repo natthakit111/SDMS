@@ -6,7 +6,8 @@
 const express = require('express');
 const router  = express.Router();
 const { pool } = require('../config/db');
-const { authenticate, authorizeRoles } = require('../middlewares/auth.middleware');
+const { authenticate } = require('../middlewares/auth.middleware');
+const { authorizeRoles } = require('../middlewares/role.middleware');
 const { sendSuccess, sendBadRequest } = require('../utils/response');
 
 router.get('/', authenticate, authorizeRoles('admin'), async (req, res, next) => {

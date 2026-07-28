@@ -2,10 +2,13 @@
  * middlewares/auth.middleware.js
  * Verifies the JWT in the Authorization header.
  * Attaches decoded payload to req.user.
+ *
+ * Responsibility: Authentication only ("who are you?")
+ * For role-based access control ("what can you do?"), see role.middleware.js
  */
 
 const jwt = require('jsonwebtoken');
-const { sendUnauthorized, sendForbidden } = require('../utils/response');
+const { sendUnauthorized } = require('../utils/response');
 
 /**
  * authenticate
@@ -33,26 +36,4 @@ const authenticate = (req, res, next) => {
   }
 };
 
-/**
- * authorizeRoles
- * Role-based access control middleware factory.
- * Usage: router.post('/admin-only', authenticate, authorizeRoles('admin'), controller)
- *
- * @param {...string} roles - Allowed roles e.g. 'admin', 'tenant'
- */
-const authorizeRoles = (...roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return sendUnauthorized(res);
-    }
-    if (!roles.includes(req.user.role)) {
-      return sendForbidden(
-        res,
-        `Role '${req.user.role}' is not allowed to access this resource`
-      );
-    }
-    next();
-  };
-};
-
-module.exports = { authenticate, authorizeRoles };
+module.exports = { authenticate };

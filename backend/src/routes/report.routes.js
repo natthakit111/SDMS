@@ -13,7 +13,8 @@
 const express = require('express')
 const router  = express.Router()
 const ctrl    = require('../controllers/reportController')
-const { authenticate, authorizeRoles } = require('../middlewares/auth.middleware')
+const { authenticate } = require('../middlewares/auth.middleware');
+const { authorizeRoles } = require('../middlewares/role.middleware');
 
 router.get('/revenue',        authenticate, authorizeRoles('admin'), ctrl.getRevenueReport)
 router.get('/rooms',          authenticate, authorizeRoles('admin'), ctrl.getRoomsReport)

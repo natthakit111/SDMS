@@ -8,7 +8,8 @@ const express = require('express');
 const { body, query } = require('express-validator');
 const router = express.Router();
 const ctrl = require('../controllers/meterController');
-const { authenticate, authorizeRoles } = require('../middlewares/auth.middleware');
+const { authenticate } = require('../middlewares/auth.middleware');
+const { authorizeRoles } = require('../middlewares/role.middleware');
 const { uploadMeterImage } = require('../middlewares/upload.middleware');
 
 const readingValidation = [

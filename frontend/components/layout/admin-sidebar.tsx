@@ -104,7 +104,7 @@ export function AdminSidebar() {
             <Building2 className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="font-bold text-lg">DormFlow</h1>
+            <h1 className="font-bold text-lg">SDMS</h1>
             <p className="text-xs text-muted-foreground">{t("common.admin")}</p>
           </div>
         </Link>

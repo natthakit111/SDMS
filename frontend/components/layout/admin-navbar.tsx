@@ -69,7 +69,7 @@ export function AdminNavbar() {
       <Separator orientation="vertical" className="h-6" />
       <div className="flex-1 min-w-0">
         <h2 className="text-sm font-medium text-muted-foreground truncate">
-          DormFlow
+          SDMS
         </h2>
       </div>
 

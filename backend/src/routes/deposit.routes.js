@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/depositController');
-const { authenticate, authorizeRoles } = require('../middlewares/auth.middleware');
+const { authenticate } = require('../middlewares/auth.middleware');
+const { authorizeRoles } = require('../middlewares/role.middleware');
 
 router.use(authenticate);
 router.get('/', authorizeRoles('admin'), ctrl.getAll);

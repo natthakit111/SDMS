@@ -6,7 +6,8 @@ const express = require('express');
 const { body } = require('express-validator');
 const router = express.Router();
 const UtilityRateModel = require('../models/utilityRate.model');
-const { authenticate, authorizeRoles } = require('../middlewares/auth.middleware');
+const { authenticate } = require('../middlewares/auth.middleware');
+const { authorizeRoles } = require('../middlewares/role.middleware');
 const { sendSuccess, sendCreated, sendBadRequest } = require('../utils/response');
 const { validationResult } = require('express-validator');
 

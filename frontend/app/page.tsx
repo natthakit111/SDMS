@@ -29,10 +29,10 @@ export default function HomePage() {
         <div className="p-4 rounded-full bg-primary/10">
           <Building2 className="h-12 w-12 text-primary" />
         </div>
-        <h1 className="text-3xl font-bold">DormFlow</h1>
-        <p className="text-muted-foreground">ระบบจัดการหอพักครบวงจร</p>
+        <h1 className="text-3xl font-bold">SDMS</h1>
+        <p className="text-muted-foreground">ระบบบริหารจัดการหอพัก</p>
         <Loader2 className="h-6 w-6 animate-spin text-primary mt-4" />
       </div>
     </div>
-  )
+  );
 }

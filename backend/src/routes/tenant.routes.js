@@ -10,7 +10,8 @@ const express = require('express');
 const { body } = require('express-validator');
 const router = express.Router();
 const ctrl = require('../controllers/tenantController');
-const { authenticate, authorizeRoles } = require('../middlewares/auth.middleware');
+const { authenticate } = require('../middlewares/auth.middleware');
+const { authorizeRoles } = require('../middlewares/role.middleware');
 
 // เบอร์โทรไทย: ขึ้นต้นด้วย 0, ตามด้วย 1-9, รวม 9-10 หลัก (รองรับทั้งมือถือและเบอร์บ้าน)
 const THAI_PHONE_REGEX = /^0[1-9]\d{7,8}$/;

@@ -1,3 +1,5 @@
+//context/language-context.tsx
+
 "use client";
 
 import {
@@ -75,6 +77,10 @@ const translations: Record<string, { th: string; en: string }> = {
   "common.saveSuccess": { th: "บันทึกสำเร็จ", en: "Saved successfully" },
   "common.deleteSuccess": { th: "ลบสำเร็จ", en: "Deleted successfully" },
   "common.confirmDelete": { th: "ยืนยันการลบ?", en: "Confirm delete?" },
+  "common.requiredFields": {
+    th: "กรุณากรอกข้อมูลให้ครบถ้วน",
+    en: "Please fill out all fields",
+  },
 
   // ── Login ──────────────────────────────────────────────────────────────────
   "login.subtitle": {
@@ -82,13 +88,21 @@ const translations: Record<string, { th: string; en: string }> = {
     en: "Dormitory Management System",
   },
   "login.orLoginWith": { th: "หรือเข้าสู่ระบบด้วย", en: "or continue with" },
-  "login.usernamePlaceholder": { th: "กรอก username", en: "Enter username" },
+  "login.usernamePlaceholder": { th: "กรอก ชื่อผู้ใช้", en: "Enter username" },
   "login.rememberMe": { th: "จดจำฉัน", en: "Remember me" },
   "login.forgotPassword": { th: "ลืมรหัสผ่าน?", en: "Forgot password?" },
   "login.submit": { th: "เข้าสู่ระบบ", en: "Sign In" },
   "login.loggingIn": { th: "กำลังเข้าสู่ระบบ...", en: "Signing in..." },
   "login.noAccount": { th: "ยังไม่มีบัญชี?", en: "Don't have an account?" },
   "login.register": { th: "สมัครสมาชิก", en: "Register" },
+  "login.phoneOrEmail": {
+    th: "เบอร์โทรศัพท์ หรือ อีเมล",
+    en: "Phone Number or Email",
+  },
+  "login.phoneOrEmailPlaceholder": {
+    th: "0812345678 หรือ your@email.com",
+    en: "0812345678 or your@email.com",
+  },
 
   // ── Forgot Password ────────────────────────────────────────────────────────
   "forgotPassword.title": { th: "ลืมรหัสผ่าน", en: "Forgot Password" },
@@ -482,6 +496,10 @@ const translations: Record<string, { th: string; en: string }> = {
   "bills.searchPlaceholder": {
     th: "ค้นหาหมายเลขห้อง หรือชื่อผู้เช่า...",
     en: "Search room or tenant...",
+  },
+  "bills.exportInvoice": {
+    th: "ดาวน์โหลดใบเสร็จ",
+    en: "Download Receipt",
   },
 
   // ── Bill Errors ─────────────────────────────────────────────────────────
@@ -921,6 +939,14 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร",
     en: "Password must be at least 6 characters",
   },
+  "register.errorInvalidEmail": {
+    th: "รูปแบบอีเมลไม่ถูกต้อง",
+    en: "Invalid email format",
+  },
+  "register.errorDuplicate": {
+    th: "อีเมลหรือเบอร์โทรศัพท์นี้ ถูกใช้สมัครสมาชิกไปแล้ว",
+    en: "This email or phone number is already registered.",
+  },
 
   // ── Settings ───────────────────────────────────────────────────────────────
   "settings.title": { th: "ตั้งค่าระบบ", en: "System Settings" },
@@ -1198,6 +1224,22 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "รหัสผ่านเดิมไม่ถูกต้อง",
     en: "Current password is incorrect",
   },
+  "settings.errorInvalidEmail": {
+    th: "รูปแบบอีเมลไม่ถูกต้อง",
+    en: "Invalid email format",
+  },
+  "settings.errorInvalidPhone": {
+    th: "เบอร์โทรศัพท์ต้องเป็นตัวเลข 9-10 หลัก และขึ้นต้นด้วย 0",
+    en: "Phone number must be 9-10 digits starting with 0",
+  },
+  "settings.errorPasswordSame": {
+    th: "รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม",
+    en: "New password must be different from the old password",
+  },
+  "settings.profileDesc": {
+    th: "จัดการข้อมูลส่วนตัวและความปลอดภัยของบัญชี",
+    en: "Manage your profile information and account security",
+  },
 
   // ── Tenant Telegram ────────────────────────────────────────────────────────
   "tgTenant.title": {
@@ -1391,6 +1433,10 @@ const translations: Record<string, { th: string; en: string }> = {
   "tenant.maintenance.subtitle": {
     th: "ส่งคำขอซ่อมแซมหรือปัญหาต่างๆ",
     en: "Submit repair or issue requests",
+  },
+  "maintenance.listTitle": {
+    th: "รายการแจ้งซ่อม",
+    en: "Maintenance Requests",
   },
   "tenant.maintenance.new": { th: "ส่งคำขอใหม่", en: "New Request" },
   "tenant.maintenance.success": {

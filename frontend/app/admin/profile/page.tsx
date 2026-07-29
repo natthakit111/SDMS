@@ -17,6 +17,16 @@ import { authAPI } from "@/lib/api/auth.api";
 import { useLanguage } from "@/context/language-context";
 import { useAuth } from "@/context/auth-context";
 
+// ── Validation helpers ─────────────────────────────────────
+const isValidEmail = (value: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+// เบอร์โทรไทย: ขึ้นต้นด้วย 0 ตามด้วยตัวเลข รวม 9-10 หลัก (ตัด - ออกก่อนเช็ค)
+const isValidPhone = (value: string) => {
+  const digitsOnly = value.replace(/-/g, "");
+  return /^0\d{8,9}$/.test(digitsOnly);
+};
+
 export default function ProfilePage() {
   const { t } = useLanguage();
   const { user } = useAuth();
@@ -43,16 +53,29 @@ export default function ProfilePage() {
       .slice(0, 2) || "AD";
 
   const handleSaveProfile = async () => {
-    if (!firstName) {
+    // ── Validation ──────────────────────────────────────────
+    if (!firstName.trim()) {
       toast.error(t("settings.errorFillAll"));
       return;
     }
+
+    if (email && !isValidEmail(email)) {
+      toast.error(t("settings.errorInvalidEmail"));
+      return;
+    }
+
+    if (phone && !isValidPhone(phone)) {
+      toast.error(t("settings.errorInvalidPhone"));
+      return;
+    }
+
     try {
       setSavingProfile(true);
       await authAPI.updateProfile({ firstName, lastName, email, phone });
       toast.success(t("common.saveSuccess"));
-    } catch {
-      toast.error(t("settings.saveError"));
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? t("settings.saveError");
+      toast.error(msg);
     } finally {
       setSavingProfile(false);
     }
@@ -69,6 +92,10 @@ export default function ProfilePage() {
     }
     if (newPassword.length < 6) {
       toast.error(t("settings.errorPasswordLength"));
+      return;
+    }
+    if (newPassword === oldPassword) {
+      toast.error(t("settings.errorPasswordSame"));
       return;
     }
     try {
@@ -94,7 +121,9 @@ export default function ProfilePage() {
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-3xl font-bold">{t("common.profile")}</h1>
-        <p className="text-muted-foreground mt-2">{t("tenants.editDesc")}</p>
+        <p className="text-muted-foreground mt-2">
+          {t("settings.profileDesc")}
+        </p>
       </div>
 
       {/* Avatar + username */}
@@ -126,7 +155,7 @@ export default function ProfilePage() {
             <User className="h-5 w-5" />
             {t("common.profile")}
           </CardTitle>
-          <CardDescription>{t("tenants.editDesc")}</CardDescription>
+          <CardDescription>{t("settings.profileDesc")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -159,6 +188,11 @@ export default function ProfilePage() {
                 placeholder="email@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onBlur={() => {
+                  if (email && !isValidEmail(email)) {
+                    toast.error(t("settings.errorInvalidEmail"));
+                  }
+                }}
               />
             </div>
             <div>
@@ -168,7 +202,17 @@ export default function ProfilePage() {
               <Input
                 placeholder="081-234-5678"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                maxLength={12} // เผื่อพิมพ์ขีด (-) ด้วย
+                onChange={(e) => {
+                  // อนุญาตเฉพาะตัวเลขกับขีด (-)
+                  const cleaned = e.target.value.replace(/[^0-9-]/g, "");
+                  setPhone(cleaned);
+                }}
+                onBlur={() => {
+                  if (phone && !isValidPhone(phone)) {
+                    toast.error(t("settings.errorInvalidPhone"));
+                  }
+                }}
               />
             </div>
           </div>

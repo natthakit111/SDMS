@@ -1,9 +1,11 @@
+// app/login/page.tsx
+
 "use client";
 
 export const dynamic = "force-dynamic";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
@@ -73,20 +75,28 @@ export default function LoginPage() {
     "google" | "telegram" | null
   >(null);
 
+
+  // ในตัว component
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setIsLoading(true);
-
+    // ... เดิม ...
     const result = await login(username, password, rememberMe);
 
     if (result.success && result.user) {
-      router.push(result.user.role === "admin" ? "/admin" : "/tenant");
+      // ถ้ามี redirect param ใช้ก่อน ไม่งั้น fallback ตาม role เหมือนเดิม
+      if (redirectTo) {
+        router.push(decodeURIComponent(redirectTo));
+      } else {
+        router.push(result.user.role === "admin" ? "/admin" : "/tenant");
+      }
     } else {
-      setError(result.error || t("common.error")); // ← แก้ตรงนี้
+      setError(result.error || t("common.error"));
       setPassword("");
     }
-
     setIsLoading(false);
   };
 
@@ -185,16 +195,17 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <FieldGroup>
+              {/* 💡 จุดที่แก้ไข: เปลี่ยน Label และ Placeholder */}
               <Field>
                 <FieldLabel htmlFor="username">
-                  {t("common.username")}
+                  {t("login.phoneOrEmail")}
                 </FieldLabel>
                 <Input
                   id="username"
                   type="text"
-                  placeholder={t("login.usernamePlaceholder")}
+                  placeholder={t("login.phoneOrEmailPlaceholder")}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required

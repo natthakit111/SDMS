@@ -1,3 +1,5 @@
+//app/laout.tsx
+
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Thai } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";

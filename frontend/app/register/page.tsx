@@ -26,7 +26,6 @@ export default function RegisterPage() {
 
   const [formData, setFormData] = useState({
     name: "",
-    username: "",
     email: "",
     phone: "",
     password: "",
@@ -44,28 +43,66 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
 
-    if (formData.password !== formData.confirmPassword) {
+    if (
+      !formData.name.trim() ||
+      !formData.email.trim() ||
+      !formData.phone.trim() ||
+      !formData.password.trim() ||
+      !formData.confirmPassword.trim()
+    ) {
+      // แจ้งเตือนให้กรอกข้อมูลให้ครบ
+      setError(t("common.requiredFields") || "กรุณากรอกข้อมูลให้ครบถ้วน");
+      return;
+    }
+
+    // คลีนข้อมูลและตัดช่องว่าง
+    const cleanEmail = formData.email.trim();
+    const cleanPassword = formData.password.trim();
+    const cleanConfirmPassword = formData.confirmPassword.trim();
+    const cleanPhone = formData.phone.trim();
+    const cleanName = formData.name.trim();
+
+    // Validate เบื้องต้น
+    if (cleanPassword !== cleanConfirmPassword) {
       setError(t("register.errorPasswordMismatch"));
       return;
     }
-    if (formData.password.length < 6) {
+    if (cleanPassword.length < 6) {
       setError(t("register.errorPasswordLength"));
       return;
     }
 
+    if (cleanEmail && !cleanEmail.includes("@")) {
+      setError(t("register.errorInvalidEmail"));
+      return;
+    }
+
     setIsLoading(true);
+
+    // ส่งข้อมูลไปโดยไม่มี username แล้ว
+    // generate a username if the backend requires it (use part before @ or fallback to name)
+    const usernameFromEmail = cleanEmail.includes("@")
+      ? cleanEmail.split("@")[0]
+      : "";
+    const usernameFromName = cleanName.replace(/\s+/g, "").toLowerCase();
+    const username = usernameFromEmail || usernameFromName || "user";
+
     const result = await register({
-      username: formData.username,
-      password: formData.password,
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
+      password: cleanPassword,
+      name: cleanName,
+      email: cleanEmail,
+      phone: cleanPhone,
     });
 
     if (result.success) {
       router.push("/tenant");
     } else {
-      setError(result.error || t("common.error"));
+      // 💡 ดักจับ Error Code จากหลังบ้าน และแปลงเป็นภาษาที่เลือก
+      if (result.error === "ERROR_DUPLICATE_ENTRY") {
+        setError(t("register.errorDuplicate"));
+      } else {
+        setError(result.error || t("common.error"));
+      }
     }
     setIsLoading(false);
   };
@@ -74,7 +111,6 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          {/* Language toggle */}
           <div className="flex justify-end mb-2">
             <button
               onClick={() => setLanguage(language === "th" ? "en" : "th")}
@@ -92,7 +128,8 @@ export default function RegisterPage() {
           <CardDescription>{t("register.subtitle")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit}>
+          {/* ปิด Validate ของเบราว์เซอร์ */}
+          <form onSubmit={handleSubmit} noValidate>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="name">{t("register.fullName")}</FieldLabel>
@@ -107,21 +144,7 @@ export default function RegisterPage() {
                   disabled={isLoading}
                 />
               </Field>
-              <Field>
-                <FieldLabel htmlFor="username">
-                  {t("common.username")}
-                </FieldLabel>
-                <Input
-                  id="username"
-                  name="username"
-                  type="text"
-                  placeholder={t("register.usernamePlaceholder")}
-                  value={formData.username}
-                  onChange={handleChange}
-                  required
-                  disabled={isLoading}
-                />
-              </Field>
+
               <Field>
                 <FieldLabel htmlFor="email">{t("common.email")}</FieldLabel>
                 <Input
@@ -223,4 +246,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-

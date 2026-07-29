@@ -41,6 +41,7 @@ const getRoomById = async (req, res, next) => {
 };
 
 // POST /api/rooms
+// POST /api/rooms
 const createRoom = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -48,13 +49,19 @@ const createRoom = async (req, res, next) => {
 
     const { room_number, floor, room_type, area_sqm, base_rent, status, description } = req.body;
 
+    // 💡 แก้ตรงนี้: เปลี่ยนจากส่งข้อความอังกฤษ เป็นส่ง Error Code 'ROOM_DUPLICATE' แทน
     const existing = await RoomModel.findByRoomNumber(room_number);
-    if (existing) return sendBadRequest(res, `Room number '${room_number}' already exists`);
+    if (existing) return sendBadRequest(res, 'ROOM_DUPLICATE');
 
     const roomId  = await RoomModel.create({ room_number, floor, room_type, area_sqm, base_rent, status, description });
     const newRoom = await RoomModel.findById(roomId);
     return sendCreated(res, newRoom, 'Room created successfully');
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return sendBadRequest(res, 'ROOM_DUPLICATE');
+    }
+    next(err); 
+  }
 };
 
 // PUT /api/rooms/:id

@@ -10,8 +10,9 @@ const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
 
 const registerValidation = [
-  body('username').trim().isLength({ min: 3, max: 50 }).withMessage('Username must be 3–50 characters')
-    .matches(/^[a-zA-Z0-9_]+$/).withMessage('Username can only contain letters, numbers, and underscores'),
+  // ลบ body('username') บรรทัดเดิมออกไปเลย แล้วใส่ phone แทน
+  body('phone').trim().notEmpty().withMessage('Phone is required')
+    .matches(/^[0-9]+$/).withMessage('Phone must contain only numbers'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('role').optional().isIn(['admin', 'tenant']).withMessage('Role must be either admin or tenant'),
 ];

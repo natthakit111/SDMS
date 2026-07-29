@@ -31,3 +31,17 @@ const currentMonthYear = () => {
 }
 
 module.exports = { thaiMonthYear, thaiMonthYearShort, thaiDate, lastDayOfMonth, currentMonthYear }
+
+/** "3 สิงหาคม 2569" — ล็อก timezone Asia/Bangkok กันวันที่เพี้ยนตอน server อยู่ UTC */
+const thaiDateBangkok = (dateStr) => {
+  const d = new Date(dateStr)
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Bangkok', year: 'numeric', month: 'numeric', day: 'numeric',
+  }).formatToParts(d).reduce((acc, p) => ({ ...acc, [p.type]: p.value }), {})
+  const day = parseInt(parts.day)
+  const month = parseInt(parts.month)
+  const year = parseInt(parts.year)
+  return `${day} ${THAI_MONTHS[month]} ${year + 543}`
+}
+
+module.exports = Object.assign(module.exports, { thaiDateBangkok })

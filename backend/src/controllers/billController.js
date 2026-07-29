@@ -194,7 +194,21 @@ const exportBillInvoice = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+
+const getAvailableRoomsForBilling = async (req, res, next) => {
+  try {
+    const { month, year } = req.query;
+    if (!month || !year) {
+      return sendBadRequest(res, 'กรุณาระบุเดือนและปี');
+    }
+    const rooms = await BillModel.findAvailableRoomsForBilling(parseInt(month), parseInt(year));
+    return sendSuccess(res, rooms);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getAllBills, getMyBills, getBillById, getBillQR, generateBill,
-  cancelBill, getMonthlyReport, exportBillInvoice,
+  cancelBill, getMonthlyReport, exportBillInvoice, getAvailableRoomsForBilling,
 };

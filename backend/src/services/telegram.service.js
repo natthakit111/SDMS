@@ -10,7 +10,8 @@
  *   const TelegramService = require('./telegram.service');
  *   await TelegramService.sendBillNotification(bill);
  */
-
+const QRCode = require('qrcode');
+const { thaiDateBangkok } = require('../utils/dateHelper');
 const TelegramBot = require('node-telegram-bot-api');
 const { pool }    = require('../config/db');
 
@@ -68,6 +69,13 @@ const formatAmount = (n) => Number(n).toLocaleString('th-TH', { minimumFractionD
 // ════════════════════════════════════════════════════════════════
 const sendBillNotification = async (bill) => {
   if (!bill.telegram_chat_id) return;
+  const instance = getBot();
+  if (!instance) {
+    console.warn('[Telegram] Bot not initialized — TELEGRAM_BOT_TOKEN missing');
+    return;
+  }
+
+  const dueDateStr = thaiDateBangkok(bill.due_date);
 
   const message = [
     `🏠 *แจ้งค่าเช่าประจำเดือน ${thaiMonth(bill.bill_month)} ${bill.bill_year}*`,
@@ -80,12 +88,36 @@ const sendBillNotification = async (bill) => {
     bill.other_amount > 0 ? `  • อื่นๆ: ${formatAmount(bill.other_amount)} บาท` : null,
     ``,
     `💰 *ยอดรวม: ${formatAmount(bill.total_amount)} บาท*`,
-    `📅 กำหนดชำระ: ${bill.due_date}`,
+    `📅 กำหนดชำระ: *${dueDateStr}*`,
     ``,
     `กรุณาชำระผ่าน QR Code PromptPay ในแอปพลิเคชันหรือติดต่อผู้ดูแลหอพัก`,
   ].filter(Boolean).join('\n');
 
-  await sendMessage(bill.telegram_chat_id, message, bill.user_id || null, 'bill_notification', bill.bill_id);
+  const payUrl = `${process.env.FRONTEND_URL}/login?redirect=${encodeURIComponent(`/tenant/payment?bill=${bill.bill_id}`)}`;
+
+  try {
+    // 1. ข้อความ + ปุ่มลิงก์ไปหน้าบิลในแอป
+    await instance.sendMessage(bill.telegram_chat_id, message, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [[{ text: '📄 ดูบิลและชำระเงิน', url: payUrl }]],
+      },
+    });
+
+    // 2. QR Code รูปภาพ (ถ้ามี qr_payload)
+    if (bill.qr_payload) {
+      const qrBuffer = await QRCode.toBuffer(bill.qr_payload, { margin: 1, width: 400 });
+      await instance.sendPhoto(bill.telegram_chat_id, qrBuffer, {
+        caption: 'สแกนเพื่อชำระผ่าน PromptPay',
+      });
+    }
+
+    if (bill.user_id) await logNotification(bill.user_id, 'bill_notification', message, bill.bill_id, 'sent');
+    console.log(`[Telegram] ✅ Sent bill notification to chatId ${bill.telegram_chat_id}`);
+  } catch (err) {
+    console.error(`[Telegram] ❌ Failed to send bill notification:`, err.message);
+    if (bill.user_id) await logNotification(bill.user_id, 'bill_notification', message, bill.bill_id, 'failed');
+  }
 };
 
 // ════════════════════════════════════════════════════════════════

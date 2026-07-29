@@ -1,9 +1,3 @@
-/**
- * routes/meter.routes.js
- * Base path: /api/meters
- * Admin only — tenants cannot record or edit meter readings.
- */
-
 const express = require('express');
 const { body, query } = require('express-validator');
 const router = express.Router();
@@ -31,6 +25,12 @@ router.get('/rooms/:roomId/previous',
   ctrl.getPreviousReading
 );
 
+// ── Specific path ต้องมาก่อน /:id เสมอ ──────────────────────────
+router.get('/available-rooms',
+  authenticate, authorizeRoles('admin'),
+  ctrl.getAvailableRoomsForMeter
+);
+
 router.get('/:id',
   authenticate, authorizeRoles('admin'),
   ctrl.getReadingById
@@ -38,7 +38,7 @@ router.get('/:id',
 
 router.post('/',
   authenticate, authorizeRoles('admin'),
-  uploadMeterImage,        // handles multipart/form-data + saves file
+  uploadMeterImage,
   readingValidation,
   ctrl.createReading
 );

@@ -8,8 +8,8 @@ export const meterAPI = {
   getAll: (params) =>
     api.get('/meters', { params }).then((r) => r.data),
 
-  getPreviousReading: (roomId) =>
-    api.get(`/meters/rooms/${roomId}/previous`).then((r) => r.data),
+  getPreviousReading: (roomId, meterType) =>
+    api.get(`/meters/rooms/${roomId}/previous`, { params: { type: meterType } }).then((r) => r.data),
 
   getById: (id) =>
     api.get(`/meters/${id}`).then((r) => r.data),
@@ -32,4 +32,7 @@ export const meterAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then((r) => r.data);
   },
+
+  getAvailableRooms: (params) =>
+  api.get('/meters/available-rooms', { params }).then((r) => r.data),
 };

@@ -80,7 +80,33 @@ const update = async (readingId, fields) => {
   return result.affectedRows;
 };
 
+// หาห้องที่มีสัญญา active ครอบคลุมเดือน/ปีที่จะบันทึกมิเตอร์
+// และยังไม่ได้บันทึกมิเตอร์ครบทั้งไฟและน้ำของเดือน/ปีนั้น
+const findAvailableRoomsForMeter = async (month, year) => {
+  const [rows] = await pool.query(`
+    SELECT DISTINCT r.room_id, r.room_number
+    FROM rooms r
+    JOIN contracts c ON c.room_id = r.room_id AND c.status = 'active'
+    WHERE c.start_date <= LAST_DAY(STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d'))
+      AND c.end_date   >= STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d')
+      AND NOT EXISTS (
+        SELECT 1 FROM meter_readings me
+        WHERE me.room_id = r.room_id
+          AND me.meter_type = 'electric'
+          AND me.reading_month = ? AND me.reading_year = ?
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM meter_readings mw
+        WHERE mw.room_id = r.room_id
+          AND mw.meter_type = 'water'
+          AND mw.reading_month = ? AND mw.reading_year = ?
+      )
+    ORDER BY r.room_number ASC
+  `, [year, month, year, month, month, year, month, year]);
+  return rows;
+};
+
 module.exports = {
   findAll, findById, findLatestByRoomAndType,
-  findByRoomMonthYear, create, update,
+  findByRoomMonthYear, create, update,findAvailableRoomsForMeter,
 };

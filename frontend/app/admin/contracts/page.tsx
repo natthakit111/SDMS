@@ -1,8 +1,8 @@
-//contracts/page.tsx
+//rooms/page.tsx -> contracts/page.tsx
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,10 @@ import {
   Search,
   RefreshCw,
   LogOut,
+  CreditCard,
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { contractAPI } from "@/lib/api/contract.api";
 import { tenantAPI } from "@/lib/api/tenant.api";
@@ -46,6 +50,7 @@ interface Contract {
   tenant_id: number;
   room_id: number;
   tenant_name: string;
+  tenant_id_card?: string; // เลขบัตรประชาชน
   room_number: string;
   start_date: string;
   end_date: string;
@@ -57,6 +62,7 @@ interface Contract {
 
 interface FormData {
   tenant_id: string;
+  tenant_id_card: string;
   room_id: string;
   start_date: string;
   end_date: string;
@@ -76,6 +82,7 @@ interface CheckoutFormData {
 
 const emptyForm: FormData = {
   tenant_id: "",
+  tenant_id_card: "",
   room_id: "",
   start_date: "",
   end_date: "",
@@ -93,23 +100,244 @@ const emptyCheckoutForm: CheckoutFormData = {
   checkout_date: "",
 };
 
-const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString("th-TH", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
 const statusColors: Record<string, string> = {
   active: "bg-green-500/10 text-green-500",
   expired: "bg-red-500/10 text-red-500",
   terminated: "bg-muted text-muted-foreground",
 };
 
+// ── Custom bilingual date picker ────────────────────────────────────────────
+// Native <input type="date"> follows the OS/browser language and ignores the
+// app's `language` state entirely — that's why the calendar could never be
+// forced into Thai or English. This component renders its own calendar UI so
+// month/day names and the year (พ.ศ. vs ค.ศ.) always match `language`.
+
+const MONTHS_TH = [
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
+];
+const MONTHS_EN = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const DAYS_TH = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+const DAYS_EN = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+function toISODate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+function DatePickerField({
+  id,
+  value,
+  onChange,
+  language,
+  required,
+  placeholder,
+}: {
+  id?: string;
+  value: string;
+  onChange: (v: string) => void;
+  language: string;
+  required?: boolean;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState<Date>(
+    value ? new Date(value + "T00:00:00") : new Date(),
+  );
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (value) setViewDate(new Date(value + "T00:00:00"));
+  }, [value]);
+
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    if (open) document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  const months = language === "th" ? MONTHS_TH : MONTHS_EN;
+  const days = language === "th" ? DAYS_TH : DAYS_EN;
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const displayYear = language === "th" ? year + 543 : year;
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const selected = value ? new Date(value + "T00:00:00") : null;
+
+  const cells: (number | null)[] = [
+    ...Array(firstDayOfMonth).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+
+  const isSelected = (day: number) =>
+    !!selected &&
+    selected.getFullYear() === year &&
+    selected.getMonth() === month &&
+    selected.getDate() === day;
+
+  const isToday = (day: number) => {
+    const now = new Date();
+    return (
+      now.getFullYear() === year &&
+      now.getMonth() === month &&
+      now.getDate() === day
+    );
+  };
+
+  const label = value
+    ? new Date(value + "T00:00:00").toLocaleDateString(
+        language === "th" ? "th-TH" : "en-US",
+        { year: "numeric", month: "short", day: "numeric" },
+      )
+    : (placeholder ?? (language === "th" ? "เลือกวันที่" : "Select date"));
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        id={id}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus:ring-2 focus:ring-ring/50"
+      >
+        <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className={value ? "" : "text-muted-foreground"}>{label}</span>
+      </button>
+
+      {/* hidden input keeps native `required` form validation working */}
+      {required && (
+        <input
+          tabIndex={-1}
+          value={value}
+          required
+          onChange={() => {}}
+          className="sr-only"
+        />
+      )}
+
+      {open && (
+        <div className="absolute left-0 bottom-full mb-2 z-[100] w-64 rounded-md border bg-popover p-3 text-popover-foreground shadow-lg">
+          <div className="flex items-center justify-between mb-2">
+            <button
+              type="button"
+              className="p-1 rounded hover:bg-muted"
+              onClick={() => setViewDate(new Date(year, month - 1, 1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm font-medium">
+              {months[month]} {displayYear}
+            </span>
+            <button
+              type="button"
+              className="p-1 rounded hover:bg-muted"
+              onClick={() => setViewDate(new Date(year, month + 1, 1))}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 mb-1 text-center text-xs text-muted-foreground">
+            {days.map((d) => (
+              <div key={d}>{d}</div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {cells.map((day, idx) =>
+              day === null ? (
+                <div key={idx} />
+              ) : (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    onChange(toISODate(new Date(year, month, day)));
+                    setOpen(false);
+                  }}
+                  className={`h-8 w-8 rounded-md text-sm hover:bg-muted transition-colors ${
+                    isSelected(day)
+                      ? "bg-primary text-primary-foreground hover:bg-primary"
+                      : isToday(day)
+                        ? "border border-primary"
+                        : ""
+                  }`}
+                >
+                  {day}
+                </button>
+              ),
+            )}
+          </div>
+
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                const today = new Date();
+                setViewDate(today);
+                onChange(toISODate(today));
+                setOpen(false);
+              }}
+            >
+              {language === "th" ? "วันนี้" : "Today"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function ContractsPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+
+  const formatDate = (d: string) => {
+    if (!d) return "-";
+    return new Date(d).toLocaleDateString(
+      language === "th" ? "th-TH" : "en-US",
+      {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      },
+    );
+  };
+
   const formatCurrency = (n: number) =>
     n.toLocaleString("th-TH") + " " + t("contracts.baht");
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -130,7 +358,7 @@ export default function ContractsPage() {
   const [renewForm, setRenewForm] = useState<RenewFormData>(emptyRenewForm);
   const [renewSubmitting, setRenewSubmitting] = useState(false);
 
-  // ── Checkout / ทำเรื่องย้ายออก (สำหรับสัญญา expired) ───────────────────────
+  // ── Checkout / ทำเรื่องย้ายออก ───────────────────────
   const [checkingOutContract, setCheckingOutContract] =
     useState<Contract | null>(null);
   const [checkoutForm, setCheckoutForm] =
@@ -192,6 +420,28 @@ export default function ContractsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+
+    const idCard = formData.tenant_id_card?.trim();
+    if (!idCard) {
+      toast.error(
+        language === "th"
+          ? "กรุณากรอกเลขประจำตัวประชาชนหรือพาสปอร์ต"
+          : "ID Card / Passport is required",
+      );
+      setSubmitting(false);
+      return;
+    }
+    const isNumericOnly = /^\d+$/.test(idCard);
+    if (isNumericOnly && idCard.length !== 13) {
+      toast.error(
+        language === "th"
+          ? "เลขประจำตัวประชาชนต้องมี 13 หลัก"
+          : "ID Card must be 13 digits",
+      );
+      setSubmitting(false);
+      return;
+    }
+
     try {
       await contractAPI.create({
         tenant_id: parseInt(formData.tenant_id),
@@ -209,7 +459,7 @@ export default function ContractsPage() {
       toast.success(t("contracts.createSuccess"));
       resetForm();
       fetchContracts();
-      fetchFormOptions(); // refresh available rooms
+      fetchFormOptions();
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? t("contracts.createError"));
     } finally {
@@ -271,9 +521,7 @@ export default function ContractsPage() {
     }
   };
 
-  // ── Checkout (ทำเรื่องย้ายออก) ────────────────────────────────────────────
-  // ใช้ endpoint terminate ตัวเดิม เพราะ backend relax เงื่อนไขให้รองรับสัญญา
-  // expired แล้ว (ปลดห้องว่าง + คำนวณคืนเงินมัดจำให้อัตโนมัติ)
+  // ── Checkout ────────────────────────────────────────────────────────────
   const openCheckoutDialog = (contract: Contract) => {
     setCheckoutForm({
       checkout_date: new Date().toISOString().slice(0, 10),
@@ -312,16 +560,6 @@ export default function ContractsPage() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setFormData((p) => ({ ...p, [field]: e.target.value }));
 
-  const setRenewField =
-    (field: keyof RenewFormData) => (e: React.ChangeEvent<HTMLInputElement>) =>
-      setRenewForm((p) => ({ ...p, [field]: e.target.value }));
-
-  const setCheckoutField =
-    (field: keyof CheckoutFormData) =>
-    (e: React.ChangeEvent<HTMLInputElement>) =>
-      setCheckoutForm((p) => ({ ...p, [field]: e.target.value }));
-
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -347,47 +585,95 @@ export default function ContractsPage() {
             </Button>
           </DialogTrigger>
 
-          <DialogContent className="max-w-lg">
+          {/* FIX #1: max-h + overflow-y-auto so a tall form never gets
+             clipped by the viewport (this was the "หน้าจอล้น" bug) */}
+          {/* เปลี่ยนเป็น max-w-2xl เพื่อให้กว้างขึ้นอีกระดับ */}
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{t("contracts.newTitle")}</DialogTitle>
               <DialogDescription>{t("contracts.newDesc")}</DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               <FieldGroup>
                 {/* ผู้เช่า */}
                 <Field>
                   <FieldLabel>{t("contracts.tenant")}</FieldLabel>
                   <Select
                     value={formData.tenant_id}
-                    onValueChange={(v) =>
-                      setFormData((p) => ({ ...p, tenant_id: v }))
-                    }
+                    onValueChange={(v) => {
+                      const selectedTenant = tenants.find(
+                        (tn) => String(tn.tenant_id) === v,
+                      );
+                      setFormData((p) => ({
+                        ...p,
+                        tenant_id: v,
+                        // FIX #4: backend column is `id_card_number`
+                        // (see TenantModel.findAll SQL: `t.*` → t.id_card_number)
+                        // the old code looked for `id_card` / `national_id`,
+                        // which don't exist on the row, so it was always "".
+                        tenant_id_card: selectedTenant?.id_card_number || "",
+                      }));
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={t("contracts.selectTenant")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {tenants.map((t) => (
+                      {tenants.map((tn) => (
                         <SelectItem
-                          key={t.tenant_id}
-                          value={String(t.tenant_id)}
+                          key={tn.tenant_id}
+                          value={String(tn.tenant_id)}
                         >
-                          {t.first_name} {t.last_name}
+                          {tn.first_name} {tn.last_name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </Field>
 
+                {/* เลขประจำตัวประชาชน / พาสปอร์ต */}
+                <Field>
+                  <FieldLabel>
+                    {language === "th"
+                      ? "เลขประจำตัวประชาชน / พาสปอร์ต"
+                      : "ID Card / Passport"}
+                  </FieldLabel>
+                  <div className="relative">
+                    <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      value={formData.tenant_id_card}
+                      onChange={set("tenant_id_card")}
+                      placeholder={
+                        language === "th"
+                          ? "กรอกเลขประจำตัวประชาชน"
+                          : "Enter ID card number"
+                      }
+                      className="pl-9"
+                    />
+                  </div>
+                </Field>
+
                 {/* ห้อง */}
                 <Field>
+                  {/* FIX #2: removed the duplicated <FieldLabel> that was
+                     rendered twice in a row */}
                   <FieldLabel>{t("contracts.availableRoom")}</FieldLabel>
                   <Select
                     value={formData.room_id}
-                    onValueChange={(v) =>
-                      setFormData((p) => ({ ...p, room_id: v }))
-                    }
+                    onValueChange={(v) => {
+                      const room = availableRooms.find(
+                        (r) => String(r.room_id) === v,
+                      );
+                      setFormData((p) => ({
+                        ...p,
+                        room_id: v,
+                        rent_amount:
+                          room && room.base_rent
+                            ? String(room.base_rent)
+                            : p.rent_amount,
+                      }));
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={t("contracts.selectRoom")} />
@@ -404,17 +690,21 @@ export default function ContractsPage() {
                   </Select>
                 </Field>
 
-                {/* วันที่ */}
+                {/* วันที่ — FIX #3: custom bilingual DatePickerField instead
+                   of native <input type="date">, which always followed the
+                   OS/browser language and could never be forced to TH/EN */}
                 <div className="grid grid-cols-2 gap-4">
                   <Field>
                     <FieldLabel htmlFor="start_date">
                       {t("contracts.startDate")}
                     </FieldLabel>
-                    <Input
+                    <DatePickerField
                       id="start_date"
-                      type="date"
                       value={formData.start_date}
-                      onChange={set("start_date")}
+                      onChange={(v) =>
+                        setFormData((p) => ({ ...p, start_date: v }))
+                      }
+                      language={language}
                       required
                     />
                   </Field>
@@ -422,11 +712,13 @@ export default function ContractsPage() {
                     <FieldLabel htmlFor="end_date">
                       {t("contracts.endDate")}
                     </FieldLabel>
-                    <Input
+                    <DatePickerField
                       id="end_date"
-                      type="date"
                       value={formData.end_date}
-                      onChange={set("end_date")}
+                      onChange={(v) =>
+                        setFormData((p) => ({ ...p, end_date: v }))
+                      }
+                      language={language}
                       required
                     />
                   </Field>
@@ -691,7 +983,7 @@ export default function ContractsPage() {
         open={!!viewingContract}
         onOpenChange={(open) => !open && setViewingContract(null)}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("contracts.detailTitle")}</DialogTitle>
           </DialogHeader>
@@ -703,6 +995,14 @@ export default function ContractsPage() {
                     {t("contracts.tenantName")}
                   </p>
                   <p className="font-medium">{viewingContract.tenant_name}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">
+                    {language === "th" ? "เลขประจำตัวประชาชน" : "ID Card"}
+                  </p>
+                  <p className="font-medium">
+                    {viewingContract.tenant_id_card || "-"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">{t("contracts.room")}</p>
@@ -791,7 +1091,7 @@ export default function ContractsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("contracts.renewTitle")}</DialogTitle>
             <DialogDescription>
@@ -806,11 +1106,11 @@ export default function ContractsPage() {
                 <FieldLabel htmlFor="renew_end_date">
                   {t("contracts.newEndDate")}
                 </FieldLabel>
-                <Input
+                <DatePickerField
                   id="renew_end_date"
-                  type="date"
                   value={renewForm.end_date}
-                  onChange={setRenewField("end_date")}
+                  onChange={(v) => setRenewForm((p) => ({ ...p, end_date: v }))}
+                  language={language}
                   required
                 />
               </Field>
@@ -822,7 +1122,12 @@ export default function ContractsPage() {
                   id="renew_rent_amount"
                   type="number"
                   value={renewForm.rent_amount}
-                  onChange={setRenewField("rent_amount")}
+                  onChange={(e) =>
+                    setRenewForm((p) => ({
+                      ...p,
+                      rent_amount: e.target.value,
+                    }))
+                  }
                   placeholder={t("contracts.useRoomRent")}
                 />
               </Field>
@@ -854,7 +1159,7 @@ export default function ContractsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Checkout Dialog (ทำเรื่องย้ายออก / เคลียร์ห้องสำหรับสัญญาหมดอายุ) */}
+      {/* Checkout Dialog */}
       <Dialog
         open={!!checkingOutContract}
         onOpenChange={(open) => {
@@ -864,7 +1169,7 @@ export default function ContractsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("contracts.moveOutTitle")}</DialogTitle>
             <DialogDescription>
@@ -879,11 +1184,13 @@ export default function ContractsPage() {
                 <FieldLabel htmlFor="checkout_date">
                   {t("contracts.moveOutDate")}
                 </FieldLabel>
-                <Input
+                <DatePickerField
                   id="checkout_date"
-                  type="date"
                   value={checkoutForm.checkout_date}
-                  onChange={setCheckoutField("checkout_date")}
+                  onChange={(v) =>
+                    setCheckoutForm((p) => ({ ...p, checkout_date: v }))
+                  }
+                  language={language}
                   required
                 />
               </Field>

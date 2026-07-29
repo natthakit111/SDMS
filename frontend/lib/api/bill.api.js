@@ -53,4 +53,8 @@ export const billAPI = {
     });
     triggerDownload(res.data, filename || `invoice-${id}.pdf`);
   },
+
+  getAvailableRooms: (params) =>
+    api.get('/bills/available-rooms', { params }).then((r) => r.data),
+
 };

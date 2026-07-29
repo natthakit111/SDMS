@@ -37,8 +37,8 @@ interface AuthContextType {
   logout: () => void;
 }
 
+// 💡 แก้ไขตรงนี้: ลบ username ออก เพราะหน้า register ไม่ได้ส่งมาแล้ว
 interface RegisterData {
-  username: string;
   password: string;
   name?: string;
   phone?: string;
@@ -158,7 +158,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (data: RegisterData) => {
     try {
       await api.post("/auth/register", {
-        username: data.username,
         password: data.password,
         name: data.name,
         email: data.email,

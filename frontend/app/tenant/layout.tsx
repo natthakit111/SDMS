@@ -1,7 +1,9 @@
+//app/tenant/layout.tsx
+
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { TenantSidebar } from "@/components/layout/tenant-sidebar";
 import { TenantNavbar } from "@/components/layout/tenant-navbar";
@@ -17,12 +19,16 @@ export default function TenantLayout({
 }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (!isLoading && (!user || user.role !== "tenant")) {
-      router.replace("/login");
+      const query = searchParams.toString();
+      const fullPath = query ? `${pathname}?${query}` : pathname;
+      router.replace(`/login?redirect=${encodeURIComponent(fullPath)}`);
     }
-  }, [user, isLoading, router]);
+  }, [user, isLoading, router, pathname, searchParams]);
 
   if (isLoading) {
     return (
@@ -41,19 +47,15 @@ export default function TenantLayout({
           typeof window !== "undefined" ? window.innerWidth >= 768 : true
         }
       >
-        {/* Sidebar — desktop only */}
         <div className="hidden md:block">
           <TenantSidebar />
         </div>
-
         <SidebarInset>
           <TenantNavbar />
           <main className="flex-1 p-3 sm:p-4 md:p-6 pb-20 md:pb-6">
             {children}
           </main>
         </SidebarInset>
-
-        {/* Bottom nav — mobile only */}
         <TenantBottomNav />
       </SidebarProvider>
     </NotificationProvider>

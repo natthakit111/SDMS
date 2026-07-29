@@ -83,7 +83,7 @@ const formatCurrency = (n: number) =>
   }).format(n);
 
 export default function RoomsPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [numFloors, setNumFloors] = useState(5);
   const [loading, setLoading] = useState(true);
@@ -123,6 +123,17 @@ export default function RoomsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 💡 ดักจับค่าว่างบังคับกรอก
+    if (!formData.room_number.trim() || !formData.base_rent.trim()) {
+      toast.error(
+        language === "th"
+          ? "กรุณากรอกข้อมูลให้ครบถ้วน"
+          : "Please fill out all required fields.",
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload = {
@@ -144,11 +155,25 @@ export default function RoomsPage() {
       resetForm();
       fetchRooms();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? "Error");
+      const errMessage = err?.response?.data?.message;
+
+      // 💡 แปลง Error Code เป็นข้อความสองภาษา
+      if (errMessage === "ROOM_DUPLICATE") {
+        toast.error(
+          language === "th"
+            ? "หมายเลขห้องนี้มีอยู่ในระบบแล้ว"
+            : "Room number already exists",
+        );
+      } else {
+        toast.error(
+          errMessage ??
+            (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
+        );
+      }
     } finally {
       setSubmitting(false);
     }
-  };
+  };;
 
   const handleEdit = (room: Room) => {
     setEditingRoom(room);
@@ -217,7 +242,7 @@ export default function RoomsPage() {
                 {editingRoom ? t("common.edit") : t("rooms.add")}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               <FieldGroup>
                 <div className="grid grid-cols-2 gap-4">
                   <Field>
@@ -233,9 +258,16 @@ export default function RoomsPage() {
                     <FieldLabel>{t("rooms.floor")}</FieldLabel>
                     <Select
                       value={formData.floor}
-                      onValueChange={(v) =>
-                        setFormData((p) => ({ ...p, floor: v }))
-                      }
+                      onValueChange={(v) => {
+                        setFormData((p) => ({
+                          ...p,
+                          floor: v,
+                          room_number:
+                            p.room_number === "" || p.room_number.length <= 3
+                              ? `${v}01`
+                              : p.room_number,
+                        }));
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue />

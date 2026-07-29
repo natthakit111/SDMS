@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -51,6 +51,10 @@ import {
   Camera,
   ImageIcon,
   Download,
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  Info,
 } from "lucide-react";
 import { billAPI } from "@/lib/api/bill.api";
 import { roomAPI } from "@/lib/api/room.api";
@@ -100,6 +104,7 @@ interface FormData {
   month: string;
   year: string;
   other_amount: string;
+  note: string; // 💡 เพิ่มฟิลด์หมายเหตุ
   due_date: string;
 }
 
@@ -108,6 +113,7 @@ const emptyForm: FormData = {
   month: String(new Date().getMonth() + 1),
   year: String(new Date().getFullYear()),
   other_amount: "0",
+  note: "", // 💡 ค่าเริ่มต้น
   due_date: "",
 };
 
@@ -124,12 +130,223 @@ const imgUrl = (path: string | null) => {
   return `${process.env.NEXT_PUBLIC_API_URL ?? ""}/${path}`;
 };
 
+// ── Custom bilingual date picker ────────────────────────────────────────────
+
+const MONTHS_TH = [
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
+];
+const MONTHS_EN = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const DAYS_TH = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+const DAYS_EN = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+function toISODate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+function DatePickerField({
+  id,
+  value,
+  onChange,
+  language,
+  required,
+  placeholder,
+}: {
+  id?: string;
+  value: string;
+  onChange: (v: string) => void;
+  language: string;
+  required?: boolean;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState<Date>(
+    value ? new Date(value + "T00:00:00") : new Date(),
+  );
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (value) setViewDate(new Date(value + "T00:00:00"));
+  }, [value]);
+
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    if (open) document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  const months = language === "th" ? MONTHS_TH : MONTHS_EN;
+  const days = language === "th" ? DAYS_TH : DAYS_EN;
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const displayYear = language === "th" ? year + 543 : year;
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const selected = value ? new Date(value + "T00:00:00") : null;
+
+  const cells: (number | null)[] = [
+    ...Array(firstDayOfMonth).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+
+  const isSelected = (day: number) =>
+    !!selected &&
+    selected.getFullYear() === year &&
+    selected.getMonth() === month &&
+    selected.getDate() === day;
+
+  const isToday = (day: number) => {
+    const now = new Date();
+    return (
+      now.getFullYear() === year &&
+      now.getMonth() === month &&
+      now.getDate() === day
+    );
+  };
+
+  const label = value
+    ? new Date(value + "T00:00:00").toLocaleDateString(
+        language === "th" ? "th-TH" : "en-US",
+        { year: "numeric", month: "short", day: "numeric" },
+      )
+    : (placeholder ?? (language === "th" ? "เลือกวันที่" : "Select date"));
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        id={id}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus:ring-2 focus:ring-ring/50"
+      >
+        <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+        <span className={value ? "" : "text-muted-foreground"}>{label}</span>
+      </button>
+
+      {required && (
+        <input
+          tabIndex={-1}
+          value={value}
+          required
+          onChange={() => {}}
+          className="sr-only"
+        />
+      )}
+
+      {open && (
+        <div className="absolute left-0 bottom-full mb-2 z-[100] w-64 rounded-md border bg-popover p-3 text-popover-foreground shadow-lg sm:bottom-auto sm:top-full sm:mt-2">
+          <div className="flex items-center justify-between mb-2">
+            <button
+              type="button"
+              className="p-1 rounded hover:bg-muted"
+              onClick={() => setViewDate(new Date(year, month - 1, 1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm font-medium">
+              {months[month]} {displayYear}
+            </span>
+            <button
+              type="button"
+              className="p-1 rounded hover:bg-muted"
+              onClick={() => setViewDate(new Date(year, month + 1, 1))}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 mb-1 text-center text-xs text-muted-foreground">
+            {days.map((d) => (
+              <div key={d}>{d}</div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {cells.map((day, idx) =>
+              day === null ? (
+                <div key={idx} />
+              ) : (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    onChange(toISODate(new Date(year, month, day)));
+                    setOpen(false);
+                  }}
+                  className={`h-8 w-8 rounded-md text-sm hover:bg-muted transition-colors ${
+                    isSelected(day)
+                      ? "bg-primary text-primary-foreground hover:bg-primary"
+                      : isToday(day)
+                        ? "border border-primary"
+                        : ""
+                  }`}
+                >
+                  {day}
+                </button>
+              ),
+            )}
+          </div>
+
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                const today = new Date();
+                setViewDate(today);
+                onChange(toISODate(today));
+                setOpen(false);
+              }}
+            >
+              {language === "th" ? "วันนี้" : "Today"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function BillsPage() {
   const { t, language } = useLanguage();
   const [bills, setBills] = useState<Bill[]>([]);
   const [occupiedRooms, setOccupiedRooms] = useState<Room[]>([]);
+  const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -143,7 +360,7 @@ export default function BillsPage() {
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString(language === "th" ? "th-TH" : "en-GB", {
       year: "numeric",
-      month: "long",
+      month: "short",
       day: "numeric",
     });
 
@@ -169,12 +386,30 @@ export default function BillsPage() {
     } catch {}
   };
 
+  const fetchAvailableRooms = useCallback(
+    async (month: string, year: string) => {
+      try {
+        const res = await billAPI.getAvailableRooms({ month, year });
+        setAvailableRooms(res.data ?? []);
+      } catch {
+        setAvailableRooms([]);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     fetchBills();
   }, [fetchBills]);
   useEffect(() => {
     fetchOccupiedRooms();
   }, []);
+
+  useEffect(() => {
+    if (isAddDialogOpen) {
+      fetchAvailableRooms(formData.month, formData.year);
+    }
+  }, [isAddDialogOpen, formData.month, formData.year, fetchAvailableRooms]);
 
   // ── View bill ─────────────────────────────────────────────────────────────
   const handleViewBill = async (bill: Bill) => {
@@ -233,6 +468,7 @@ export default function BillsPage() {
         month: parseInt(formData.month),
         year: parseInt(formData.year),
         other_amount: parseFloat(formData.other_amount) || 0,
+        note: formData.note || undefined, // 💡 ส่งหมายเหตุไปให้หลังบ้าน
         due_date: formData.due_date || undefined,
       });
       toast.success(t("bills.generate"));
@@ -322,7 +558,8 @@ export default function BillsPage() {
               {t("bills.generate")}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          {/* 💡 ขยายขนาดหน้าต่างให้กว้างขึ้นเป็น max-w-2xl */}
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{t("bills.generate")}</DialogTitle>
               <DialogDescription>{t("bills.subtitle")}</DialogDescription>
@@ -343,11 +580,18 @@ export default function BillsPage() {
                       <SelectValue placeholder={t("rooms.searchPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {occupiedRooms.map((r) => (
+                      {availableRooms.map((r) => (
                         <SelectItem key={r.room_id} value={String(r.room_id)}>
                           {t("rooms.roomNumber")} {r.room_number}
                         </SelectItem>
                       ))}
+                      {availableRooms.length === 0 && (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          {language === "th"
+                            ? "ไม่มีห้องที่พร้อมออกบิล"
+                            : "No rooms available"}
+                        </div>
+                      )}
                     </SelectContent>
                   </Select>
                 </Field>
@@ -357,7 +601,7 @@ export default function BillsPage() {
                     <Select
                       value={formData.month}
                       onValueChange={(v) =>
-                        setFormData((p) => ({ ...p, month: v }))
+                        setFormData((p) => ({ ...p, month: v, room_id: "" }))
                       }
                     >
                       <SelectTrigger>
@@ -379,7 +623,7 @@ export default function BillsPage() {
                     <Select
                       value={formData.year}
                       onValueChange={(v) =>
-                        setFormData((p) => ({ ...p, year: v }))
+                        setFormData((p) => ({ ...p, year: v, room_id: "" }))
                       }
                     >
                       <SelectTrigger>
@@ -395,37 +639,86 @@ export default function BillsPage() {
                     </Select>
                   </Field>
                 </div>
-                <Field>
-                  <FieldLabel htmlFor="other_amount">
-                    {t("bills.otherAmount")}
-                  </FieldLabel>
-                  <Input
-                    id="other_amount"
-                    type="number"
-                    value={formData.other_amount}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        other_amount: e.target.value,
-                      }))
-                    }
-                    placeholder="0"
-                    min="0"
-                  />
-                </Field>
+
+                {/* 💡 เพิ่มช่องหมายเหตุค่าอื่นๆ ให้อยู่บรรทัดเดียวกับจำนวนเงิน */}
+                <div className="grid grid-cols-2 gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="other_amount">
+                      {t("bills.otherAmount")}
+                    </FieldLabel>
+                    <Input
+                      id="other_amount"
+                      type="number"
+                      value={formData.other_amount}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          other_amount: e.target.value,
+                        }))
+                      }
+                      placeholder="0"
+                      min="0"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="note">
+                      {language === "th"
+                        ? "รายละเอียดค่าอื่นๆ"
+                        : "Remark for other fees"}
+                    </FieldLabel>
+                    <Input
+                      id="note"
+                      type="text"
+                      value={formData.note}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          note: e.target.value,
+                        }))
+                      }
+                      placeholder={
+                        language === "th"
+                          ? "เช่น ค่าปรับ, ค่าทำความสะอาด"
+                          : "e.g., Fine, Cleaning fee"
+                      }
+                    />
+                  </Field>
+                </div>
+
                 <Field>
                   <FieldLabel htmlFor="due_date">
-                    {t("bills.dueDate")} ({t("common.note")})
+                    {t("bills.dueDate")}
                   </FieldLabel>
-                  <Input
+                  {/* 💡 ใช้ DatePicker ตัวใหม่ */}
+                  <DatePickerField
                     id="due_date"
-                    type="date"
                     value={formData.due_date}
-                    onChange={(e) =>
-                      setFormData((p) => ({ ...p, due_date: e.target.value }))
+                    onChange={(v) =>
+                      setFormData((p) => ({ ...p, due_date: v }))
                     }
+                    language={language}
+                    required
                   />
                 </Field>
+
+                {/* 💡 กล่องแจ้งเตือนการดึงข้อมูลอัตโนมัติ */}
+                <div className="bg-muted/50 p-4 rounded-lg border border-border/50 text-sm mt-2">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-foreground">
+                        {language === "th"
+                          ? "การคำนวณบิลอัตโนมัติ"
+                          : "Automatic Bill Calculation"}
+                      </p>
+                      <p className="text-muted-foreground mt-1">
+                        {language === "th"
+                          ? "ระบบจะทำการดึง ค่าเช่าห้อง จากสัญญาเช่า และดึง ค่าน้ำ-ค่าไฟ จากหน้าที่บันทึกมิเตอร์ของเดือนที่เลือก มารวมยอดให้อัตโนมัติ"
+                          : "The system will automatically fetch Room Rent from the contract and Water/Electric usage from the meter records for the selected month."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </FieldGroup>
               <DialogFooter className="mt-6">
                 <Button

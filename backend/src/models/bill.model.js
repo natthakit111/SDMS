@@ -34,7 +34,7 @@ const findById = async (billId) => {
            r.room_number, r.floor,
            CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
            t.phone AS tenant_phone, t.tenant_id,
-           u.telegram_chat_id
+           u.user_id, u.telegram_chat_id
     FROM bills b
     JOIN rooms     r ON b.room_id     = r.room_id
     JOIN contracts c ON b.contract_id = c.contract_id
@@ -156,4 +156,24 @@ const findByIdWithMeters = async (billId) => {
   return rows[0] || null
 }
 
-module.exports = Object.assign(module.exports, { findByIdWithMeters })
+const findAvailableRoomsForBilling = async (month, year) => {
+  const [rows] = await pool.query(`
+    SELECT DISTINCT r.room_id, r.room_number, c.contract_id
+    FROM rooms r
+    JOIN contracts c ON c.room_id = r.room_id AND c.status = 'active'
+    WHERE c.start_date <= LAST_DAY(STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d'))
+      AND c.end_date   >= STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d')
+      AND NOT EXISTS (
+        SELECT 1 FROM bills b
+        WHERE b.room_id = r.room_id
+          AND b.bill_month = ?
+          AND b.bill_year  = ?
+          AND b.status != 'cancelled'
+      )
+    ORDER BY r.room_number ASC
+  `, [year, month, year, month, month, year]);
+  return rows;
+};
+
+module.exports = Object.assign(module.exports, { findByIdWithMeters, findAvailableRoomsForBilling });
+

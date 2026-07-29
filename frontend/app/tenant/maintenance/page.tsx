@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -26,10 +25,12 @@ import {
   MaintenanceStatusBadge,
   PriorityBadge,
 } from "@/components/common/status-badge";
-import { Plus, CheckCircle, Loader2, Wrench } from "lucide-react";
+import { Plus, CheckCircle, Loader2, Wrench, Camera, X } from "lucide-react";
 import { maintenanceAPI } from "@/lib/api/maintenance.api";
 import { useLanguage } from "@/context/language-context";
 import { toast } from "sonner";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Request {
   request_id: number;
@@ -39,7 +40,23 @@ interface Request {
   status: string;
   created_at: string;
   admin_note: string | null;
+  image_path: string | null;
+  assigned_to: string | null;
+  resolved_at: string | null;
+  room_number: string;
 }
+
+const DESCRIPTION_MIN_LENGTH = 10;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const imgUrl = (path: string | null) => {
+  if (!path) return null;
+  if (path.startsWith("http")) return path;
+  return `${process.env.NEXT_PUBLIC_API_URL ?? ""}/${path}`;
+};
+
+// ── Component ──────────────────────────────────────────────────────────────────
 
 export default function TenantMaintenancePage() {
   const { t, language } = useLanguage();
@@ -53,7 +70,14 @@ export default function TenantMaintenancePage() {
     description: "",
     priority: "medium",
   });
+
+  // ── รูปแนบ ──
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── ดูรายละเอียด (read-only) ──
+  const [viewingRequest, setViewingRequest] = useState<Request | null>(null);
 
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString(language === "th" ? "th-TH" : "en-GB", {
@@ -79,11 +103,41 @@ export default function TenantMaintenancePage() {
     fetchRequests();
   }, []);
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] ?? null;
+    setImageFile(f);
+    setImagePreview(f ? URL.createObjectURL(f) : null);
+  };
+
+  const clearImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const resetForm = () => {
+    setFormData({ category: "", description: "", priority: "medium" });
+    clearImage();
+  };
+
   const handleSubmit = async () => {
-    if (!formData.category || !formData.description.trim()) {
+    const trimmedDescription = formData.description.trim();
+
+    if (!formData.category || !trimmedDescription) {
       toast.error(t("settings.errorFillAll"));
       return;
     }
+
+    // ✅ เช็คความยาวก่อนส่ง ให้ตรงกับ backend (isLength min: 10)
+    if (trimmedDescription.length < DESCRIPTION_MIN_LENGTH) {
+      toast.error(
+        language === "th"
+          ? `กรุณาระบุรายละเอียดอย่างน้อย ${DESCRIPTION_MIN_LENGTH} ตัวอักษร`
+          : `Description must be at least ${DESCRIPTION_MIN_LENGTH} characters`,
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       await maintenanceAPI.create(formData, imageFile ?? undefined);
@@ -91,12 +145,19 @@ export default function TenantMaintenancePage() {
       setTimeout(() => {
         setDialogOpen(false);
         setDone(false);
-        setFormData({ category: "", description: "", priority: "medium" });
-        setImageFile(null);
+        resetForm();
         fetchRequests();
       }, 1500);
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? t("maintenance.updateError"));
+      // ✅ ดึงข้อความ error จริงจาก express-validator มาโชว์ แทน "Validation failed" เฉยๆ
+      const validationErrors = err?.response?.data?.errors;
+      if (Array.isArray(validationErrors) && validationErrors.length > 0) {
+        toast.error(validationErrors[0].msg);
+      } else {
+        toast.error(
+          err?.response?.data?.message ?? t("maintenance.updateError"),
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -112,6 +173,8 @@ export default function TenantMaintenancePage() {
     { value: "ประปา", label: language === "th" ? "ประปา" : "Plumbing" },
     { value: "อื่นๆ", label: language === "th" ? "อื่นๆ" : "Other" },
   ];
+
+  const descLength = formData.description.trim().length;
 
   return (
     <div className="space-y-6">
@@ -129,7 +192,10 @@ export default function TenantMaintenancePage() {
           open={dialogOpen}
           onOpenChange={(open) => {
             setDialogOpen(open);
-            if (!open) setDone(false);
+            if (!open) {
+              setDone(false);
+              resetForm();
+            }
           }}
         >
           <DialogTrigger asChild>
@@ -173,6 +239,7 @@ export default function TenantMaintenancePage() {
                     </SelectContent>
                   </Select>
                 </Field>
+
                 <Field>
                   <FieldLabel>{t("maintenance.description")}</FieldLabel>
                   <Textarea
@@ -186,7 +253,15 @@ export default function TenantMaintenancePage() {
                     }
                     className="min-h-28"
                   />
+                  {descLength > 0 && descLength < DESCRIPTION_MIN_LENGTH && (
+                    <p className="text-xs mt-1 text-muted-foreground">
+                      {language === "th"
+                        ? `${descLength}/${DESCRIPTION_MIN_LENGTH} ตัวอักษรขั้นต่ำ`
+                        : `${descLength}/${DESCRIPTION_MIN_LENGTH} characters minimum`}
+                    </p>
+                  )}
                 </Field>
+
                 <Field>
                   <FieldLabel>{t("maintenance.colPriority")}</FieldLabel>
                   <Select
@@ -207,15 +282,50 @@ export default function TenantMaintenancePage() {
                     </SelectContent>
                   </Select>
                 </Field>
+
+                {/* ── รูปแนบ — ปุ่มอัปโหลด + preview (เหมือนหน้ามิเตอร์) ── */}
                 <Field>
                   <FieldLabel>
-                    {t("meters.image")} ({t("common.note")})
+                    {language === "th"
+                      ? "รูปประกอบ (ไม่บังคับ)"
+                      : "Attached photo (optional)"}
                   </FieldLabel>
-                  <Input
+                  <input
+                    ref={fileInputRef}
                     type="file"
                     accept="image/*"
-                    onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                    className="hidden"
+                    onChange={handleImageChange}
                   />
+                  {imagePreview ? (
+                    <div className="relative">
+                      <img
+                        src={imagePreview}
+                        alt={language === "th" ? "รูปประกอบ" : "Attached photo"}
+                        className="w-full h-32 object-cover rounded-lg"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-1 right-1 h-6 w-6"
+                        onClick={clearImage}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-2"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Camera className="h-4 w-4" />
+                      {language === "th" ? "อัปโหลดรูปภาพ" : "Upload photo"}
+                    </Button>
+                  )}
                 </Field>
               </FieldGroup>
             )}
@@ -293,7 +403,8 @@ export default function TenantMaintenancePage() {
               {requests.map((r) => (
                 <div
                   key={r.request_id}
-                  className="flex items-start gap-4 p-4 border rounded-lg"
+                  onClick={() => setViewingRequest(r)}
+                  className="flex items-start gap-4 p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-4">
@@ -308,11 +419,6 @@ export default function TenantMaintenancePage() {
                             {fmtDate(r.created_at)}
                           </span>
                         </div>
-                        {r.admin_note && (
-                          <p className="text-xs text-muted-foreground mt-2 bg-muted/50 px-2 py-1 rounded">
-                            {t("maintenance.adminNote")}: {r.admin_note}
-                          </p>
-                        )}
                       </div>
                       <MaintenanceStatusBadge status={r.status} />
                     </div>
@@ -323,6 +429,106 @@ export default function TenantMaintenancePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* View Detail Dialog (read-only — tenant ไม่มีสิทธิ์แก้ไข) */}
+      <Dialog
+        open={!!viewingRequest}
+        onOpenChange={(open) => !open && setViewingRequest(null)}
+      >
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wrench className="h-5 w-5" />
+              {t("maintenance.detailTitle")}
+            </DialogTitle>
+          </DialogHeader>
+
+          {viewingRequest && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">{t("meters.colRoom")}</p>
+                  <p className="font-medium">{viewingRequest.room_number}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">
+                    {t("maintenance.colCategory")}
+                  </p>
+                  <p className="font-medium">{viewingRequest.category}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">
+                    {t("maintenance.colPriority")}
+                  </p>
+                  <PriorityBadge priority={viewingRequest.priority} />
+                </div>
+                <div>
+                  <p className="text-muted-foreground">{t("common.status")}</p>
+                  <MaintenanceStatusBadge status={viewingRequest.status} />
+                </div>
+              </div>
+
+              <div className="text-sm">
+                <p className="text-muted-foreground mb-1">
+                  {t("maintenance.description")}
+                </p>
+                <p className="bg-muted/50 p-3 rounded-lg whitespace-pre-wrap">
+                  {viewingRequest.description}
+                </p>
+              </div>
+
+              {imgUrl(viewingRequest.image_path) && (
+                <div className="text-sm">
+                  <p className="text-muted-foreground mb-1">
+                    {t("meters.image")}
+                  </p>
+                  <img
+                    src={imgUrl(viewingRequest.image_path) ?? ""}
+                    alt={viewingRequest.category}
+                    className="w-full rounded-lg object-contain max-h-64 bg-muted"
+                  />
+                </div>
+              )}
+
+              {viewingRequest.assigned_to && (
+                <div className="text-sm">
+                  <p className="text-muted-foreground">
+                    {t("maintenance.assignedTo")}
+                  </p>
+                  <p className="font-medium">{viewingRequest.assigned_to}</p>
+                </div>
+              )}
+
+              {viewingRequest.admin_note && (
+                <div className="text-sm">
+                  <p className="text-muted-foreground mb-1">
+                    {t("maintenance.adminNote")}
+                  </p>
+                  <p className="bg-muted/50 p-3 rounded-lg whitespace-pre-wrap">
+                    {viewingRequest.admin_note}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-between text-sm pt-2 border-t">
+                <span className="text-muted-foreground">
+                  {t("maintenance.colReportedAt")}
+                </span>
+                <span>{fmtDate(viewingRequest.created_at)}</span>
+              </div>
+
+              {viewingRequest.resolved_at && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {language === "th" ? "วันที่เสร็จสิ้น" : "Resolved on"}
+                  </span>
+                  <span>{fmtDate(viewingRequest.resolved_at)}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

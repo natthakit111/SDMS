@@ -40,6 +40,11 @@ router.get('/',
   ctrl.getAllBills
 );
 
+router.get('/available-rooms', 
+  authenticate, authorizeRoles('admin'), 
+  ctrl.getAvailableRoomsForBilling
+);
+
 // ── Wildcard paths LAST ───────────────────────────────────────
 router.get('/:id/qr',
   authenticate,
@@ -57,5 +62,6 @@ router.put('/:id/cancel',
   authenticate, authorizeRoles('admin'),
   ctrl.cancelBill
 );
+
 
 module.exports = router;

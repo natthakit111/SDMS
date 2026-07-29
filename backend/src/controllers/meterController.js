@@ -168,4 +168,14 @@ const updateReading = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { getAllReadings, getReadingById, getPreviousReading, createReading, updateReading };
+// GET /api/meters/available-rooms?month=&year=
+const getAvailableRoomsForMeter = async (req, res, next) => {
+  try {
+    const { month, year } = req.query;
+    if (!month || !year) return sendBadRequest(res, 'กรุณาระบุเดือนและปี');
+    const rooms = await MeterModel.findAvailableRoomsForMeter(parseInt(month), parseInt(year));
+    return sendSuccess(res, rooms);
+  } catch (err) { next(err); }
+};
+
+module.exports = { getAllReadings, getReadingById, getPreviousReading, createReading, updateReading, getAvailableRoomsForMeter, };

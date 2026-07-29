@@ -109,6 +109,7 @@ export default function MetersPage() {
   const MONTHS = Array.from({ length: 12 }, (_, i) => t(`month.${i + 1}`));
   const [readings, setReadings] = useState<Reading[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [rates, setRates] = useState<{ electric: number; water: number }>({
     electric: 0,
     water: 0,
@@ -184,6 +185,28 @@ export default function MetersPage() {
     fetchAll();
   }, [fetchAll]);
 
+  const fetchAvailableRooms = useCallback(async (m: string, y: string) => {
+    try {
+      const res = await meterAPI.getAvailableRooms({ month: m, year: y });
+      setAvailableRooms(res.data ?? []);
+    } catch {
+      setAvailableRooms([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (dialogOpen && !(editingElectric || editingWater)) {
+      fetchAvailableRooms(month, year);
+    }
+  }, [
+    dialogOpen,
+    month,
+    year,
+    editingElectric,
+    editingWater,
+    fetchAvailableRooms,
+  ]);
+
   // จัดกลุ่ม readings
   const grouped: GroupedReading[] = (() => {
     const map = new Map<string, GroupedReading>();
@@ -216,35 +239,24 @@ export default function MetersPage() {
     return matchSearch && matchMonth;
   });
 
-  // Auto-fill previous unit เมื่อเลือกห้อง
-  const handleRoomChange = async (rid: string) => {
-    setRoomId(rid);
-    setElecPrev("");
-    setWaterPrev("");
-    if (!rid) return;
-    try {
-      const [elec, water] = await Promise.all([
-        meterAPI.getPreviousReading(rid).catch(() => null),
-        // getPreviousReading ใช้ query ?type=
-        fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/meters/rooms/${rid}/previous?type=water`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-          },
-        )
-          .then((r) => r.json())
-          .catch(() => null),
-      ]);
-      const elecData = elec?.data ?? elec;
-      const waterData = water?.data ?? water;
-      if (elecData?.previous_unit !== undefined)
-        setElecPrev(String(elecData.previous_unit));
-      if (waterData?.previous_unit !== undefined)
-        setWaterPrev(String(waterData.previous_unit));
-    } catch {}
-  };
+const handleRoomChange = async (rid: string) => {
+  setRoomId(rid);
+  setElecPrev("");
+  setWaterPrev("");
+  if (!rid) return;
+  try {
+    const [elec, water] = await Promise.all([
+      meterAPI.getPreviousReading(rid, "electric").catch(() => null),
+      meterAPI.getPreviousReading(rid, "water").catch(() => null),
+    ]);
+    const elecData = elec?.data ?? elec;
+    const waterData = water?.data ?? water;
+    if (elecData?.previous_unit !== undefined)
+      setElecPrev(String(elecData.previous_unit));
+    if (waterData?.previous_unit !== undefined)
+      setWaterPrev(String(waterData.previous_unit));
+  } catch {}
+};
 
   const handleElecImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] ?? null;
@@ -585,7 +597,7 @@ export default function MetersPage() {
                     <SelectValue placeholder={t("contracts.selectRoom")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {rooms.map((r) => (
+                    {availableRooms.map((r) => (
                       <SelectItem key={r.room_id} value={String(r.room_id)}>
                         {r.room_number}
                       </SelectItem>
@@ -597,7 +609,10 @@ export default function MetersPage() {
                 <FieldLabel>{t("bills.month")}</FieldLabel>
                 <Select
                   value={month}
-                  onValueChange={setMonth}
+                  onValueChange={(v) => {
+                    setMonth(v);
+                    setRoomId("");
+                  }}
                   disabled={!!(editingElectric || editingWater)}
                 >
                   <SelectTrigger>
@@ -616,7 +631,10 @@ export default function MetersPage() {
                 <FieldLabel>{t("bills.year")}</FieldLabel>
                 <Select
                   value={year}
-                  onValueChange={setYear}
+                  onValueChange={(v) => {
+                    setYear(v);
+                    setRoomId("");
+                  }}
                   disabled={!!(editingElectric || editingWater)}
                 >
                   <SelectTrigger>

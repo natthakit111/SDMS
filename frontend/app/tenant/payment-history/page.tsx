@@ -96,7 +96,7 @@ export default function TenantPaymentHistoryPage() {
   const totalPaid = filtered
     .filter((p) => p.status === "verified")
     .reduce((s, p) => s + Number(p.amount_paid), 0);
-  const totalAll = payments.reduce((s, p) => s + Number(p.amount_paid), 0);
+  const totalAll = filtered.reduce((s, p) => s + Number(p.amount_paid), 0);
 
   return (
     <div className="space-y-6">
@@ -157,7 +157,7 @@ export default function TenantPaymentHistoryPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{payments.length}</div>
+                <div className="text-2xl font-bold">{filtered.length}</div>
               </CardContent>
             </Card>
           </div>

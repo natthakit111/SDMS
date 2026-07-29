@@ -2,6 +2,8 @@
  * controllers/contractController.js
  */
 const { validationResult } = require('express-validator')
+const path = require('path')
+const fs = require('fs')
 const ContractModel = require('../models/contract.model')
 const RoomModel     = require('../models/room.model')
 const TenantModel   = require('../models/tenant.model')
@@ -18,7 +20,7 @@ const getAllContracts = async (req, res, next) => {
 const getContractById = async (req, res, next) => {
   try {
     const contract = await ContractModel.findById(req.params.id)
-    if (!contract) return sendNotFound(res, 'Contract not found')
+    if (!contract) return sendNotFound(res, 'ไม่พบสัญญาเช่านี้')
     return sendSuccess(res, contract)
   } catch (err) { next(err) }
 }
@@ -26,9 +28,9 @@ const getContractById = async (req, res, next) => {
 const getMyContract = async (req, res, next) => {
   try {
     const tenant = await TenantModel.findByUserId(req.user.user_id)
-    if (!tenant) return sendNotFound(res, 'Tenant profile not found')
+    if (!tenant) return sendNotFound(res, 'ไม่พบข้อมูลผู้เช่า')
     const contract = await ContractModel.findActiveByTenant(tenant.tenant_id)
-    if (!contract) return sendNotFound(res, 'No active contract found')
+    if (!contract) return sendNotFound(res, 'ไม่พบสัญญาเช่าที่ใช้งานอยู่')
     return sendSuccess(res, contract)
   } catch (err) { next(err) }
 }
@@ -36,19 +38,19 @@ const getMyContract = async (req, res, next) => {
 const createContract = async (req, res, next) => {
   try {
     const errors = validationResult(req)
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array())
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง', errors.array())
 
     const { tenant_id, room_id, start_date, end_date, rent_amount, deposit_amount, note } = req.body
 
     const room = await RoomModel.findById(room_id)
-    if (!room) return sendNotFound(res, 'Room not found')
-    if (room.status !== 'available') return sendBadRequest(res, `Room ${room.room_number} is '${room.status}'`)
+    if (!room) return sendNotFound(res, 'ไม่พบห้องพักนี้')
+    if (room.status !== 'available') return sendBadRequest(res, `ห้อง ${room.room_number} มีสถานะ '${room.status}' ไม่สามารถทำสัญญาได้`)
 
     const tenant = await TenantModel.findById(tenant_id)
-    if (!tenant) return sendNotFound(res, 'Tenant not found')
+    if (!tenant) return sendNotFound(res, 'ไม่พบข้อมูลผู้เช่ารายนี้')
 
     const existing = await ContractModel.findActiveByTenant(tenant_id)
-    if (existing) return sendBadRequest(res, `Tenant already has active contract for room ${existing.room_number}`)
+    if (existing) return sendBadRequest(res, `ผู้เช่ารายนี้มีสัญญาที่ใช้งานอยู่แล้วสำหรับห้อง ${existing.room_number}`)
 
     const contractId = await ContractModel.create({
       tenant_id, room_id, start_date, end_date,
@@ -65,10 +67,10 @@ const createContract = async (req, res, next) => {
 const updateContract = async (req, res, next) => {
   try {
     const contract = await ContractModel.findById(req.params.id)
-    if (!contract) return sendNotFound(res, 'Contract not found')
-    if (contract.status !== 'active') return sendBadRequest(res, 'Only active contracts can be edited')
+    if (!contract) return sendNotFound(res, 'ไม่พบสัญญาเช่านี้')
+    if (contract.status !== 'active') return sendBadRequest(res, 'แก้ไขได้เฉพาะสัญญาที่ใช้งานอยู่เท่านั้น')
     await ContractModel.update(req.params.id, req.body)
-    return sendSuccess(res, await ContractModel.findById(req.params.id), 'Contract updated')
+    return sendSuccess(res, await ContractModel.findById(req.params.id), 'แก้ไขสัญญาสำเร็จ')
   } catch (err) { next(err) }
 }
 
@@ -76,20 +78,20 @@ const updateContract = async (req, res, next) => {
 const renewContract = async (req, res, next) => {
   try {
     const errors = validationResult(req)
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array())
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง', errors.array())
 
     const contract = await ContractModel.findById(req.params.id)
-    if (!contract) return sendNotFound(res, 'Contract not found')
+    if (!contract) return sendNotFound(res, 'ไม่พบสัญญาเช่านี้')
     if (contract.status !== 'expired') {
-      return sendBadRequest(res, 'Only expired contracts can be renewed — use update for active contracts')
+      return sendBadRequest(res, 'ต่อสัญญาได้เฉพาะสัญญาที่หมดอายุแล้วเท่านั้น — สัญญาที่ใช้งานอยู่ให้ใช้การแก้ไขแทน')
     }
 
     const { end_date, rent_amount } = req.body
-    if (!end_date) return sendBadRequest(res, 'end_date is required')
+    if (!end_date) return sendBadRequest(res, 'กรุณาระบุวันสิ้นสุดสัญญา')
 
     const newEndDate = new Date(end_date)
     if (Number.isNaN(newEndDate.getTime()) || newEndDate <= new Date()) {
-      return sendBadRequest(res, 'end_date must be a valid date in the future')
+      return sendBadRequest(res, 'วันสิ้นสุดสัญญาต้องเป็นวันที่ถูกต้องและอยู่ในอนาคต')
     }
 
     await ContractModel.update(req.params.id, {
@@ -106,11 +108,11 @@ const renewContract = async (req, res, next) => {
 const terminateContract = async (req, res, next) => {
   try {
     const contract = await ContractModel.findById(req.params.id)
-    if (!contract) return sendNotFound(res, 'Contract not found')
+    if (!contract) return sendNotFound(res, 'ไม่พบสัญญาเช่านี้')
 
     // ✅ รองรับทั้งสัญญา active (ยกเลิกก่อนกำหนด) และ expired (แอดมินเคลียร์ห้องหลังหมดสัญญา)
     if (!['active', 'expired'].includes(contract.status)) {
-      return sendBadRequest(res, 'Contract is already terminated')
+      return sendBadRequest(res, 'สัญญานี้ถูกยกเลิกไปแล้ว')
     }
 
     // ✅ Tenant can only terminate their OWN active contract
@@ -153,7 +155,52 @@ const terminateContract = async (req, res, next) => {
   } catch (err) { next(err) }
 }
 
+// ✅ NEW: Admin อัปโหลดไฟล์สัญญา (PDF/Word) แนบเข้ากับ contract ที่มีอยู่
+const uploadContractFile = async (req, res, next) => {
+  try {
+    if (!req.file) return sendBadRequest(res, 'กรุณาแนบไฟล์สัญญา')
+    const contract = await ContractModel.findById(req.params.id)
+    if (!contract) return sendNotFound(res, 'ไม่พบสัญญาเช่านี้')
+
+    // ลบไฟล์เก่าถ้ามี ป้องกันไฟล์ค้างใน disk
+    if (contract.contract_file) {
+      const oldPath = path.join(__dirname, '../../uploads/contracts', path.basename(contract.contract_file))
+      fs.unlink(oldPath, () => {})
+    }
+
+    await ContractModel.update(req.params.id, { contract_file: req.file.filename })
+    const updated = await ContractModel.findById(req.params.id)
+    return sendSuccess(res, updated, 'อัปโหลดไฟล์สัญญาสำเร็จ')
+  } catch (err) { next(err) }
+}
+
+// ✅ NEW: ดาวน์โหลดไฟล์สัญญาจริง (admin ดูได้ทุกฉบับ / tenant ดูได้เฉพาะของตัวเอง)
+const downloadContractFile = async (req, res, next) => {
+  try {
+    const contract = await ContractModel.findById(req.params.id)
+    if (!contract) return sendNotFound(res, 'ไม่พบสัญญาเช่านี้')
+    if (!contract.contract_file) return sendNotFound(res, 'ยังไม่มีไฟล์สัญญาสำหรับสัญญานี้')
+
+    // tenant ดูได้เฉพาะสัญญาของตัวเองเท่านั้น
+    if (req.user.role === 'tenant') {
+      const tenant = await TenantModel.findByUserId(req.user.user_id)
+      if (!tenant || tenant.tenant_id !== contract.tenant_id) {
+        return sendForbidden(res, 'คุณไม่มีสิทธิ์เข้าถึงไฟล์สัญญานี้')
+      }
+    }
+
+    const filePath = path.join(__dirname, '../../uploads/contracts', path.basename(contract.contract_file))
+    if (!fs.existsSync(filePath)) return sendNotFound(res, 'ไม่พบไฟล์สัญญาในระบบ')
+
+    return res.download(
+      filePath,
+      `contract_CNT${String(contract.contract_id).padStart(3, '0')}${path.extname(filePath)}`
+    )
+  } catch (err) { next(err) }
+}
+
 module.exports = {
   getAllContracts, getContractById, getMyContract,
   createContract, updateContract, renewContract, terminateContract,
+  uploadContractFile, downloadContractFile,
 }

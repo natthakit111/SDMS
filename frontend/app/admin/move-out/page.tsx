@@ -1,5 +1,3 @@
-//move-out/page.tsx
-
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -64,10 +62,11 @@ interface MoveOutRequest {
   admin_note: string | null;
   created_at: string;
   reviewed_at: string | null;
+  deposit_amount?: number;
 }
 
-const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString("th-TH", {
+const fmtDate = (d: string, lang: string) =>
+  new Date(d).toLocaleDateString(lang === "th" ? "th-TH" : "en-GB", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -97,7 +96,7 @@ const statusConfig = {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function AdminMoveOutPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [requests, setRequests] = useState<MoveOutRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -108,7 +107,7 @@ export default function AdminMoveOutPage() {
   const [adminNote, setAdminNote] = useState("");
   const [processing, setProcessing] = useState(false);
 
-  // ── Fetch ─────────────────────────────────────────────────────────────────
+  // ── Fetch Move-out Requests ───────────────────────────────────────────────
   const fetchRequests = useCallback(async () => {
     try {
       setLoading(true);
@@ -119,7 +118,7 @@ export default function AdminMoveOutPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchRequests();
@@ -299,9 +298,11 @@ export default function AdminMoveOutPage() {
                         {r.first_name} {r.last_name}
                       </TableCell>
                       <TableCell>{r.room_number}</TableCell>
-                      <TableCell>{fmtDate(r.move_out_date)}</TableCell>
+                      <TableCell>
+                        {fmtDate(r.move_out_date, language)}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {fmtDate(r.created_at)}
+                        {fmtDate(r.created_at, language)}
                       </TableCell>
                       <TableCell>
                         <div
@@ -312,13 +313,15 @@ export default function AdminMoveOutPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openDialog(r)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openDialog(r)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -339,7 +342,7 @@ export default function AdminMoveOutPage() {
         </CardContent>
       </Card>
 
-      {/* Detail / Action Dialog */}
+      {/* Detail / Approve / Reject Dialog */}
       <Dialog
         open={!!viewingRequest}
         onOpenChange={(open) => {
@@ -374,7 +377,7 @@ export default function AdminMoveOutPage() {
                     {t("moveout.colSubmittedAt")}
                   </p>
                   <p className="font-medium">
-                    {fmtDate(viewingRequest.created_at)}
+                    {fmtDate(viewingRequest.created_at, language)}
                   </p>
                 </div>
                 <div>
@@ -382,7 +385,7 @@ export default function AdminMoveOutPage() {
                     {t("moveout.colMoveOutDate")}
                   </p>
                   <p className="font-medium text-primary">
-                    {fmtDate(viewingRequest.move_out_date)}
+                    {fmtDate(viewingRequest.move_out_date, language)}
                   </p>
                 </div>
               </div>

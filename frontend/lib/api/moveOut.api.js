@@ -1,7 +1,4 @@
-/**
- * frondend/lib/api/moveOut.api.js
- * Backend: /api/move-out
- */
+// frontend/lib/api/moveOut.api.js
 import api from './axiosInstance';
 
 export const moveOutAPI = {

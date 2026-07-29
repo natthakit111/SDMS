@@ -36,6 +36,9 @@ import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  Download,
+  Upload,
+  Paperclip,
 } from "lucide-react";
 import { contractAPI } from "@/lib/api/contract.api";
 import { tenantAPI } from "@/lib/api/tenant.api";
@@ -58,6 +61,7 @@ interface Contract {
   deposit_amount: number;
   status: "active" | "expired" | "terminated";
   note: string | null;
+  contract_file: string | null; // ← ชื่อไฟล์ PDF/Word สัญญาที่แนบไว้ (ถ้ามี)
 }
 
 interface FormData {
@@ -105,6 +109,9 @@ const statusColors: Record<string, string> = {
   expired: "bg-red-500/10 text-red-500",
   terminated: "bg-muted text-muted-foreground",
 };
+
+const CONTRACT_FILE_ACCEPT = ".pdf,.doc,.docx";
+const CONTRACT_FILE_MAX_MB = 10;
 
 // ── Custom bilingual date picker ────────────────────────────────────────────
 // Native <input type="date"> follows the OS/browser language and ignores the
@@ -351,6 +358,13 @@ export default function ContractsPage() {
   const [viewingContract, setViewingContract] = useState<Contract | null>(null);
   const [formData, setFormData] = useState<FormData>(emptyForm);
 
+  // ── Contract file (upload ตอนสร้าง / ดาวน์โหลด / แทนที่ทีหลัง) ───────────
+  const [newContractFile, setNewContractFile] = useState<File | null>(null);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [replaceFile, setReplaceFile] = useState<File | null>(null);
+  const [uploadingReplace, setUploadingReplace] = useState(false);
+  const replaceFileInputRef = useRef<HTMLInputElement>(null);
+
   // ── Renew contract ──────────────────────────────────────────────────────
   const [renewingContract, setRenewingContract] = useState<Contract | null>(
     null,
@@ -416,7 +430,29 @@ export default function ContractsPage() {
     .filter((c) => c.status === "active")
     .reduce((sum, c) => sum + Number(c.deposit_amount), 0);
 
-  // ── Create contract ───────────────────────────────────────────────────────
+  // ── Validate a selected contract file (ใช้ทั้งตอนสร้างและตอนแทนที่) ──────
+  const validateContractFile = (file: File): boolean => {
+    const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
+    if (!CONTRACT_FILE_ACCEPT.split(",").includes(ext)) {
+      toast.error(
+        language === "th"
+          ? "รองรับเฉพาะไฟล์ PDF หรือ Word (.pdf, .doc, .docx) เท่านั้น"
+          : "Only PDF or Word files (.pdf, .doc, .docx) are supported",
+      );
+      return false;
+    }
+    if (file.size > CONTRACT_FILE_MAX_MB * 1024 * 1024) {
+      toast.error(
+        language === "th"
+          ? `ไฟล์ต้องมีขนาดไม่เกิน ${CONTRACT_FILE_MAX_MB}MB`
+          : `File must be under ${CONTRACT_FILE_MAX_MB}MB`,
+      );
+      return false;
+    }
+    return true;
+  };
+
+  // ── Create contract (+ อัปโหลดไฟล์ผูกกับ contract ที่สร้างใหม่ ถ้ามีการแนบ) ──
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -443,7 +479,7 @@ export default function ContractsPage() {
     }
 
     try {
-      await contractAPI.create({
+      const created = await contractAPI.create({
         tenant_id: parseInt(formData.tenant_id),
         room_id: parseInt(formData.room_id),
         start_date: formData.start_date,
@@ -456,6 +492,23 @@ export default function ContractsPage() {
           : undefined,
         note: formData.note || undefined,
       });
+
+      const newContractId = created?.data?.contract_id;
+
+      // ถ้า admin แนบไฟล์สัญญามาด้วย → อัปโหลดผูกกับ contract ที่เพิ่งสร้างทันที
+      if (newContractId && newContractFile) {
+        try {
+          await contractAPI.uploadFile(newContractId, newContractFile);
+        } catch (uploadErr: any) {
+          // สัญญาสร้างสำเร็จแล้ว แต่แนบไฟล์ไม่สำเร็จ — แจ้งเตือนแยก ไม่ rollback สัญญา
+          toast.error(
+            language === "th"
+              ? "สร้างสัญญาสำเร็จ แต่แนบไฟล์ไม่สำเร็จ กรุณาอัปโหลดไฟล์อีกครั้งภายหลัง"
+              : "Contract created, but the file upload failed. Please upload it again later.",
+          );
+        }
+      }
+
       toast.success(t("contracts.createSuccess"));
       resetForm();
       fetchContracts();
@@ -464,6 +517,61 @@ export default function ContractsPage() {
       toast.error(err?.response?.data?.message ?? t("contracts.createError"));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // ── ดาวน์โหลด/ดูไฟล์สัญญา (ใช้ได้กับทุกสัญญาที่มีไฟล์แนบ) ─────────────────
+  const handleDownloadFile = async (contract: Contract) => {
+    if (!contract.contract_file) return;
+    setDownloadingId(contract.contract_id);
+    try {
+      const res = await contractAPI.downloadFile(contract.contract_id);
+      const blob = new Blob([res.data]);
+      const url = URL.createObjectURL(blob);
+      const ext = contract.contract_file.split(".").pop();
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `contract_CNT${String(contract.contract_id).padStart(3, "0")}.${ext}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error(
+        language === "th"
+          ? "ไม่สามารถดาวน์โหลดไฟล์สัญญาได้"
+          : "Failed to download the contract file",
+      );
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  // ── อัปโหลด/แทนที่ไฟล์สัญญา จากใน view dialog (เผื่อลืมแนบตอนสร้าง หรืออยากเปลี่ยนไฟล์) ──
+  const handleReplaceFileUpload = async () => {
+    if (!viewingContract || !replaceFile) return;
+    if (!validateContractFile(replaceFile)) return;
+    setUploadingReplace(true);
+    try {
+      const res = await contractAPI.uploadFile(
+        viewingContract.contract_id,
+        replaceFile,
+      );
+      toast.success(
+        language === "th" ? "อัปโหลดไฟล์สัญญาสำเร็จ" : "Contract file uploaded",
+      );
+      const updated = res?.data as Contract | undefined;
+      if (updated) setViewingContract(updated);
+      setReplaceFile(null);
+      if (replaceFileInputRef.current) replaceFileInputRef.current.value = "";
+      fetchContracts();
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message ??
+          (language === "th"
+            ? "อัปโหลดไฟล์ไม่สำเร็จ"
+            : "Failed to upload the file"),
+      );
+    } finally {
+      setUploadingReplace(false);
     }
   };
 
@@ -552,6 +660,7 @@ export default function ContractsPage() {
 
   const resetForm = () => {
     setFormData(emptyForm);
+    setNewContractFile(null);
     setIsAddDialogOpen(false);
   };
 
@@ -761,6 +870,60 @@ export default function ContractsPage() {
                     placeholder={t("contracts.noteExtra")}
                   />
                 </Field>
+
+                {/* แนบไฟล์สัญญาเช่าตัวจริง (PDF/Word) — optional ตอนสร้าง */}
+                <Field>
+                  <FieldLabel htmlFor="contract_file">
+                    {language === "th"
+                      ? "แนบไฟล์สัญญาเช่า (PDF/Word)"
+                      : "Attach contract file (PDF/Word)"}
+                  </FieldLabel>
+                  <div className="flex items-center gap-2">
+                    <label
+                      htmlFor="contract_file"
+                      className="flex-1 flex items-center gap-2 h-9 rounded-md border border-dashed border-input px-3 text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors"
+                    >
+                      <Paperclip className="h-4 w-4 shrink-0" />
+                      <span className="truncate">
+                        {newContractFile
+                          ? newContractFile.name
+                          : language === "th"
+                            ? "เลือกไฟล์ (ไม่บังคับ)"
+                            : "Choose file (optional)"}
+                      </span>
+                    </label>
+                    <input
+                      id="contract_file"
+                      type="file"
+                      accept={CONTRACT_FILE_ACCEPT}
+                      className="sr-only"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        if (file && !validateContractFile(file)) {
+                          e.target.value = "";
+                          setNewContractFile(null);
+                          return;
+                        }
+                        setNewContractFile(file);
+                      }}
+                    />
+                    {newContractFile && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setNewContractFile(null)}
+                      >
+                        <XCircle className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {language === "th"
+                      ? "ถ้าไม่แนบตอนนี้ สามารถอัปโหลดภายหลังได้จากหน้ารายละเอียดสัญญา"
+                      : "You can also upload this later from the contract detail view."}
+                  </p>
+                </Field>
               </FieldGroup>
 
               <DialogFooter className="mt-6">
@@ -922,6 +1085,20 @@ export default function ContractsPage() {
                                 {formatDate(contract.start_date)} —{" "}
                                 {formatDate(contract.end_date)}
                               </span>
+                              {contract.contract_file ? (
+                                <span className="text-xs bg-green-500/10 text-green-600 px-2 py-1 rounded flex items-center gap-1">
+                                  <Paperclip className="h-3 w-3" />
+                                  {language === "th"
+                                    ? "มีไฟล์แนบ"
+                                    : "File attached"}
+                                </span>
+                              ) : (
+                                <span className="text-xs bg-yellow-500/10 text-yellow-600 px-2 py-1 rounded">
+                                  {language === "th"
+                                    ? "ยังไม่มีไฟล์แนบ"
+                                    : "No file yet"}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <span
@@ -934,6 +1111,24 @@ export default function ContractsPage() {
                     </div>
 
                     <div className="flex gap-2 flex-shrink-0">
+                      {contract.contract_file && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1"
+                          disabled={downloadingId === contract.contract_id}
+                          onClick={() => handleDownloadFile(contract)}
+                        >
+                          {downloadingId === contract.contract_id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Download className="w-4 h-4" />
+                          )}
+                          <span className="hidden sm:inline">
+                            {language === "th" ? "ไฟล์สัญญา" : "File"}
+                          </span>
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -981,7 +1176,12 @@ export default function ContractsPage() {
       {/* View Dialog */}
       <Dialog
         open={!!viewingContract}
-        onOpenChange={(open) => !open && setViewingContract(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewingContract(null);
+            setReplaceFile(null);
+          }
+        }}
       >
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -1047,6 +1247,95 @@ export default function ContractsPage() {
                   <p>{viewingContract.note}</p>
                 </div>
               )}
+
+              {/* ── ไฟล์สัญญาเช่า (ดู/ดาวน์โหลด/อัปโหลด-แทนที่) ─────────────── */}
+              <div className="pt-4 border-t space-y-2">
+                <p className="text-sm font-medium">
+                  {language === "th" ? "ไฟล์สัญญาเช่า" : "Contract file"}
+                </p>
+
+                {viewingContract.contract_file ? (
+                  <div className="flex items-center justify-between gap-2 bg-muted/50 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-sm min-w-0">
+                      <Paperclip className="h-4 w-4 shrink-0 text-green-600" />
+                      <span className="truncate">
+                        {language === "th"
+                          ? "มีไฟล์สัญญาแนบอยู่แล้ว"
+                          : "A contract file is attached"}
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 shrink-0"
+                      disabled={downloadingId === viewingContract.contract_id}
+                      onClick={() => handleDownloadFile(viewingContract)}
+                    >
+                      {downloadingId === viewingContract.contract_id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                      {language === "th" ? "ดาวน์โหลด" : "Download"}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {language === "th"
+                      ? "ยังไม่มีไฟล์สัญญาแนบสำหรับห้องนี้"
+                      : "No contract file has been attached yet"}
+                  </p>
+                )}
+
+                {/* อัปโหลด / แทนที่ไฟล์ */}
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor="replace_contract_file"
+                    className="flex-1 flex items-center gap-2 h-9 rounded-md border border-dashed border-input px-3 text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors"
+                  >
+                    <Upload className="h-4 w-4 shrink-0" />
+                    <span className="truncate">
+                      {replaceFile
+                        ? replaceFile.name
+                        : viewingContract.contract_file
+                          ? language === "th"
+                            ? "เลือกไฟล์ใหม่เพื่อแทนที่"
+                            : "Choose a new file to replace"
+                          : language === "th"
+                            ? "เลือกไฟล์เพื่ออัปโหลด"
+                            : "Choose a file to upload"}
+                    </span>
+                  </label>
+                  <input
+                    id="replace_contract_file"
+                    ref={replaceFileInputRef}
+                    type="file"
+                    accept={CONTRACT_FILE_ACCEPT}
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      if (file && !validateContractFile(file)) {
+                        e.target.value = "";
+                        setReplaceFile(null);
+                        return;
+                      }
+                      setReplaceFile(file);
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    disabled={!replaceFile || uploadingReplace}
+                    onClick={handleReplaceFileUpload}
+                    className="gap-1 shrink-0"
+                  >
+                    {uploadingReplace && (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
+                    {language === "th" ? "อัปโหลด" : "Upload"}
+                  </Button>
+                </div>
+              </div>
+
               {viewingContract.status === "active" && (
                 <Button
                   variant="destructive"

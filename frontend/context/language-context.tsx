@@ -1338,10 +1338,90 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "ไม่พบคำร้องขอย้ายออก",
     en: "No move-out requests found",
   },
+
+  // ── Move-out Clearance & Deposit Refund ─────────────────────────────
+  "moveout.clearanceButton": {
+    th: "เคลียร์เงินประกัน",
+    en: "Clear Deposit",
+  },
+  "moveout.clearanceTitle": {
+    th: "คำนวณคืนเงินประกัน (ห้อง {room})",
+    en: "Deposit Refund Calculation (Room {room})",
+  },
+  "moveout.clearanceDesc": {
+    th: "ตรวจสอบและคำนวณรายการหักค่าใช้จ่ายก่อนคืนกุญแจ",
+    en: "Review and calculate deductions before key return",
+  },
+  "moveout.depositAmount": {
+    th: "เงินประกันตั้งต้น (บาท)",
+    en: "Initial Security Deposit (THB)",
+  },
+  "moveout.utilityAmount": {
+    th: "หัก: ค่าน้ำ-ไฟ งวดสุดท้าย (บาท)",
+    en: "Deduct: Final Utility Bill (THB)",
+  },
+  "moveout.damageAmount": {
+    th: "หัก: ค่าเสียหาย / ค่าปรับผิดสัญญา (บาท)",
+    en: "Deduct: Damages / Penalty (THB)",
+  },
+  "moveout.clearanceNote": {
+    th: "หมายเหตุการหักเงิน (ถ้ามี)",
+    en: "Deduction Note (optional)",
+  },
+  "moveout.clearanceNotePlaceholder": {
+    th: "เช่น ล้างแอร์, กุญแจชำรุด...",
+    en: "e.g., AC cleaning fee, broken key...",
+  },
+  "moveout.refundToTenant": {
+    th: "ยอดเงินที่ต้องโอนคืนผู้เช่า",
+    en: "Net Refund to Tenant",
+  },
+  "moveout.payByTenant": {
+    th: "ผู้เช่าต้องชำระส่วนต่างเพิ่ม",
+    en: "Tenant Must Pay Difference",
+  },
+  "moveout.confirmClearance": {
+    th: "ยืนยันเคลียร์ยอด",
+    en: "Confirm Clearance",
+  },
+  "moveout.clearanceSuccess": {
+    th: "บันทึกการเคลียร์ยอดห้อง {room} เรียบร้อยแล้ว",
+    en: "Clearance recorded for room {room}",
+  },
+  "moveout.clearanceError": {
+    th: "เกิดข้อผิดพลาดในการเคลียร์ยอด",
+    en: "Failed to process clearance",
+  },
   "moveout.detailTitle": {
     th: "รายละเอียดคำร้องขอย้ายออก",
     en: "Move-out Request Details",
   },
+  // ── Move-out Smart Meter Clearance ────────────────────────────────
+  "moveout.meterSection": {
+    th: "คำนวณมิเตอร์น้ำ-ไฟ งวดสุดท้าย",
+    en: "Final Utility Meter Calculation",
+  },
+  "moveout.waterStart": {
+    th: "มิเตอร์น้ำเดิม (หน่วย)",
+    en: "Prev Water Meter",
+  },
+  "moveout.waterEnd": {
+    th: "มิเตอร์น้ำวันออก (หน่วย)",
+    en: "Final Water Meter",
+  },
+  "moveout.electricStart": {
+    th: "มิเตอร์ไฟเดิม (หน่วย)",
+    en: "Prev Electric Meter",
+  },
+  "moveout.electricEnd": {
+    th: "มิเตอร์ไฟวันออก (หน่วย)",
+    en: "Final Electric Meter",
+  },
+  "moveout.utilityTotal": {
+    th: "รวมค่าน้ำ-ไฟ ที่ต้องหัก",
+    en: "Total Utility Cost to Deduct",
+  },
+
   "moveout.detailDesc": {
     th: "ตรวจสอบข้อมูลและดำเนินการ",
     en: "Review information and take action",
@@ -1452,6 +1532,14 @@ const translations: Record<string, { th: string; en: string }> = {
   "tenant.contract.none": {
     th: "ยังไม่มีสัญญาเช่า",
     en: "No rental contract yet",
+  },
+  "tenant.contract.downloadError": {
+    th: "ไม่สามารถดาวน์โหลดไฟล์สัญญาได้ กรุณาลองใหม่อีกครั้ง",
+    en: "Failed to download the contract file. Please try again.",
+  },
+  "tenant.contract.noFileYet": {
+    th: "ยังไม่มีไฟล์สัญญาในระบบ ระบบจะสร้างสรุปข้อมูลให้แทน",
+    en: "No contract file uploaded yet — a summary will be downloaded instead.",
   },
   "tenant.moveout.title": { th: "ขอย้ายออก", en: "Move-out Request" },
   "tenant.moveout.subtitle": {

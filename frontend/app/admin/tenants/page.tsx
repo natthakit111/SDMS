@@ -48,7 +48,7 @@ import {
   Mail,
   Loader2,
 } from "lucide-react";
-import { formatDate } from "@/lib/mock-data";
+import { formatDate } from "@/lib/utils";
 import { tenantAPI } from "@/lib/api/tenant.api";
 import { toast } from "sonner";
 

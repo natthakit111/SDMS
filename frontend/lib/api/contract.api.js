@@ -1,5 +1,5 @@
 /**
- * frondend/lib/api/contract.api.js
+ * frontend/lib/api/contract.api.js
  * Backend: /api/contracts
  */
 import api from './axiosInstance';
@@ -33,4 +33,20 @@ export const contractAPI = {
     api.put(`/contracts/${id}/terminate`, data).then((r) => r.data),
   // data?: { checkout_date? } — ใช้ได้กับสัญญา status = 'active' (ยกเลิกก่อนกำหนด)
   // หรือ 'expired' (แอดมินเคลียร์ห้องหลังหมดสัญญา / ทำเรื่องย้ายออก) ไม่มีค่าปรับถ้าเช็คเอาท์หลังวันหมดสัญญา
+
+  // ── Contract file (PDF/Word) ────────────────────────────────
+  uploadFile: (id, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api
+      .post(`/contracts/${id}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
+  // file: File object จาก <input type="file"> — เฉพาะ admin, รองรับ .pdf .doc .docx ไม่เกิน 10MB
+
+  downloadFile: (id) =>
+    api.get(`/contracts/${id}/file`, { responseType: 'blob' }),
+  // คืนค่าเป็น blob response — tenant ดาวน์โหลดได้เฉพาะสัญญาของตัวเอง, admin ดาวน์โหลดได้ทุกฉบับ
 };

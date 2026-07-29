@@ -191,7 +191,6 @@ context/
 └── language-context.tsx
 
 lib/
-├── mock-data.ts
 ├── pdf-export.ts
 └── utils.ts
 

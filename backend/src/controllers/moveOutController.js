@@ -2,7 +2,7 @@
  * controllers/moveOutController.js
  */
 const { validationResult } = require('express-validator');
-const { pool }        = require('../config/db');
+const MoveOutModel    = require('../models/moveOut.model');
 const TenantModel     = require('../models/tenant.model');
 const ContractModel   = require('../models/contract.model');
 const RoomModel       = require('../models/room.model');
@@ -10,37 +10,16 @@ const {
   sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden,
 } = require('../utils/response');
 
-// ── helpers ───────────────────────────────────────────────────────────────────
-const findById = async (id) => {
-  const [rows] = await pool.query(
-    `SELECT r.*, t.first_name, t.last_name, ro.room_number
-     FROM move_out_requests r
-     JOIN tenants t  ON t.tenant_id  = r.tenant_id
-     JOIN rooms ro   ON ro.room_id   = r.room_id
-     WHERE r.request_id = ? LIMIT 1`,
-    [id]
-  );
-  return rows[0] || null;
-};
-
 // ── GET /api/move-out  (admin: all | tenant: own) ────────────────────────────
 const getAll = async (req, res, next) => {
   try {
-    let sql = `
-      SELECT r.*, t.first_name, t.last_name, ro.room_number
-      FROM move_out_requests r
-      JOIN tenants t  ON t.tenant_id  = r.tenant_id
-      JOIN rooms ro   ON ro.room_id   = r.room_id`;
-    const params = [];
-
+    let tenantId = null;
     if (req.user.role === 'tenant') {
       const tenant = await TenantModel.findByUserId(req.user.user_id);
-      if (!tenant) return sendNotFound(res, 'Tenant not found');
-      sql += ' WHERE r.tenant_id = ?';
-      params.push(tenant.tenant_id);
+      if (!tenant) return sendNotFound(res, 'ไม่พบข้อมูลผู้เช่า');
+      tenantId = tenant.tenant_id;
     }
-    sql += ' ORDER BY r.created_at DESC';
-    const [rows] = await pool.query(sql, params);
+    const rows = await MoveOutModel.findAll({ tenantId });
     return sendSuccess(res, rows);
   } catch (err) { next(err); }
 };
@@ -49,86 +28,75 @@ const getAll = async (req, res, next) => {
 const create = async (req, res, next) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง', errors.array());
 
     const tenant = await TenantModel.findByUserId(req.user.user_id);
-    if (!tenant) return sendNotFound(res, 'Tenant profile not found');
+    if (!tenant) return sendNotFound(res, 'ไม่พบข้อมูลผู้เช่า');
 
     const contract = await ContractModel.findActiveByTenant(tenant.tenant_id);
-    if (!contract) return sendBadRequest(res, 'You do not have an active contract');
+    if (!contract) return sendBadRequest(res, 'คุณไม่มีสัญญาเช่าที่ใช้งานอยู่');
 
     // ตรวจว่ายังไม่มี pending request
-    const [existing] = await pool.query(
-      `SELECT request_id FROM move_out_requests
-       WHERE tenant_id = ? AND status = 'pending' LIMIT 1`,
-      [tenant.tenant_id]
-    );
-    if (existing.length > 0)
-      return sendBadRequest(res, 'You already have a pending move-out request');
+    const hasPending = await MoveOutModel.hasPendingRequest(tenant.tenant_id);
+    if (hasPending)
+      return sendBadRequest(res, 'คุณมีคำร้องขอย้ายออกที่รอการอนุมัติอยู่แล้ว');
 
     const { move_out_date, reason } = req.body;
 
-    // ตรวจ 30 วัน
-    const moveOut = new Date(move_out_date);
-    const daysNotice = Math.ceil((moveOut - new Date()) / (1000 * 60 * 60 * 24));
-    if (daysNotice < 30)
-      return sendBadRequest(res, 'Move-out date must be at least 30 days from today');
+    // 💡 ไม่บล็อกคำร้องที่แจ้งกะทันหันอีกต่อไป — ฝั่ง frontend แจ้งเตือนผู้เช่า
+    // เรื่องค่าปรับไปแล้วก่อนกดส่ง ผู้เช่ายืนยันเองว่ายอมรับเงื่อนไข ส่วนแอดมิน
+    // ก็เห็นทั้งวันที่ส่งคำร้องและวันที่ต้องการย้ายออกในตารางอยู่แล้ว
+    // เทียบสองวันนี้เองได้ว่ากะทันหันแค่ไหน ไม่ต้องมี field เพิ่ม
 
-    const [result] = await pool.query(
-      `INSERT INTO move_out_requests
-         (tenant_id, contract_id, room_id, move_out_date, reason)
-       VALUES (?, ?, ?, ?, ?)`,
-      [tenant.tenant_id, contract.contract_id, contract.room_id, move_out_date, reason]
-    );
+    const requestId = await MoveOutModel.create({
+      tenant_id:   tenant.tenant_id,
+      contract_id: contract.contract_id,
+      room_id:     contract.room_id,
+      move_out_date,
+      reason,
+    });
 
-    const created = await findById(result.insertId);
-    return sendCreated(res, created, 'Move-out request submitted successfully');
+    const created = await MoveOutModel.findById(requestId);
+    return sendCreated(res, created, 'ส่งคำร้องขอย้ายออกสำเร็จ');
   } catch (err) { next(err); }
 };
 
 // ── PUT /api/move-out/:id/approve  (admin only) ──────────────────────────────
 const approve = async (req, res, next) => {
   try {
-    const request = await findById(req.params.id);
-    if (!request) return sendNotFound(res, 'Request not found');
-    if (request.status !== 'pending') return sendBadRequest(res, 'Request is already reviewed');
+    const request = await MoveOutModel.findById(req.params.id);
+    if (!request) return sendNotFound(res, 'ไม่พบคำร้องนี้');
+    if (request.status !== 'pending') return sendBadRequest(res, 'คำร้องนี้ถูกพิจารณาไปแล้ว');
 
     const { admin_note } = req.body;
 
-    // ยกเลิกสัญญาและเปิดห้องว่าง
-    await pool.query(
-      `UPDATE contracts SET status = 'terminated' WHERE contract_id = ?`,
-      [request.contract_id]
-    );
+    // ยกเลิกสัญญาและเปิดห้องว่าง — reuse ContractModel/RoomModel แทนการ query ตรง ๆ
+    await ContractModel.updateStatus(request.contract_id, 'terminated');
     await RoomModel.updateStatus(request.room_id, 'available');
 
-    await pool.query(
-      `UPDATE move_out_requests
-       SET status = 'approved', admin_note = ?, reviewed_by = ?, reviewed_at = NOW()
-       WHERE request_id = ?`,
-      [admin_note || null, req.user.user_id, request.request_id]
-    );
+    await MoveOutModel.updateReviewStatus(request.request_id, 'approved', {
+      admin_note,
+      reviewed_by: req.user.user_id,
+    });
 
-    return sendSuccess(res, await findById(request.request_id), 'Move-out approved');
+    return sendSuccess(res, await MoveOutModel.findById(request.request_id), 'อนุมัติคำร้องขอย้ายออกสำเร็จ');
   } catch (err) { next(err); }
 };
 
 // ── PUT /api/move-out/:id/reject  (admin only) ───────────────────────────────
 const reject = async (req, res, next) => {
   try {
-    const request = await findById(req.params.id);
-    if (!request) return sendNotFound(res, 'Request not found');
-    if (request.status !== 'pending') return sendBadRequest(res, 'Request is already reviewed');
+    const request = await MoveOutModel.findById(req.params.id);
+    if (!request) return sendNotFound(res, 'ไม่พบคำร้องนี้');
+    if (request.status !== 'pending') return sendBadRequest(res, 'คำร้องนี้ถูกพิจารณาไปแล้ว');
 
     const { admin_note } = req.body;
-    await pool.query(
-      `UPDATE move_out_requests
-       SET status = 'rejected', admin_note = ?, reviewed_by = ?, reviewed_at = NOW()
-       WHERE request_id = ?`,
-      [admin_note || null, req.user.user_id, request.request_id]
-    );
+    await MoveOutModel.updateReviewStatus(request.request_id, 'rejected', {
+      admin_note,
+      reviewed_by: req.user.user_id,
+    });
 
-    return sendSuccess(res, await findById(request.request_id), 'Move-out request rejected');
+    return sendSuccess(res, await MoveOutModel.findById(request.request_id), 'ปฏิเสธคำร้องขอย้ายออกแล้ว');
   } catch (err) { next(err); }
 };
 

@@ -62,6 +62,7 @@ interface MaintenanceRequest {
   admin_note: string | null;
   resolved_at: string | null;
   created_at: string;
+  image_path: string | null;
 }
 
 interface UpdateData {
@@ -76,6 +77,12 @@ const formatDate = (d: string) =>
     month: "short",
     day: "numeric",
   });
+
+const imgUrl = (path: string | null) => {
+  if (!path) return null;
+  if (path.startsWith("http")) return path;
+  return `${process.env.NEXT_PUBLIC_API_URL ?? ""}/${path}`;
+};
 
 // ── กฎการเรียงลำดับ ──────────────────────────────────────────────────────────
 // กลุ่ม "รอดำเนินการ / กำลังดำเนินการ" อยู่บนเสมอ เรียงตามความสำคัญ (ด่วนก่อน)
@@ -339,7 +346,7 @@ export default function MaintenancePage() {
           if (!open) setViewingRequest(null);
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("maintenance.detailTitle")}</DialogTitle>
             <DialogDescription>{t("maintenance.detailDesc")}</DialogDescription>
@@ -381,6 +388,19 @@ export default function MaintenancePage() {
                   {viewingRequest.description}
                 </p>
               </div>
+
+              {imgUrl(viewingRequest.image_path) && (
+                <div className="text-sm">
+                  <p className="text-muted-foreground mb-1">
+                    {t("meters.image")}
+                  </p>
+                  <img
+                    src={imgUrl(viewingRequest.image_path) ?? ""}
+                    alt={viewingRequest.category}
+                    className="w-full rounded-lg object-contain max-h-48 bg-muted"
+                  />
+                </div>
+              )}
 
               {/* Update form */}
               <div className="pt-4 border-t space-y-4">
@@ -442,7 +462,7 @@ export default function MaintenancePage() {
                 </FieldGroup>
               </div>
 
-              <DialogFooter>
+              <DialogFooter className="sticky bottom-0 bg-background pt-4 pb-2 -mx-6 px-6 border-t">
                 <Button
                   variant="outline"
                   onClick={() => setViewingRequest(null)}

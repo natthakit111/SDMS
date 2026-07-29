@@ -31,7 +31,7 @@ import { roomAPI } from "@/lib/api/room.api";
 import { billAPI } from "@/lib/api/bill.api";
 import { maintenanceAPI } from "@/lib/api/maintenance.api";
 import { tenantAPI } from "@/lib/api/tenant.api";
-import { formatCurrency } from "@/lib/mock-data";
+import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 
 interface RoomStats {

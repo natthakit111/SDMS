@@ -1,6 +1,6 @@
 //tenant/contract/page.tsx
 
-"use client"
+"use client";
 
 import { useState, useEffect } from "react";
 import {
@@ -26,12 +26,14 @@ interface Contract {
   deposit_amount: number;
   status: "active" | "expired" | "terminated";
   note: string | null;
+  contract_file: string | null;
 }
 
 export default function TenantContractPage() {
   const { t, language } = useLanguage();
   const [contract, setContract] = useState<Contract | null>(null);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
 
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString(language === "th" ? "th-TH" : "en-GB", {
@@ -70,8 +72,31 @@ export default function TenantContractPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!contract) return;
+
+    // มีไฟล์สัญญาจริงในระบบ (admin อัปโหลดไว้แล้ว) → ดาวน์โหลดไฟล์จริง
+    if (contract.contract_file) {
+      setDownloading(true);
+      try {
+        const res = await contractAPI.downloadFile(contract.contract_id);
+        const blob = new Blob([res.data]);
+        const url = URL.createObjectURL(blob);
+        const ext = contract.contract_file.split(".").pop();
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `contract_CNT${String(contract.contract_id).padStart(3, "0")}.${ext}`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch {
+        toast.error(t("tenant.contract.downloadError"));
+      } finally {
+        setDownloading(false);
+      }
+      return;
+    }
+
+    // fallback: ยังไม่มีไฟล์อัปโหลด → สร้างสรุปข้อมูลเป็น .txt แทน
     const s = statusConfig[contract.status] ?? statusConfig.expired;
     const text = [
       t("tenant.contract.title"),
@@ -196,10 +221,23 @@ export default function TenantContractPage() {
           </div>
 
           <div className="pt-4 border-t">
-            <Button onClick={handleDownload} className="gap-2">
-              <Download className="h-4 w-4" />
+            <Button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="gap-2"
+            >
+              {downloading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
               {t("common.download")}
             </Button>
+            {!contract.contract_file && (
+              <p className="text-xs text-muted-foreground mt-2">
+                {t("tenant.contract.noFileYet")}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

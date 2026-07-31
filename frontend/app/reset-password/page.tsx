@@ -1,3 +1,5 @@
+//app/reset-password/page.tsx
+
 "use client";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +31,17 @@ import {
 
 type Status = "idle" | "loading" | "success" | "error";
 
+  const getStrength = (pw: string) => {
+    if (!pw) return 0;
+    let score = 0;
+    if (pw.length >= 6) score++;
+    if (pw.length >= 10) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    return score;
+  };
+
 function ResetPasswordForm() {
   const { t } = useLanguage(); // ← เพิ่มตรงนี้
   const searchParams = useSearchParams();
@@ -41,17 +54,6 @@ function ResetPasswordForm() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
-
-  const getStrength = (pw: string) => {
-    if (!pw) return 0;
-    let score = 0;
-    if (pw.length >= 6) score++;
-    if (pw.length >= 10) score++;
-    if (/[A-Z]/.test(pw)) score++;
-    if (/[0-9]/.test(pw)) score++;
-    if (/[^A-Za-z0-9]/.test(pw)) score++;
-    return score;
-  };
 
   const strength = getStrength(newPassword);
   const strengthLabel = [
@@ -115,9 +117,12 @@ function ResetPasswordForm() {
       setTimeout(() => {
         router.push("/login");
       }, 2500);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus("error");
-      setMessage(err.response?.data?.message || t("common.error"));
+      const errorMessage =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || t("common.error");
+      setMessage(errorMessage);
     }
   };
 
@@ -151,6 +156,7 @@ function ResetPasswordForm() {
             <Input
               id="new-password"
               type={showNew ? "text" : "password"}
+              autoComplete="new-password"
               placeholder="••••••••"
               value={newPassword}
               onChange={(e) => {
@@ -206,6 +212,7 @@ function ResetPasswordForm() {
             <Input
               id="confirm-password"
               type={showConfirm ? "text" : "password"}
+              autoComplete="new-password"
               placeholder="••••••••"
               value={confirmPassword}
               onChange={(e) => {

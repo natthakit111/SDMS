@@ -1,3 +1,5 @@
+//app/forgot-password/page.tsx
+
 "use client";
 
 export const dynamic = "force-dynamic";
@@ -44,9 +46,12 @@ export default function ForgotPasswordPage() {
       const res = await authAPI.forgotPassword(username.trim());
       setStatus("success");
       setMessage(res.message || t("common.success"));
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus("error");
-      setMessage(err.response?.data?.message || t("common.error"));
+      const errorMessage =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || t("common.error");
+      setMessage(errorMessage);
     }
   };
 
@@ -99,6 +104,7 @@ export default function ForgotPasswordPage() {
                   <Input
                     id="username"
                     type="text"
+                    autoComplete="email"
                     placeholder={t("forgotPassword.usernamePlaceholder")}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}

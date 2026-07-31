@@ -42,6 +42,7 @@
 
 ### Prerequisites (สิ่งที่ต้องติดตั้งล่วงหน้า)
 - [Node.js](https://nodejs.org/) (v16.x หรือใหม่กว่า)
+- [pnpm](https://pnpm.io/) (สำหรับจัดการ Package ฝั่ง Frontend: ติดตั้งผ่านคำสั่ง `npm install -g pnpm`)
 - [MySQL](https://www.mysql.com/) Server
 - Git
 
@@ -49,9 +50,8 @@
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/SDMS.git
+   git clone [https://github.com/your-username/SDMS.git](https://github.com/your-username/SDMS.git)
    cd SDMS
-   ```
 
 2. **Setup Database (MySQL):**
    - สร้าง Database ใหม่ใน MySQL (เช่น `SDMS_db`)
@@ -89,13 +89,13 @@
    เปิด Terminal หน้าต่างที่ 1 (รัน Backend API):
    ```bash
    cd backend
-   npm start
+   npm run dev
    ```
 
    เปิด Terminal หน้าต่างที่ 2 (รัน Frontend):
    ```bash
    cd frontend
-   pnpm start
+   pnpm dev
    ```
 
 ---

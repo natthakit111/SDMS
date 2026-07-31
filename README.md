@@ -49,8 +49,8 @@
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/dormflow.git
-   cd dormflow
+   git clone https://github.com/your-username/SDMS.git
+   cd SDMS
    ```
 
 2. **Setup Database (MySQL):**

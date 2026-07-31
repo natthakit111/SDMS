@@ -12,6 +12,8 @@ const router = express.Router();
 const ctrl = require('../controllers/tenantController');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
+const notificationPrefController = require('../controllers/notificationPreference.controller')
+ 
 
 // เบอร์โทรไทย: ขึ้นต้นด้วย 0, ตามด้วย 1-9, รวม 9-10 หลัก (รองรับทั้งมือถือและเบอร์บ้าน)
 const THAI_PHONE_REGEX = /^0[1-9]\d{7,8}$/;
@@ -74,6 +76,8 @@ const updateValidation = [
 // Tenant self-service (must come BEFORE /:id to avoid route conflict)
 router.get('/me/profile',   authenticate, authorizeRoles('tenant'), ctrl.getMyProfile);
 router.put('/me/profile',   authenticate, authorizeRoles('tenant'), ctrl.updateMyProfile);
+router.get('/notification-preferences', authenticate, authorizeRoles('tenant'), notificationPrefController.getPreferences);
+router.put('/notification-preferences', authenticate, authorizeRoles('tenant'), notificationPrefController.updatePreferences);
 
 // Admin routes
 router.get('/',       authenticate, authorizeRoles('admin'), ctrl.getAllTenants);
@@ -82,4 +86,5 @@ router.post('/',      authenticate, authorizeRoles('admin'), createValidation, c
 router.put('/:id',    authenticate, authorizeRoles('admin'), updateValidation, ctrl.updateTenant);
 router.delete('/:id', authenticate, authorizeRoles('admin'), ctrl.deleteTenant);
 
+module.exports = router;
 module.exports = router;

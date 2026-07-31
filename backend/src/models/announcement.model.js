@@ -3,6 +3,9 @@
  * Supports target_floor: NULL = all floors, 1/2/3 = specific floor only.
  * findAll now filters by the requesting tenant's own floor when tenant_floor
  * is passed in (announcements with target_floor = NULL still show to everyone).
+ *
+ * NEW: is_urgent flag — urgent announcements bypass the notify_announcement
+ * mute in telegram.service.js (see broadcastAnnouncement).
  */
 const { pool } = require('../config/db')
 
@@ -19,13 +22,14 @@ const findAll = async ({ target_audience, is_pinned, tenant_floor } = {}) => {
     params.push(target_audience)
   }
   if (is_pinned !== undefined) { sql += ' AND a.is_pinned = ?'; params.push(is_pinned ? 1 : 0) }
-  // NEW: only show floor-scoped announcements to tenants on that floor.
+  // Only show floor-scoped announcements to tenants on that floor.
   // Announcements with target_floor IS NULL (i.e. "all floors") always show.
   if (tenant_floor !== undefined && tenant_floor !== null) {
     sql += ' AND (a.target_floor IS NULL OR a.target_floor = ?)'
     params.push(tenant_floor)
   }
-  sql += ' ORDER BY a.is_pinned DESC, a.published_at DESC'
+  // เรียงประกาศฉุกเฉินขึ้นก่อน แล้วค่อย pinned แล้วค่อยล่าสุด
+  sql += ' ORDER BY a.is_urgent DESC, a.is_pinned DESC, a.published_at DESC'
   const [rows] = await pool.query(sql, params)
   return rows
 }
@@ -39,17 +43,17 @@ const findById = async (id) => {
   return rows[0] || null
 }
 
-const create = async ({ title, content, target_audience, target_floor, is_pinned, published_by, expires_at }) => {
+const create = async ({ title, content, target_audience, target_floor, is_pinned, is_urgent, published_by, expires_at }) => {
   const [result] = await pool.query(
-    `INSERT INTO announcements (title, content, target_audience, target_floor, is_pinned, published_by, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [title, content, target_audience || 'all', target_floor || null, is_pinned ? 1 : 0, published_by, expires_at || null]
+    `INSERT INTO announcements (title, content, target_audience, target_floor, is_pinned, is_urgent, published_by, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [title, content, target_audience || 'all', target_floor || null, is_pinned ? 1 : 0, is_urgent ? 1 : 0, published_by, expires_at || null]
   )
   return result.insertId
 }
 
 const update = async (id, fields) => {
-  const allowed = ['title', 'content', 'target_audience', 'target_floor', 'is_pinned', 'expires_at']
+  const allowed = ['title', 'content', 'target_audience', 'target_floor', 'is_pinned', 'is_urgent', 'expires_at']
   const keys = Object.keys(fields).filter(k => allowed.includes(k))
   if (keys.length === 0) return 0
   const sql = `UPDATE announcements SET ${keys.map(k => `${k} = ?`).join(', ')} WHERE announcement_id = ?`

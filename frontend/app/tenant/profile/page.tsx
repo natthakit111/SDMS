@@ -1,7 +1,11 @@
+//app/tenant/profile/page.tsx
+
 "use client";
 
 export const dynamic = "force-dynamic";
 
+import { Switch } from "@/components/ui/switch";
+import { notificationPreferenceAPI } from "@/lib/api/notificationPreference.api";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/auth-context";
 import { authAPI } from "@/lib/api/auth.api";
@@ -82,6 +86,20 @@ export default function TenantProfilePage() {
   const [tgPolling, setTgPolling] = useState(false);
   const [tgUnlinkLoading, setTgUnlinkLoading] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [prefsLoading, setPrefsLoading] = useState(false);
+
+  type NotifyPrefs = {
+    notify_bill: boolean;
+    notify_overdue: boolean;
+    notify_maintenance: boolean;
+    notify_announcement: boolean;
+  };
+  const [prefs, setPrefs] = useState<NotifyPrefs>({
+    notify_bill: true,
+    notify_overdue: true,
+    notify_maintenance: true,
+    notify_announcement: true,
+  });
 
   /* ── Init ── */
   useEffect(() => {
@@ -104,6 +122,24 @@ export default function TenantProfilePage() {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!tgLinked) return;
+    notificationPreferenceAPI
+      .get()
+      .then((r) => {
+        const d = r.data?.data;
+        if (d) {
+          setPrefs((p) => ({
+            notify_bill: d.notify_bill !== 0,
+            notify_overdue: d.notify_overdue !== 0,
+            notify_maintenance: d.notify_maintenance !== 0,
+            notify_announcement: d.notify_announcement !== 0,
+          }));
+        }
+      })
+      .catch(() => {});
+  }, [tgLinked]);
 
   /* ── Password strength ── */
   const getStrength = (pw: string) => {
@@ -321,6 +357,24 @@ export default function TenantProfilePage() {
     }
   };
 
+  const handleTogglePref = async (key: keyof NotifyPrefs, value: boolean) => {
+    const prev = prefs[key];
+    setPrefs((p) => ({ ...p, [key]: value })); // optimistic update
+    setPrefsLoading(true);
+    try {
+      await notificationPreferenceAPI.update({ [key]: value });
+    } catch {
+      setPrefs((p) => ({ ...p, [key]: prev })); // rollback ถ้าบันทึกล้มเหลว
+      toast.error(
+        language === "th"
+          ? "บันทึกการตั้งค่าไม่สำเร็จ"
+          : "Failed to save setting",
+      );
+    } finally {
+      setPrefsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Header */}
@@ -486,11 +540,64 @@ export default function TenantProfilePage() {
                   )}
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground">
-                {language === "th"
-                  ? "คุณจะได้รับแจ้งเตือนผ่าน Telegram สำหรับ: บิลใหม่, ยืนยันการชำระ, การแจ้งซ่อม และประกาศหอพัก"
-                  : "You will receive Telegram notifications for: bills, payments, maintenance, and announcements"}
-              </p>
+              <div className="space-y-3 pt-1">
+                <p className="text-sm font-medium">
+                  {language === "th"
+                    ? "เลือกประเภทการแจ้งเตือนที่ต้องการรับ"
+                    : "Choose which notifications to receive"}
+                </p>
+
+                {[
+                  {
+                    key: "notify_bill" as const,
+                    label:
+                      language === "th"
+                        ? "บิลใหม่ / ใกล้ครบกำหนด"
+                        : "New bills / due reminders",
+                  },
+                  {
+                    key: "notify_overdue" as const,
+                    label:
+                      language === "th"
+                        ? "แจ้งเตือนค้างชำระ"
+                        : "Overdue notices",
+                  },
+                  {
+                    key: "notify_maintenance" as const,
+                    label:
+                      language === "th"
+                        ? "อัปเดตการแจ้งซ่อม"
+                        : "Maintenance updates",
+                  },
+                  {
+                    key: "notify_announcement" as const,
+                    label:
+                      language === "th"
+                        ? "ประกาศทั่วไป"
+                        : "General announcements",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex items-center justify-between"
+                  >
+                    <span className="text-sm text-muted-foreground">
+                      {item.label}
+                    </span>
+                    <Switch
+                      checked={prefs[item.key]}
+                      onCheckedChange={(v) => handleTogglePref(item.key, v)}
+                      disabled={prefsLoading}
+                    />
+                  </div>
+                ))}
+
+                <p className="text-xs text-muted-foreground pt-1">
+                  {language === "th"
+                    ? "หมายเหตุ: ยืนยันการชำระเงินและประกาศฉุกเฉินจะถูกส่งเสมอ ไม่สามารถปิดได้"
+                    : "Note: payment confirmations and urgent announcements are always sent and cannot be muted."}
+                </p>
+              </div>
               <Button
                 variant="outline"
                 size="sm"

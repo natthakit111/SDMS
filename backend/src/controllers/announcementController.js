@@ -4,6 +4,9 @@
  * getAll now resolves the requesting tenant's own floor (via their active
  * contract/room) and filters the list so a tenant only sees announcements
  * meant for "all floors" or for their own floor.
+ *
+ * NEW: is_urgent — urgent announcements bypass tenants' notify_announcement
+ * mute setting (handled inside TelegramService.broadcastAnnouncement).
  */
 const { validationResult } = require('express-validator')
 const { pool }          = require('../config/db')
@@ -54,21 +57,23 @@ const create = async (req, res, next) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array())
 
-    const { title, content, target_audience, target_floor, is_pinned, expires_at } = req.body
+    const { title, content, target_audience, target_floor, is_pinned, is_urgent, expires_at } = req.body
     const id = await AnnouncementModel.create({
       title, content, target_audience, is_pinned,
       target_floor: target_floor ? parseInt(target_floor) : null,
+      is_urgent: !!is_urgent,
       published_by: req.user.user_id,
       expires_at,
     })
 
     const item = await AnnouncementModel.findById(id)
 
-    // Broadcast to tenants via Telegram — respects floor filter
+    // Broadcast to tenants via Telegram — respects floor filter, urgent bypasses mute
     if (target_audience !== 'admin') {
       TelegramService.broadcastAnnouncement(
         title, content, target_audience,
-        target_floor ? parseInt(target_floor) : null
+        target_floor ? parseInt(target_floor) : null,
+        !!is_urgent
       ).catch(() => {})
     }
 

@@ -163,6 +163,7 @@ function DatePickerField({
   language,
   required,
   placeholder,
+  dropDirection = "down",
 }: {
   id?: string;
   value: string;
@@ -170,6 +171,7 @@ function DatePickerField({
   language: string;
   required?: boolean;
   placeholder?: string;
+  dropDirection?: "up" | "down";
 }) {
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState<Date>(
@@ -255,7 +257,11 @@ function DatePickerField({
       )}
 
       {open && (
-        <div className="absolute left-0 bottom-full mb-2 z-[100] w-64 rounded-md border bg-popover p-3 text-popover-foreground shadow-lg">
+        <div className={`absolute left-0 z-[100] w-64 rounded-md border bg-popover p-3 text-popover-foreground shadow-lg ${dropDirection === "up"
+              ? "bottom-full mb-2"
+              : "top-full mt-1" // ← เปลี่ยนให้เด้งลงล่างเป็นหลัก
+          }`}
+        >
           <div className="flex items-center justify-between mb-2">
             <button
               type="button"
@@ -1380,7 +1386,7 @@ export default function ContractsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md overflow-visible">
           <DialogHeader>
             <DialogTitle>{t("contracts.renewTitle")}</DialogTitle>
             <DialogDescription>
@@ -1458,7 +1464,7 @@ export default function ContractsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md overflow-visible">
           <DialogHeader>
             <DialogTitle>{t("contracts.moveOutTitle")}</DialogTitle>
             <DialogDescription>

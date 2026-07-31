@@ -47,7 +47,10 @@ const findById = async (billId) => {
 
 const findByRoomMonthYear = async (roomId, month, year) => {
   const [rows] = await pool.query(
-    'SELECT * FROM bills WHERE room_id = ? AND bill_month = ? AND bill_year = ? LIMIT 1',
+    `SELECT * FROM bills
+     WHERE room_id = ? AND bill_month = ? AND bill_year = ?
+       AND status != 'cancelled'
+     LIMIT 1`,
     [roomId, month, year]
   );
   return rows[0] || null;

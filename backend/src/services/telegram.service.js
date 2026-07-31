@@ -1,26 +1,11 @@
 /**
  * services/telegram.service.js
- *
- * Wraps the Telegram Bot API to send notifications to tenants and admins.
- * All functions are fire-and-forget — errors are logged but never crash the main flow.
- *
- * NEW: respects per-user notification preferences (notify_bill, notify_overdue,
- * notify_maintenance, notify_announcement columns on `users`). Payment
- * confirmation/rejection are intentionally NOT muteable (financial evidence).
- * Urgent announcements (is_urgent=1) always bypass the notify_announcement mute.
- *
- * Install: npm install node-telegram-bot-api
- *
- * Usage:
- *   const TelegramService = require('./telegram.service');
- *   await TelegramService.sendBillNotification(bill);
  */
 const QRCode = require('qrcode');
 const { thaiDateBangkok } = require('../utils/dateHelper');
 const TelegramBot = require('node-telegram-bot-api');
 const { pool }    = require('../config/db');
 
-// ── Bot singleton ─────────────────────────────────────────────
 let bot = null;
 
 const getBot = () => {
@@ -30,7 +15,6 @@ const getBot = () => {
   return bot;
 };
 
-// ── Log notification to DB ────────────────────────────────────
 const logNotification = async (userId, type, message, billId = null, status = 'sent') => {
   try {
     await pool.query(
@@ -43,10 +27,6 @@ const logNotification = async (userId, type, message, billId = null, status = 's
   }
 };
 
-// ── NEW: Notification preference check ─────────────────────────
-// คืนค่า true = อนุญาตให้ส่ง, false = ผู้ใช้ปิดประเภทนี้ไว้
-// fail-open: ถ้าตรวจสอบไม่ได้ (error / ไม่มี userId) ให้ส่งไปก่อน
-// ดีกว่าทำให้ผู้เช่าพลาดแจ้งเตือนสำคัญโดยไม่ตั้งใจ
 const ALLOWED_PREF_COLUMNS = new Set([
   'notify_bill',
   'notify_overdue',
@@ -62,7 +42,6 @@ const isNotificationAllowed = async (userId, prefColumn) => {
       [userId]
     );
     if (!rows[0]) return true;
-    // NULL หรือ 1 = อนุญาต, มีแค่ 0 เท่านั้นที่ถือว่า mute
     return rows[0][prefColumn] !== 0;
   } catch (err) {
     console.error('[Telegram] Pref check failed, sending anyway:', err.message);
@@ -70,7 +49,6 @@ const isNotificationAllowed = async (userId, prefColumn) => {
   }
 };
 
-// ── Core send function ────────────────────────────────────────
 const sendMessage = async (chatId, message, userId = null, type = 'general', billId = null) => {
   const instance = getBot();
   if (!instance) {
@@ -87,7 +65,6 @@ const sendMessage = async (chatId, message, userId = null, type = 'general', bil
   }
 };
 
-// ── Helper: format Thai month name ───────────────────────────
 const THAI_MONTHS = [
   '', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
   'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม',
@@ -96,10 +73,6 @@ const THAI_MONTHS = [
 const thaiMonth = (m) => THAI_MONTHS[parseInt(m)] || m;
 const formatAmount = (n) => Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2 });
 
-// ════════════════════════════════════════════════════════════════
-// 1. NEW BILL NOTIFICATION  (sent to tenant when admin generates bill)
-//    Muteable via notify_bill
-// ════════════════════════════════════════════════════════════════
 const sendBillNotification = async (bill) => {
   if (!bill.telegram_chat_id) return;
   if (!(await isNotificationAllowed(bill.user_id, 'notify_bill'))) {
@@ -133,7 +106,6 @@ const sendBillNotification = async (bill) => {
   const payUrl = `${process.env.FRONTEND_URL}/login?redirect=${encodeURIComponent(`/tenant/payment?bill=${bill.bill_id}`)}`;
 
   try {
-    // 1. ข้อความ + ปุ่มลิงก์ไปหน้าบิลในแอป
     await instance.sendMessage(bill.telegram_chat_id, message, {
       parse_mode: 'Markdown',
       reply_markup: {
@@ -141,7 +113,6 @@ const sendBillNotification = async (bill) => {
       },
     });
 
-    // 2. QR Code รูปภาพ (ถ้ามี qr_payload)
     if (bill.qr_payload) {
       const qrBuffer = await QRCode.toBuffer(bill.qr_payload, { margin: 1, width: 400 });
       await instance.sendPhoto(bill.telegram_chat_id, qrBuffer, {
@@ -157,10 +128,6 @@ const sendBillNotification = async (bill) => {
   }
 };
 
-// ════════════════════════════════════════════════════════════════
-// 2. PAYMENT CONFIRMED  (sent to tenant after admin verifies slip)
-//    NOT muteable — เป็นหลักฐานทางการเงิน
-// ════════════════════════════════════════════════════════════════
 const sendPaymentConfirmation = async (payment) => {
   if (!payment.telegram_chat_id) return;
 
@@ -178,10 +145,6 @@ const sendPaymentConfirmation = async (payment) => {
   await sendMessage(payment.telegram_chat_id, message, payment.user_id || null, 'payment_confirm', payment.bill_id);
 };
 
-// ════════════════════════════════════════════════════════════════
-// 3. PAYMENT REJECTED  (sent to tenant when admin rejects slip)
-//    NOT muteable — เป็นหลักฐานทางการเงิน
-// ════════════════════════════════════════════════════════════════
 const sendPaymentRejected = async (payment) => {
   if (!payment.telegram_chat_id) return;
 
@@ -199,10 +162,6 @@ const sendPaymentRejected = async (payment) => {
   await sendMessage(payment.telegram_chat_id, message, payment.user_id || null, 'payment_rejected', payment.bill_id);
 };
 
-// ════════════════════════════════════════════════════════════════
-// 4. BILL REMINDER  (sent by cron — 3 days / 1 day before due date)
-//    Muteable via notify_bill (จัดกลุ่มเดียวกับบิลใหม่)
-// ════════════════════════════════════════════════════════════════
 const sendBillReminder = async (bill) => {
   if (!bill.telegram_chat_id) return;
   if (!(await isNotificationAllowed(bill.user_id, 'notify_bill'))) {
@@ -210,24 +169,33 @@ const sendBillReminder = async (bill) => {
     return;
   }
 
+  const dueDateStr = thaiDateBangkok(bill.due_date);
+  const isFinal = !!bill._isFinalReminder;
+
+  const headerLine = isFinal
+    ? `🔴 *แจ้งเตือนด่วน: พรุ่งนี้ครบกำหนดชำระค่าเช่าแล้ว!*`
+    : `⏰ *แจ้งเตือน: ใกล้ครบกำหนดชำระค่าเช่า (อีก 3 วัน)*`;
+  const footerLine = isFinal
+    ? `⚠️ นี่คือการแจ้งเตือนครั้งสุดท้ายก่อนถึงกำหนดชำระ กรุณาชำระโดยเร็วที่สุดเพื่อหลีกเลี่ยงค่าปรับ`
+    : `กรุณาชำระก่อนครบกำหนดเพื่อหลีกเลี่ยงค่าปรับ`;
+
   const message = [
-    `⏰ *แจ้งเตือน: ใกล้ครบกำหนดชำระค่าเช่า*`,
+    headerLine,
     ``,
     `ห้อง: *${bill.room_number}*`,
     `เดือน: ${thaiMonth(bill.bill_month)} ${bill.bill_year}`,
     `💰 ยอดที่ต้องชำระ: *${formatAmount(bill.total_amount)} บาท*`,
-    `📅 กำหนดชำระ: *${bill.due_date}*`,
+    `📅 กำหนดชำระ: *${dueDateStr}*`,
     ``,
-    `กรุณาชำระก่อนครบกำหนดเพื่อหลีกเลี่ยงค่าปรับ`,
+    footerLine,
   ].join('\n');
 
-  await sendMessage(bill.telegram_chat_id, message, bill.user_id || null, 'bill_reminder', bill.bill_id);
+  await sendMessage(
+    bill.telegram_chat_id, message, bill.user_id || null,
+    isFinal ? 'bill_reminder_final' : 'bill_reminder', bill.bill_id
+  );
 };
 
-// ════════════════════════════════════════════════════════════════
-// 5. OVERDUE NOTICE  (sent by cron — bill is now overdue)
-//    Muteable via notify_overdue
-// ════════════════════════════════════════════════════════════════
 const sendOverdueNotice = async (bill) => {
   if (!bill.telegram_chat_id) return;
   if (!(await isNotificationAllowed(bill.user_id, 'notify_overdue'))) {
@@ -241,7 +209,7 @@ const sendOverdueNotice = async (bill) => {
     `ห้อง: *${bill.room_number}*`,
     `เดือน: ${thaiMonth(bill.bill_month)} ${bill.bill_year}`,
     `💰 ยอดค้างชำระ: *${formatAmount(bill.total_amount)} บาท*`,
-    `📅 ครบกำหนดเมื่อ: ${bill.due_date}`,
+    `📅 ครบกำหนดเมื่อ: ${thaiDateBangkok(bill.due_date)}`,
     ``,
     `กรุณาติดต่อผู้ดูแลหอพักโดยด่วนเพื่อชำระค่าเช่า`,
   ].join('\n');
@@ -249,12 +217,6 @@ const sendOverdueNotice = async (bill) => {
   await sendMessage(bill.telegram_chat_id, message, bill.user_id || null, 'overdue_notice', bill.bill_id);
 };
 
-// ════════════════════════════════════════════════════════════════
-// 6. MAINTENANCE STATUS UPDATE  (sent to tenant on status change)
-//    Muteable via notify_maintenance
-//    NOTE: caller ต้อง include request.user_id ใน query (ดู getBillsWithChatId
-//    เป็นตัวอย่าง pattern) มิฉะนั้นจะ fail-open และส่งเสมอ
-// ════════════════════════════════════════════════════════════════
 const sendMaintenanceUpdate = async (request) => {
   if (!request.telegram_chat_id) return;
   if (!(await isNotificationAllowed(request.user_id, 'notify_maintenance'))) {
@@ -281,10 +243,23 @@ const sendMaintenanceUpdate = async (request) => {
   await sendMessage(request.telegram_chat_id, message, request.user_id || null, 'maintenance_update');
 };
 
-// ════════════════════════════════════════════════════════════════
-// 7. NEW PAYMENT SLIP SUBMITTED  (sent to admin chat)
-//    ฝั่งแอดมิน — ไม่มี preference ให้ mute (ใช้ ADMIN_TELEGRAM_CHAT_ID กลาง)
-// ════════════════════════════════════════════════════════════════
+// CONTRACT EXPIRED (sent by cron — expireContractsJob). NOT muteable —
+// administrative/legal notice, tenant must know their contract has lapsed.
+const sendContractExpired = async (contract) => {
+  if (!contract.telegram_chat_id) return;
+
+  const message = [
+    `📄 *แจ้งเตือน: สัญญาเช่าสิ้นสุดแล้ว*`,
+    ``,
+    `ห้อง: *${contract.room_number}*`,
+    `วันที่ครบกำหนด: ${thaiDateBangkok(contract.end_date)}`,
+    ``,
+    `กรุณาติดต่อผู้ดูแลหอพักเพื่อต่อสัญญา หรือดำเนินการย้ายออกตามขั้นตอน`,
+  ].join('\n');
+
+  await sendMessage(contract.telegram_chat_id, message, contract.user_id || null, 'contract_expired', null);
+};
+
 const notifyAdminNewPayment = async (payment) => {
   const adminChatId = process.env.ADMIN_TELEGRAM_CHAT_ID;
   if (!adminChatId) return;
@@ -303,15 +278,11 @@ const notifyAdminNewPayment = async (payment) => {
   await sendMessage(adminChatId, message, null, 'admin_payment_alert');
 };
 
-// ════════════════════════════════════════════════════════════════
-// 8. NEW MAINTENANCE REQUEST  (sent to admin chat)
-//    ฝั่งแอดมิน — ไม่มี preference ให้ mute
-// ════════════════════════════════════════════════════════════════
 const notifyAdminNewMaintenance = async (request) => {
   const adminChatId = process.env.ADMIN_TELEGRAM_CHAT_ID;
   if (!adminChatId) return;
 
-  const priorityIcon = { high: '🔴', medium: '🟡', low: '🟢' };
+  const priorityIcon = { สูง: '🔴', กลาง: '🟡', ต่ำ: '🟢' };
 
   const message = [
     `🔧 *คำร้องแจ้งซ่อมใหม่*`,
@@ -327,16 +298,11 @@ const notifyAdminNewMaintenance = async (request) => {
   await sendMessage(adminChatId, message, null, 'admin_maintenance_alert');
 };
 
-// ════════════════════════════════════════════════════════════════
-// 9. BROADCAST ANNOUNCEMENT  (sent to all tenants with chat_id)
-//    Muteable via notify_announcement — ยกเว้น isUrgent=true ที่ต้องส่งถึงทุกคนเสมอ
-// ════════════════════════════════════════════════════════════════
 const broadcastAnnouncement = async (title, content, targetAudience = 'all', targetFloor = null, isUrgent = false) => {
   const instance = getBot();
   if (!instance) return;
-  if (targetAudience === 'admin') return; // admin-only announcements not broadcast to Telegram
+  if (targetAudience === 'admin') return;
 
-  // Fetch tenant chat_ids — optionally filtered by floor
   let sql = `
     SELECT u.user_id, u.telegram_chat_id
     FROM users u
@@ -350,7 +316,6 @@ const broadcastAnnouncement = async (title, content, targetAudience = 'all', tar
     sql += ' AND r.floor = ?';
     params.push(targetFloor);
   }
-  // ประกาศฉุกเฉินต้องทะลุการ mute ได้เสมอ — กรองเฉพาะประกาศทั่วไปเท่านั้น
   if (!isUrgent) {
     sql += ' AND u.notify_announcement = 1';
   }
@@ -374,6 +339,7 @@ module.exports = {
   sendBillReminder,
   sendOverdueNotice,
   sendMaintenanceUpdate,
+  sendContractExpired,
   notifyAdminNewPayment,
   notifyAdminNewMaintenance,
   broadcastAnnouncement,

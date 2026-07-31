@@ -748,6 +748,22 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "แก้ไขประกาศสำเร็จ",
     en: "Announcement updated successfully",
   },
+  "announcements.urgent": { th: "ประกาศฉุกเฉิน", en: "Urgent Announcement" },
+  "announcements.urgentDesc": {
+    th: "ส่งถึงผู้เช่าทุกคนเสมอ แม้ผู้เช่าจะปิดการแจ้งเตือนประกาศไว้",
+    en: "Always delivered to all tenants, even if they've muted general announcements",
+  },
+  "announcements.urgentBadge": { th: "ฉุกเฉิน", en: "URGENT" },
+  "announcements.edit": { th: "แก้ไขประกาศ", en: "Edit Announcement" },
+  "announcements.confirmDelete": {
+    th: "ยืนยันการลบประกาศ",
+    en: "Confirm delete announcement",
+  },
+  "announcements.deleted": {
+    th: "ลบประกาศสำเร็จ",
+    en: "Announcement deleted successfully",
+  },
+
   // ── Meters ─────────────────────────────────────────────────────────────────
   "meters.title": { th: "บันทึกมิเตอร์", en: "Meter Readings" },
   "meters.subtitle": {

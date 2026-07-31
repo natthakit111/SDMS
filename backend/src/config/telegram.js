@@ -3,6 +3,17 @@
  * Telegram Bot polling — handles /start link_<token> and /status
  *
  * Call initBot() from server.js after app.listen()
+ *
+ * ⚠️ IMPORTANT (dependency pin): the currently-published node-telegram-bot-api
+ * on npm (v1.2.0+) is a full rewrite with an incompatible API (Bot/Api classes,
+ * object-based params). This file relies on the OLD API:
+ *   new TelegramBot(token, { polling: false })
+ *   bot.sendMessage(chatId, text, options)
+ *   bot.startPolling(...) / bot.onText(...) / bot.on('polling_error', ...)
+ * package.json MUST pin a compatible version, e.g.:
+ *   "node-telegram-bot-api": "^0.66.0"
+ * Installing "latest" will break this file at runtime with
+ * "TelegramBot is not a constructor".
  */
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -16,7 +27,6 @@ const initBot = () => {
   }
 
   const startPolling = () => {
-    // ถ้ามี instance เก่าอยู่ให้หยุดก่อน
     if (bot) {
       try { bot.stopPolling(); } catch {}
       bot = null;
@@ -31,7 +41,6 @@ const initBot = () => {
       })
       .catch((err) => {
         if (err?.code === 'ETELEGRAM' && err?.message?.includes('409')) {
-          // instance เก่ายังไม่ตาย — รอแล้ว retry
           console.warn('[Bot] 409 Conflict — retrying in 5s...');
           setTimeout(startPolling, 5000);
         } else {
@@ -39,7 +48,6 @@ const initBot = () => {
         }
       });
 
-    // จัดการ polling error ที่เกิดระหว่างรัน
     bot.on('polling_error', (err) => {
       if (err?.code === 'ETELEGRAM' && err?.message?.includes('409')) {
         console.warn('[Bot] 409 Conflict during polling — retrying in 5s...');
@@ -62,6 +70,12 @@ const initBot = () => {
 
       try {
         const body = JSON.stringify({ token, chat_id: chatId, telegram_username: telegramUsername });
+
+        // FIX: previously `resolve` was passed directly as the response
+        // callback, so ANY http response (including a 400/401/404 from the
+        // backend for an expired/invalid token) was treated as success and
+        // silently swallowed — the tenant got no feedback at all. Now we
+        // buffer the body and reject on non-2xx status codes.
         await new Promise((resolve, reject) => {
           const url = new URL(`${BACKEND}/telegram/link`);
           const mod = url.protocol === 'https:' ? require('https') : require('http');
@@ -74,11 +88,29 @@ const initBot = () => {
               'Content-Type':   'application/json',
               'Content-Length': Buffer.byteLength(body),
             },
-          }, resolve);
+          }, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+              if (res.statusCode >= 200 && res.statusCode < 300) {
+                resolve(data);
+              } else {
+                reject(new Error(`Backend responded ${res.statusCode}: ${data}`));
+              }
+            });
+          });
           req.on('error', reject);
           req.write(body);
           req.end();
         });
+
+        // FIX: there was previously NO success message at all — the tenant
+        // pressed the link and got total silence if it worked.
+        bot.sendMessage(
+          chatId,
+          `✅ *เชื่อมต่อ Telegram สำเร็จ!*\n\nคุณจะได้รับแจ้งเตือนบิลค่าเช่า ค่าเช่าค้างชำระ และประกาศจากหอพักผ่านช่องทางนี้\n\nพิมพ์ /status เพื่อดูบิลค้างชำระได้ทุกเมื่อ`,
+          { parse_mode: 'Markdown' }
+        );
       } catch (err) {
         bot.sendMessage(chatId, `❌ เกิดข้อผิดพลาด\n\nลิงก์อาจหมดอายุแล้ว กรุณากลับไปสร้างลิงก์ใหม่ที่แอป`);
       }
@@ -136,7 +168,6 @@ const initBot = () => {
     });
   };
 
-  // เริ่ม polling (หน่วง 2 วินาทีให้ instance เก่าตายก่อน)
   setTimeout(startPolling, 2000);
 };
 

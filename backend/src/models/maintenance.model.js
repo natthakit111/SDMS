@@ -1,6 +1,11 @@
 /**
  * models/maintenance.model.js
  * Raw SQL query functions for the `maintenance_requests` table.
+ *
+ * NEW: findById now also selects u_t.user_id — required by
+ * TelegramService.sendMaintenanceUpdate() to check the tenant's
+ * notify_maintenance preference (mute setting). Without it, that
+ * function silently fail-opens (always sends, mute has no effect).
  */
 
 const { pool } = require('../config/db');
@@ -34,6 +39,7 @@ const findById = async (requestId) => {
            r.room_number,
            CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
            t.phone AS tenant_phone,
+           u_t.user_id AS user_id,
            u_t.telegram_chat_id,
            u_a.username AS assigned_username
     FROM maintenance_requests mr

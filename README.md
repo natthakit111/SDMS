@@ -54,7 +54,7 @@
    ```
 
 2. **Setup Database (MySQL):**
-   - สร้าง Database ใหม่ใน MySQL (เช่น `dormflow_db`)
+   - สร้าง Database ใหม่ใน MySQL (เช่น `SDMS_db`)
    - นำเข้าไฟล์โครงสร้างฐานข้อมูลจากโฟลเดอร์ `database/schema.sql` (ถ้ามี)
 
 3. **Install Dependencies:**
@@ -78,7 +78,7 @@
    DB_HOST=localhost
    DB_USER=root
    DB_PASS=your_password
-   DB_NAME=dormflow_db
+   DB_NAME=SDMS_db
    JWT_SECRET=your_jwt_secret_key
    TELEGRAM_BOT_TOKEN=your_telegram_bot_token
    PROMPTPAY_ID=your_promptpay_number

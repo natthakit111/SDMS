@@ -49,8 +49,8 @@ const update = async (roomId, fields) => {
   return result.affectedRows;
 };
 
-const updateStatus = async (roomId, status) => {
-  const [result] = await pool.query('UPDATE rooms SET status = ? WHERE room_id = ?', [status, roomId]);
+const updateStatus = async (roomId, status, executor = pool) => {
+  const [result] = await executor.query('UPDATE rooms SET status = ? WHERE room_id = ?', [status, roomId]);
   return result.affectedRows;
 };
 

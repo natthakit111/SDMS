@@ -474,6 +474,10 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "ไม่สามารถทำเรื่องย้ายออกได้",
     en: "Failed to process move-out",
   },
+  "contracts.statsTotalRefunded": {
+    th: "เงินประกันที่คืนแล้ว",
+    en: "Deposits Refunded",
+  },
 
   // ── Bills ──────────────────────────────────────────────────────────────────
   "bills.title": { th: "จัดการบิล", en: "Bill Management" },
@@ -701,6 +705,7 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "โหลดข้อมูลไม่สำเร็จ",
     en: "Failed to load data",
   },
+  "maintenance.image": { th: "รูปภาพ", en: "Image" },
 
   // ── Announcements ──────────────────────────────────────────────────────────
   "announcements.title": { th: "ประกาศข่าวสาร", en: "Announcements" },
@@ -1491,6 +1496,40 @@ const translations: Record<string, { th: string; en: string }> = {
   "moveout.hasPending": {
     th: "มีคำร้องรออยู่แล้ว",
     en: "Already has pending request",
+  },
+  "moveout.depositTitle": { th: "เงินประกัน", en: "Security Deposit" },
+  "moveout.fineAmount": {
+    th: "ค่าปรับออกก่อนกำหนด",
+    en: "Early Termination Fine",
+  },
+  "moveout.deductionExtraLabel": {
+    th: "หักเพิ่มเติม (ถ้ามี)",
+    en: "Additional Deduction (optional)",
+  },
+  "moveout.deductionExtraNoteLabel": {
+    th: "เหตุผลการหักเพิ่ม",
+    en: "Reason for Deduction",
+  },
+  "moveout.deductionExtraNotePlaceholder": {
+    th: "เช่น ค่าซ่อมผนัง, ค่าทำความสะอาด",
+    en: "e.g. Wall repair, cleaning fee",
+  },
+  "moveout.netRefund": { th: "ยอดคืนสุทธิ", en: "Net Refund" },
+  "moveout.noDeposit": {
+    th: "สัญญานี้ไม่มีเงินประกัน",
+    en: "No deposit for this contract",
+  },
+  "moveout.deductionExceeds": {
+    th: "ยอดหักเพิ่มเติมเกินกว่ายอดเงินประกันที่เหลืออยู่",
+    en: "Deduction exceeds remaining deposit",
+  },
+  "moveout.depositPreviewError": {
+    th: "ไม่สามารถโหลดข้อมูลเงินประกันได้",
+    en: "Failed to load deposit info",
+  },
+  "moveout.depositPreviewUnavailable": {
+    th: "ไม่มีข้อมูลเงินประกัน",
+    en: "Deposit info unavailable",
   },
 
   // ── Tenant Dashboard ───────────────────────────────────────────────────────

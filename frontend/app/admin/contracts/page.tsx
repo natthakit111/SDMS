@@ -53,7 +53,7 @@ interface Contract {
   tenant_id: number;
   room_id: number;
   tenant_name: string;
-  tenant_id_card?: string; // เลขบัตรประชาชน
+  tenant_id_card?: string;
   room_number: string;
   start_date: string;
   end_date: string;
@@ -61,7 +61,13 @@ interface Contract {
   deposit_amount: number;
   status: "active" | "expired" | "terminated";
   note: string | null;
-  contract_file: string | null; // ← ชื่อไฟล์ PDF/Word สัญญาที่แนบไว้ (ถ้ามี)
+  contract_file: string | null;
+  // ── เงินประกัน (join จาก deposits table, null ถ้ายังไม่มี record) ─────
+  deposit_status: "holding" | "refunded" | null;
+  deposit_refund_amount: number | null;
+  deposit_deduction: number | null;
+  deposit_deduction_note: string | null;
+  deposit_refund_date: string | null;
 }
 
 interface FormData {
@@ -353,6 +359,37 @@ export default function ContractsPage() {
 
   const formatCurrency = (n: number) =>
     n.toLocaleString("th-TH") + " " + t("contracts.baht");
+
+  const depositStatusBadge = (c: Contract, language: string) => {
+    if (Number(c.deposit_amount) <= 0) return null; // ไม่มีเงินประกันเลย ไม่ต้องโชว์
+
+    if (c.deposit_status === "refunded") {
+      const deduction = Number(c.deposit_deduction || 0);
+      if (deduction > 0) {
+        return {
+          label:
+            language === "th"
+              ? `คืนบางส่วน ${Number(c.deposit_refund_amount).toLocaleString("th-TH")} (หัก ${deduction.toLocaleString("th-TH")})`
+              : `Partially refunded ${Number(c.deposit_refund_amount).toLocaleString("th-TH")} (deducted ${deduction.toLocaleString("th-TH")})`,
+          className: "bg-orange-500/10 text-orange-600",
+        };
+      }
+      return {
+        label:
+          language === "th"
+            ? `คืนเงินประกันแล้ว ${Number(c.deposit_refund_amount).toLocaleString("th-TH")}`
+            : `Refunded ${Number(c.deposit_refund_amount).toLocaleString("th-TH")}`,
+        className: "bg-green-500/10 text-green-600",
+      };
+    }
+
+    // status = 'holding' หรือ null (ยังไม่มี record — สัญญาเก่าก่อนแก้บั๊ก)
+    return {
+      label: language === "th" ? "ถือเงินประกันไว้" : "Deposit held",
+      className: "bg-yellow-500/10 text-yellow-600",
+    };
+  };
+
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [tenants, setTenants] = useState<any[]>([]);
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
@@ -432,9 +469,15 @@ export default function ContractsPage() {
   });
 
   // ── Stats ─────────────────────────────────────────────────────────────────
+  // เดิม
   const totalDeposit = contracts
     .filter((c) => c.status === "active")
     .reduce((sum, c) => sum + Number(c.deposit_amount), 0);
+
+  // เพิ่มอีกตัวสำหรับยอดที่คืนไปแล้วทั้งหมด (ใช้ track ได้ว่าคืนไปเท่าไหร่)
+  const totalRefunded = contracts
+    .filter((c) => c.deposit_status === "refunded")
+    .reduce((sum, c) => sum + Number(c.deposit_refund_amount || 0), 0);
 
   // ── Validate a selected contract file (ใช้ทั้งตอนสร้างและตอนแทนที่) ──────
   const validateContractFile = (file: File): boolean => {
@@ -959,7 +1002,7 @@ export default function ContractsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -1003,6 +1046,18 @@ export default function ContractsPage() {
           <CardContent>
             <div className="text-2xl font-bold">
               {totalDeposit.toLocaleString("th-TH")} {t("contracts.baht")}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {t("contracts.statsTotalRefunded")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-500">
+              {totalRefunded.toLocaleString("th-TH")} {t("contracts.baht")}
             </div>
           </CardContent>
         </Card>
@@ -1087,6 +1142,19 @@ export default function ContractsPage() {
                                 )}{" "}
                                 {t("contracts.baht")}
                               </span>
+                              {(() => {
+                                const badge = depositStatusBadge(
+                                  contract,
+                                  language,
+                                );
+                                return badge ? (
+                                  <span
+                                    className={`text-xs px-2 py-1 rounded ${badge.className}`}
+                                  >
+                                    {badge.label}
+                                  </span>
+                                ) : null;
+                              })()}
                               <span className="text-xs bg-muted px-2 py-1 rounded">
                                 {formatDate(contract.start_date)} —{" "}
                                 {formatDate(contract.end_date)}
@@ -1245,6 +1313,24 @@ export default function ContractsPage() {
                   <p className="font-medium">
                     {formatCurrency(Number(viewingContract.deposit_amount))}
                   </p>
+                  {(() => {
+                    const badge = depositStatusBadge(viewingContract, language);
+                    return badge ? (
+                      <span
+                        className={`inline-block mt-1 text-xs px-2 py-0.5 rounded ${badge.className}`}
+                      >
+                        {badge.label}
+                      </span>
+                    ) : null;
+                  })()}
+                  {viewingContract.deposit_deduction_note && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {language === "th"
+                        ? "หมายเหตุการหัก: "
+                        : "Deduction note: "}
+                      {viewingContract.deposit_deduction_note}
+                    </p>
+                  )}
                 </div>
               </div>
               {viewingContract.note && (

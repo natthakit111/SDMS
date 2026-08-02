@@ -23,7 +23,6 @@ import {
   Gauge,
   Receipt,
   CreditCard,
-  PiggyBank, // ✅ เพิ่มใหม่ — ไอคอนสำหรับเมนูเงินประกัน
   Wrench,
   Megaphone,
   FileText,
@@ -69,12 +68,6 @@ export function AdminSidebar() {
           title: t("menu.payments"),
           href: "/admin/payments",
           icon: CreditCard,
-        },
-        // ✅ เพิ่มใหม่ — เมนูเงินประกัน (หน้ามีอยู่แล้วที่ /admin/deposits แต่ยังไม่เคยผูกเมนู)
-        {
-          title: t("menu.deposits"),
-          href: "/admin/deposits",
-          icon: PiggyBank,
         },
       ],
     },

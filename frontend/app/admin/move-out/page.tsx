@@ -1,3 +1,5 @@
+//admin/move-out/page.tsx
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -43,6 +45,7 @@ import {
   Eye,
   Loader2,
   Search,
+  Wallet,
 } from "lucide-react";
 import { moveOutAPI } from "@/lib/api/moveOut.api";
 import { toast } from "sonner";
@@ -65,12 +68,27 @@ interface MoveOutRequest {
   deposit_amount?: number;
 }
 
+interface DepositPreview {
+  deposit_amount: number;
+  days_remaining: number;
+  fine_amount: number;
+  fine_reason: string | null;
+  net_refund: number;
+}
+
 const fmtDate = (d: string, lang: string) =>
   new Date(d).toLocaleDateString(lang === "th" ? "th-TH" : "en-GB", {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
+
+const fmtCurrency = (n: number) =>
+  new Intl.NumberFormat("th-TH", {
+    style: "currency",
+    currency: "THB",
+    maximumFractionDigits: 0,
+  }).format(n);
 
 const statusConfig = {
   pending: {
@@ -107,6 +125,14 @@ export default function AdminMoveOutPage() {
   const [adminNote, setAdminNote] = useState("");
   const [processing, setProcessing] = useState(false);
 
+  // ── เงินประกัน ────────────────────────────────────────────────────────────
+  const [depositPreview, setDepositPreview] = useState<DepositPreview | null>(
+    null,
+  );
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [deductionExtra, setDeductionExtra] = useState("0");
+  const [deductionExtraNote, setDeductionExtraNote] = useState("");
+
   // ── Fetch Move-out Requests ───────────────────────────────────────────────
   const fetchRequests = useCallback(async () => {
     try {
@@ -134,9 +160,22 @@ export default function AdminMoveOutPage() {
     return matchSearch && matchStatus;
   });
 
+  // ── ยอดคืนสุทธิ (คำนวณสดตามที่แอดมินกรอกหักเพิ่ม) ──────────────────────────
+  const extraNum = Math.max(0, Number(deductionExtra) || 0);
+  const finalRefund = depositPreview
+    ? Math.max(0, depositPreview.net_refund - extraNum)
+    : 0;
+  const extraExceeds = depositPreview
+    ? extraNum > depositPreview.net_refund
+    : false;
+
   // ── Approve ───────────────────────────────────────────────────────────────
   const handleApprove = async () => {
     if (!viewingRequest) return;
+    if (extraExceeds) {
+      toast.error(t("moveout.deductionExceeds"));
+      return;
+    }
     if (
       !confirm(
         `${t("moveout.confirmApprove")} ${viewingRequest.first_name} ${viewingRequest.last_name}?\n${t("moveout.confirmApproveDetail")}`,
@@ -145,10 +184,13 @@ export default function AdminMoveOutPage() {
       return;
     setProcessing(true);
     try {
-      await moveOutAPI.approve(viewingRequest.request_id, adminNote);
+      await moveOutAPI.approve(viewingRequest.request_id, {
+        admin_note: adminNote,
+        deduction_extra: extraNum,
+        deduction_extra_note: deductionExtraNote || undefined,
+      });
       toast.success(t("moveout.approveSuccess"));
-      setViewingRequest(null);
-      setAdminNote("");
+      closeDialog();
       fetchRequests();
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? t("moveout.approveError"));
@@ -168,8 +210,7 @@ export default function AdminMoveOutPage() {
     try {
       await moveOutAPI.reject(viewingRequest.request_id, adminNote);
       toast.success(t("moveout.rejectSuccess"));
-      setViewingRequest(null);
-      setAdminNote("");
+      closeDialog();
       fetchRequests();
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? t("moveout.rejectError"));
@@ -178,9 +219,35 @@ export default function AdminMoveOutPage() {
     }
   };
 
-  const openDialog = (r: MoveOutRequest) => {
+  const openDialog = async (r: MoveOutRequest) => {
     setViewingRequest(r);
     setAdminNote(r.admin_note ?? "");
+    setDeductionExtra("0");
+    setDeductionExtraNote("");
+    setDepositPreview(null);
+
+    // เฉพาะคำร้องที่ pending เท่านั้นที่ต้องพรีวิวยอดเงินประกัน
+    if (r.status === "pending") {
+      setPreviewLoading(true);
+      try {
+        const res = await moveOutAPI.getDepositPreview(r.request_id);
+        setDepositPreview(res.data ?? null);
+      } catch (err: any) {
+        toast.error(
+          err?.response?.data?.message ?? t("moveout.depositPreviewError"),
+        );
+      } finally {
+        setPreviewLoading(false);
+      }
+    }
+  };
+
+  const closeDialog = () => {
+    setViewingRequest(null);
+    setAdminNote("");
+    setDepositPreview(null);
+    setDeductionExtra("0");
+    setDeductionExtraNote("");
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -346,13 +413,10 @@ export default function AdminMoveOutPage() {
       <Dialog
         open={!!viewingRequest}
         onOpenChange={(open) => {
-          if (!open) {
-            setViewingRequest(null);
-            setAdminNote("");
-          }
+          if (!open) closeDialog();
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("moveout.detailTitle")}</DialogTitle>
             <DialogDescription>{t("moveout.detailDesc")}</DialogDescription>
@@ -399,6 +463,108 @@ export default function AdminMoveOutPage() {
                 </p>
               </div>
 
+              {/* ── เงินประกัน (เฉพาะคำร้องที่ยัง pending) ───────────────── */}
+              {viewingRequest.status === "pending" && (
+                <div className="space-y-3 p-4 bg-muted/50 rounded-lg border">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Wallet className="h-4 w-4 text-primary" />
+                    {t("moveout.depositTitle")}
+                  </div>
+
+                  {previewLoading ? (
+                    <div className="flex items-center justify-center py-4 text-muted-foreground gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t("common.loading")}
+                    </div>
+                  ) : depositPreview ? (
+                    depositPreview.deposit_amount > 0 ? (
+                      <>
+                        <div className="space-y-1.5 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">
+                              {t("moveout.depositAmount")}
+                            </span>
+                            <span>
+                              {fmtCurrency(depositPreview.deposit_amount)}
+                            </span>
+                          </div>
+                          {depositPreview.fine_amount > 0 && (
+                            <div className="flex justify-between text-destructive">
+                              <span>
+                                {t("moveout.fineAmount")}
+                                {depositPreview.fine_reason && (
+                                  <span className="text-xs ml-1">
+                                    ({depositPreview.fine_reason})
+                                  </span>
+                                )}
+                              </span>
+                              <span>
+                                -{fmtCurrency(depositPreview.fine_amount)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <FieldGroup>
+                          <Field>
+                            <FieldLabel htmlFor="deductionExtra">
+                              {t("moveout.deductionExtraLabel")}
+                            </FieldLabel>
+                            <Input
+                              id="deductionExtra"
+                              type="number"
+                              min="0"
+                              value={deductionExtra}
+                              onChange={(e) =>
+                                setDeductionExtra(e.target.value)
+                              }
+                              placeholder="0"
+                            />
+                            {extraExceeds && (
+                              <p className="text-xs text-destructive mt-1">
+                                {t("moveout.deductionExceeds")}
+                              </p>
+                            )}
+                          </Field>
+                          {extraNum > 0 && (
+                            <Field>
+                              <FieldLabel htmlFor="deductionExtraNote">
+                                {t("moveout.deductionExtraNoteLabel")}
+                              </FieldLabel>
+                              <Input
+                                id="deductionExtraNote"
+                                value={deductionExtraNote}
+                                onChange={(e) =>
+                                  setDeductionExtraNote(e.target.value)
+                                }
+                                placeholder={t(
+                                  "moveout.deductionExtraNotePlaceholder",
+                                )}
+                              />
+                            </Field>
+                          )}
+                        </FieldGroup>
+
+                        <div className="flex justify-between pt-2 border-t font-bold">
+                          <span>{t("moveout.netRefund")}</span>
+                          <span className="text-primary">
+                            {fmtCurrency(finalRefund)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {t("moveout.noDeposit")}
+                      </p>
+                    )
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {t("moveout.depositPreviewUnavailable")}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Admin note */}
               {viewingRequest.status === "pending" ? (
                 <FieldGroup>
@@ -433,10 +599,7 @@ export default function AdminMoveOutPage() {
                 <DialogFooter className="gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setViewingRequest(null);
-                      setAdminNote("");
-                    }}
+                    onClick={closeDialog}
                     disabled={processing}
                   >
                     {t("common.close")}
@@ -452,7 +615,10 @@ export default function AdminMoveOutPage() {
                     <XCircle className="mr-2 h-4 w-4" />
                     {t("moveout.reject")}
                   </Button>
-                  <Button onClick={handleApprove} disabled={processing}>
+                  <Button
+                    onClick={handleApprove}
+                    disabled={processing || extraExceeds || previewLoading}
+                  >
                     {processing && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
@@ -464,10 +630,7 @@ export default function AdminMoveOutPage() {
 
               {viewingRequest.status !== "pending" && (
                 <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setViewingRequest(null)}
-                  >
+                  <Button variant="outline" onClick={closeDialog}>
                     {t("common.close")}
                   </Button>
                 </DialogFooter>

@@ -161,9 +161,12 @@ const findByIdWithMeters = async (billId) => {
 
 const findAvailableRoomsForBilling = async (month, year) => {
   const [rows] = await pool.query(`
-    SELECT DISTINCT r.room_id, r.room_number, c.contract_id
+    SELECT DISTINCT
+      r.room_id, r.room_number, c.contract_id,
+      CONCAT(t.first_name, ' ', t.last_name) AS tenant_name
     FROM rooms r
     JOIN contracts c ON c.room_id = r.room_id AND c.status = 'active'
+    JOIN tenants   t ON t.tenant_id = c.tenant_id
     WHERE c.start_date <= LAST_DAY(STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d'))
       AND c.end_date   >= STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d')
       AND NOT EXISTS (

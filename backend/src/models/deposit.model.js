@@ -4,8 +4,8 @@
 const { pool } = require('../config/db');
 
 // สร้าง deposit record ใหม่ตอนทำสัญญา (status = holding)
-const create = async ({ contract_id, tenant_id, total_deposit }) => {
-  const [result] = await pool.query(
+const create = async ({ contract_id, tenant_id, total_deposit }, executor = pool) => {
+  const [result] = await executor.query(
     `INSERT INTO deposits (contract_id, tenant_id, total_deposit, status)
      VALUES (?, ?, ?, 'holding')`,
     [contract_id, tenant_id, total_deposit]
@@ -32,9 +32,10 @@ const findById = async (deposit_id) => {
 // ปิดเงินประกัน: บันทึกยอดหัก + ยอดคืน + ใครเป็นคนดำเนินการ
 const finalizeRefund = async (
   deposit_id,
-  { deduction = 0, deduction_note = null, refund_amount, processed_by, move_out_request_id = null }
+  { deduction = 0, deduction_note = null, refund_amount, processed_by, move_out_request_id = null },
+  executor = pool
 ) => {
-  await pool.query(
+  await executor.query(
     `UPDATE deposits
      SET deduction = ?, deduction_note = ?, refund_amount = ?, refund_date = CURDATE(),
          status = 'refunded', processed_by = ?,
@@ -63,5 +64,7 @@ const findAllWithDetails = async () => {
   `);
   return rows;
 };
+
+
 
 module.exports = { create, findByContract, findById, finalizeRefund, findAllWithDetails };

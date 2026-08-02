@@ -1,4 +1,4 @@
-//bills/page.tsx
+//admin/bills/page.tsx
 
 "use client";
 
@@ -97,6 +97,7 @@ interface Room {
   room_id: number;
   room_number: string;
   status: string;
+  tenant_name?: string;
 }
 
 interface FormData {
@@ -583,6 +584,7 @@ export default function BillsPage() {
                       {availableRooms.map((r) => (
                         <SelectItem key={r.room_id} value={String(r.room_id)}>
                           {t("rooms.roomNumber")} {r.room_number}
+                          {r.tenant_name ? ` (${r.tenant_name})` : ""}
                         </SelectItem>
                       ))}
                       {availableRooms.length === 0 && (

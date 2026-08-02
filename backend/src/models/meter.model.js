@@ -84,9 +84,12 @@ const update = async (readingId, fields) => {
 // และยังไม่ได้บันทึกมิเตอร์ครบทั้งไฟและน้ำของเดือน/ปีนั้น
 const findAvailableRoomsForMeter = async (month, year) => {
   const [rows] = await pool.query(`
-    SELECT DISTINCT r.room_id, r.room_number
+    SELECT DISTINCT
+      r.room_id, r.room_number,
+      CONCAT(t.first_name, ' ', t.last_name) AS tenant_name
     FROM rooms r
     JOIN contracts c ON c.room_id = r.room_id AND c.status = 'active'
+    JOIN tenants   t ON t.tenant_id = c.tenant_id
     WHERE c.start_date <= LAST_DAY(STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d'))
       AND c.end_date   >= STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d')
       AND NOT EXISTS (

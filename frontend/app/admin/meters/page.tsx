@@ -61,6 +61,7 @@ interface Room {
   room_id: number;
   room_number: string;
   status: string;
+  tenant_name?: string;
 }
 
 interface Reading {
@@ -600,6 +601,7 @@ const handleRoomChange = async (rid: string) => {
                     {availableRooms.map((r) => (
                       <SelectItem key={r.room_id} value={String(r.room_id)}>
                         {r.room_number}
+                        {r.tenant_name ? ` (${r.tenant_name})` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>

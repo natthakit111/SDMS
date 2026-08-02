@@ -11,9 +11,14 @@ export const moveOutAPI = {
     api.post('/move-out', data).then((r) => r.data),
   // data: { move_out_date, reason }
 
+  // admin only — พรีวิวยอดคืนเงินประกันก่อนอนุมัติ
+  getDepositPreview: (id) =>
+    api.get(`/move-out/${id}/deposit-preview`).then((r) => r.data),
+
   // admin only
-  approve: (id, admin_note) =>
-    api.put(`/move-out/${id}/approve`, { admin_note }).then((r) => r.data),
+  approve: (id, payload) =>
+    api.put(`/move-out/${id}/approve`, payload).then((r) => r.data),
+  // payload: { admin_note, deduction_extra?, deduction_extra_note? }
 
   reject: (id, admin_note) =>
     api.put(`/move-out/${id}/reject`, { admin_note }).then((r) => r.data),

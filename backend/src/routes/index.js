@@ -20,7 +20,6 @@ const settingsRoutes     = require('./settings.routes')
 const moveOutRoutes      = require('./moveOut.routes')
 const oauthRoutes        = require('./oauth.routes')   // ✅ เพิ่ม
 
-router.use('/deposits', require('./deposit.routes'));
 router.use('/move-out',      moveOutRoutes)
 router.use('/auth',          authRoutes)
 router.use('/auth',          oauthRoutes)              // ✅ เพิ่ม — /api/auth/google, /api/auth/telegram

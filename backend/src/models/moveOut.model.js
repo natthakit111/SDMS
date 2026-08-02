@@ -53,8 +53,8 @@ const create = async ({ tenant_id, contract_id, room_id, move_out_date, reason }
 };
 
 // ใช้ร่วมกันทั้ง approve และ reject — ต่างกันแค่ค่า status ที่ส่งเข้ามา
-const updateReviewStatus = async (requestId, status, { admin_note = null, reviewed_by }) => {
-  const [result] = await pool.query(
+const updateReviewStatus = async (requestId, status, { admin_note = null, reviewed_by }, executor = pool) => {
+  const [result] = await executor.query(
     `UPDATE move_out_requests
      SET status = ?, admin_note = ?, reviewed_by = ?, reviewed_at = NOW()
      WHERE request_id = ?`,

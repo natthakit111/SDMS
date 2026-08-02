@@ -392,7 +392,7 @@ export default function MaintenancePage() {
               {imgUrl(viewingRequest.image_path) && (
                 <div className="text-sm">
                   <p className="text-muted-foreground mb-1">
-                    {t("meters.image")}
+                    {t("maintenance.image")}
                   </p>
                   <img
                     src={imgUrl(viewingRequest.image_path) ?? ""}

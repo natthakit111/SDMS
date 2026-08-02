@@ -11,10 +11,16 @@ const findAll = async ({ status = null, tenant_id = null, room_id = null } = {})
       c.*,
       CONCAT(t.first_name, ' ', t.last_name) AS tenant_name,
       t.phone AS tenant_phone,
-      r.room_number, r.floor
+      r.room_number, r.floor,
+      d.status         AS deposit_status,
+      d.refund_amount  AS deposit_refund_amount,
+      d.deduction      AS deposit_deduction,
+      d.deduction_note AS deposit_deduction_note,
+      d.refund_date    AS deposit_refund_date
     FROM contracts c
     JOIN tenants t ON c.tenant_id = t.tenant_id
-    JOIN rooms   r ON c.room_id   = r.room_id`;
+    JOIN rooms   r ON c.room_id   = r.room_id
+    LEFT JOIN deposits d ON d.contract_id = c.contract_id`;
   const conditions = [];
   const params = [];
   if (status)    { conditions.push('c.status = ?');    params.push(status); }
@@ -61,8 +67,9 @@ const findActiveByTenant = async (tenantId) => {
 };
 
 // Create contract — does NOT touch room status (controller handles that separately)
-const create = async ({ tenant_id, room_id, start_date, end_date, rent_amount, deposit_amount, note }) => {
-  const [result] = await pool.query(
+// executor: ส่ง conn เข้ามาถ้าอยู่ใน transaction, ไม่งั้นใช้ pool ตามปกติ
+const create = async ({ tenant_id, room_id, start_date, end_date, rent_amount, deposit_amount, note }, executor = pool) => {
+  const [result] = await executor.query(
     `INSERT INTO contracts
        (tenant_id, room_id, start_date, end_date, rent_amount, deposit_amount, note)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -84,8 +91,8 @@ const update = async (contractId, fields) => {
   return result.affectedRows;
 };
 
-const updateStatus = async (contractId, status) => {
-  const [result] = await pool.query(
+const updateStatus = async (contractId, status, executor = pool) => {
+  const [result] = await executor.query(
     'UPDATE contracts SET status = ? WHERE contract_id = ?',
     [status, contractId]
   );

@@ -4,9 +4,11 @@
 const { validationResult } = require('express-validator')
 const path = require('path')
 const fs = require('fs')
+const { pool }       = require('../config/db')
 const ContractModel = require('../models/contract.model')
 const RoomModel     = require('../models/room.model')
 const TenantModel   = require('../models/tenant.model')
+const DepositModel  = require('../models/deposit.model')
 const { sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden } = require('../utils/response')
 
 const getAllContracts = async (req, res, next) => {
@@ -36,32 +38,62 @@ const getMyContract = async (req, res, next) => {
 }
 
 const createContract = async (req, res, next) => {
+  const conn = await pool.getConnection()
   try {
     const errors = validationResult(req)
-    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง', errors.array())
+    if (!errors.isEmpty()) {
+      conn.release()
+      return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง', errors.array())
+    }
 
     const { tenant_id, room_id, start_date, end_date, rent_amount, deposit_amount, note } = req.body
 
     const room = await RoomModel.findById(room_id)
-    if (!room) return sendNotFound(res, 'ไม่พบห้องพักนี้')
-    if (room.status !== 'available') return sendBadRequest(res, `ห้อง ${room.room_number} มีสถานะ '${room.status}' ไม่สามารถทำสัญญาได้`)
+    if (!room) { conn.release(); return sendNotFound(res, 'ไม่พบห้องพักนี้') }
+    if (room.status !== 'available') {
+      conn.release()
+      return sendBadRequest(res, `ห้อง ${room.room_number} มีสถานะ '${room.status}' ไม่สามารถทำสัญญาได้`)
+    }
 
     const tenant = await TenantModel.findById(tenant_id)
-    if (!tenant) return sendNotFound(res, 'ไม่พบข้อมูลผู้เช่ารายนี้')
+    if (!tenant) { conn.release(); return sendNotFound(res, 'ไม่พบข้อมูลผู้เช่ารายนี้') }
 
     const existing = await ContractModel.findActiveByTenant(tenant_id)
-    if (existing) return sendBadRequest(res, `ผู้เช่ารายนี้มีสัญญาที่ใช้งานอยู่แล้วสำหรับห้อง ${existing.room_number}`)
+    if (existing) {
+      conn.release()
+      return sendBadRequest(res, `ผู้เช่ารายนี้มีสัญญาที่ใช้งานอยู่แล้วสำหรับห้อง ${existing.room_number}`)
+    }
+
+    const finalDeposit = deposit_amount || 0
+
+    await conn.beginTransaction()
 
     const contractId = await ContractModel.create({
       tenant_id, room_id, start_date, end_date,
       rent_amount: rent_amount || room.base_rent,
-      deposit_amount: deposit_amount || 0, note,
-    })
-    await RoomModel.updateStatus(room_id, 'occupied')
+      deposit_amount: finalDeposit, note,
+    }, conn)                                    // ← ส่ง conn เข้าไป
 
-    const newContract = await ContractModel.findById(contractId)
+    await RoomModel.updateStatus(room_id, 'occupied', conn)   // ← ส่ง conn เข้าไป
+
+    if (finalDeposit > 0) {
+      await DepositModel.create({
+        contract_id: contractId,
+        tenant_id,
+        total_deposit: finalDeposit,
+      }, conn)                                  // ← ส่ง conn เข้าไป
+    }
+
+    await conn.commit()
+
+    const newContract = await ContractModel.findById(contractId)   // อ่านหลัง commit ผ่าน pool ปกติ
     return sendCreated(res, newContract, 'Contract created — tenant checked in successfully')
-  } catch (err) { next(err) }
+  } catch (err) {
+    await conn.rollback()
+    next(err)
+  } finally {
+    conn.release()
+  }
 }
 
 const updateContract = async (req, res, next) => {

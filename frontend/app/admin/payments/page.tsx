@@ -353,7 +353,7 @@ export default function PaymentsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {t("payment.detailTitle")} #{selectedPayment?.payment_id}
@@ -452,7 +452,7 @@ export default function PaymentsPage() {
                     <img
                       src={slipUrl(selectedPayment.slip_image) ?? ""}
                       alt={t("payment.slip")}
-                      className="w-full max-h-72 object-contain"
+                      className="w-full max-h-56 object-contain mx-auto"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";
                       }}

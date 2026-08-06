@@ -42,11 +42,12 @@ const getProfileById = async (userId) => {
   return rows[0] || null;
 };
 
-const createUser = async ({
-  username, password_hash, role = 'tenant',
-  first_name = null, last_name = null, email = null, phone = null,
-}) => {
-  const [result] = await pool.query(
+const createUser = async (
+  { username, password_hash, role = 'tenant', first_name = null, last_name = null, email = null, phone = null },
+  conn = null
+) => {
+  const runner = conn || pool;
+  const [result] = await runner.query(
     `INSERT INTO users (username, password_hash, role, first_name, last_name, email, phone)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [username, password_hash, role, first_name, last_name, email, phone]

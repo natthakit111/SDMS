@@ -132,8 +132,8 @@ const upgradeSelfRegistered = async (conn, tenantId, userId, data) => {
   );
 
   await conn.query(
-    `UPDATE users SET first_name = ?, last_name = ?, phone = ? WHERE user_id = ?`,
-    [first_name, last_name, phone, userId]
+    `UPDATE users SET username = ?, first_name = ?, last_name = ?, phone = ? WHERE user_id = ?`,
+    [phone, first_name, last_name, phone, userId]
   );
 };
 

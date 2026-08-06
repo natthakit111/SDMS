@@ -91,6 +91,13 @@ const createTenant = async (req, res, next) => {
         return sendBadRequest(res, 'ID_CARD_ALREADY_REGISTERED');
       }
 
+      if (phone !== existingTenant.phone) {
+        const usernameOwner = await UserModel.findByUsername(phone);
+        if (usernameOwner && usernameOwner.user_id !== existingTenant.user_id) {
+          return sendBadRequest(res, 'PHONE_ALREADY_REGISTERED');
+        }
+      }
+
       // ── อัปเกรด record เดิม แทนการสร้างใหม่ — user_id คงเดิม ──
       await conn.beginTransaction();
       await TenantModel.upgradeSelfRegistered(conn, existingTenant.tenant_id, existingTenant.user_id, {
@@ -118,7 +125,10 @@ const createTenant = async (req, res, next) => {
 
     const salt = await bcrypt.genSalt(12);
     const password_hash = await bcrypt.hash(password, salt);
-    const userId = await UserModel.createUser({ username, password_hash, role: 'tenant' });
+    const userId = await UserModel.createUser(
+      { username, first_name, last_name, email, phone, password_hash, role: 'tenant' },
+      conn 
+    );
 
     const tenantId = await TenantModel.createFull(conn, userId, {
       first_name, last_name, id_card_number, phone, email,

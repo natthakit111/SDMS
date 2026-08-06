@@ -1,3 +1,5 @@
+//frontend/app/auth/google/callback/page.tsx
+
 "use client";
 
 export const dynamic = "force-dynamic";
@@ -14,21 +16,33 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import Link from "next/link";
+import api from "@/lib/api/axiosInstance";
+import { useAuth } from "@/context/auth-context";
 
 /**
- * /auth/google/callback?token=<JWT>
+ * /auth/google/callback?code=<short-lived exchange code>
  *
- * Backend (passport-google-oauth20) redirects here after successful auth.
- * It passes a short-lived JWT as a query param.
- * We store it and redirect to the appropriate dashboard.
+ * ⚠️ SECURITY FIX:
+ * เดิมหน้านี้รับ JWT เต็มๆ ตรงๆ จาก query param (?token=...) แล้วเก็บลง
+ * localStorage ทันที ปัญหาคือ JWT (session token อายุ 1 วัน) ที่ฝังใน URL
+ * ติดอยู่ใน browser history / server log / Referer header ได้ตั้งแต่ตอน
+ * ที่ backend redirect มาแล้ว — ต่อให้ frontend ลบออกจาก address bar
+ * ทีหลังก็สายเกินไป
+ *
+ * เปลี่ยนเป็นรับแค่ "exchange code" แบบสุ่ม ใช้ได้ครั้งเดียว อายุ 60 วิ
+ * แล้วยิง POST /api/auth/oauth/exchange ทันทีเพื่อแลกเป็น JWT จริง
+ * (ได้ JWT กลับทาง JSON response body เท่านั้น ไม่ผ่าน URL อีกเลย)
+ * ต่อให้ code หลุดไปอยู่ใน log ก็ใช้ประโยชน์แทบไม่ได้ เพราะใช้ซ้ำไม่ได้
+ * และหมดอายุเร็วมาก
  */
 function GoogleCallbackInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = searchParams.get("token");
+    const code = searchParams.get("code");
     const err = searchParams.get("error");
 
     if (err) {
@@ -36,22 +50,53 @@ function GoogleCallbackInner() {
       return;
     }
 
-    if (!token) {
-      setError("ไม่ได้รับ token จาก Google");
+    if (!code) {
+      setError("ไม่ได้รับ code จาก Google");
       return;
     }
 
-    // Store token — same key used by axiosInstance
-    localStorage.setItem("token", token);
+    let cancelled = false;
 
-    // Decode role from JWT payload (no verify needed — server already verified)
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      const role: string = payload.role ?? "tenant";
-      router.replace(role === "admin" ? "/admin" : "/tenant");
-    } catch {
-      router.replace("/tenant");
-    }
+    (async () => {
+      try {
+        // ⚠️ เดิมเก็บ token เองผ่าน localStorage.setItem — ตัดออกแล้ว
+        // backend set httpOnly cookie (`token`) + readable cookie
+        // (`auth_hint`) ให้เองอัตโนมัติผ่าน response header ของ endpoint
+        // นี้แล้ว (ดู oauth.routes.js) frontend แค่ต้อง withCredentials:
+        // true ตอนเรียก (ตั้งไว้ที่ axiosInstance.js แล้ว) ไม่ต้องทำอะไร
+        // กับ token เพิ่มอีกเลย
+        const res = await api.post("/auth/oauth/exchange", { code });
+        const { user } = res.data?.data ?? {};
+
+        if (cancelled) return;
+
+        if (!user) {
+          setError("แลก session ไม่สำเร็จ กรุณาลองเข้าสู่ระบบใหม่");
+          return;
+        }
+
+        // ใช้ role จาก response ที่ backend verify แล้วโดยตรง
+        // (ไม่ต้อง decode JWT เองฝั่ง client อีกต่อไป — และตอนนี้ก็ทำ
+        // ไม่ได้อยู่แล้วเพราะ token อยู่ใน httpOnly cookie ที่ JS มองไม่เห็น)
+        //
+        // ⚠️ สำคัญ: ต้องเรียก refreshUser() ก่อน router.replace() เสมอ
+        // ไม่งั้น AuthProvider (ที่คงอยู่ทั้งแอป ไม่ remount ตอน soft nav)
+        // จะยังเห็น user เป็น null อยู่ ทำให้ route guard ของ /admin,
+        // /tenant เข้าใจผิดว่ายังไม่ login แล้วเด้งกลับ /login ทันที
+        await refreshUser();
+        router.replace(user.role === "admin" ? "/admin" : "/tenant");
+      } catch (e: any) {
+        if (cancelled) return;
+        setError(
+          e?.response?.data?.message ??
+            "Code ไม่ถูกต้องหรือหมดอายุ กรุณาเข้าสู่ระบบใหม่",
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [searchParams, router]);
 
   if (error) {

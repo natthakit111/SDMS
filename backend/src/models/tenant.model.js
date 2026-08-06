@@ -17,7 +17,6 @@ const findAll = async ({ search = null, isActive = true } = {}) => {
     LEFT JOIN contracts c ON c.tenant_id = t.tenant_id AND c.status = 'active'
     LEFT JOIN rooms r ON r.room_id = c.room_id`;
   const params = [];
-  // กรองตาม is_active: true = ผู้เช่าปัจจุบัน, false = ผู้เช่าเก่า (ถูกลบ)
   sql += ` WHERE u.is_active = ?`;
   params.push(isActive ? 1 : 0);
   if (search) {
@@ -29,6 +28,7 @@ const findAll = async ({ search = null, isActive = true } = {}) => {
   const [rows] = await pool.query(sql, params);
   return rows;
 };
+
 const findById = async (tenantId) => {
   const [rows] = await pool.query(
     `SELECT t.*, u.username, u.telegram_chat_id, u.is_active
@@ -52,9 +52,9 @@ const findByIdCard = async (idCardNumber) => {
   return rows[0] || null;
 };
 
-const update = async (tenantId, fields) => {
+const update = async (tenantId, fields, conn = null) => {
   const allowed = [
-    'first_name', 'last_name', 'phone', 'email',
+    'first_name', 'last_name', 'phone', 'email', 'id_card_number',
     'emergency_contact_name', 'emergency_contact_phone', 'profile_image',
   ];
   const setClauses = [];
@@ -64,8 +64,110 @@ const update = async (tenantId, fields) => {
   }
   if (!setClauses.length) return 0;
   params.push(tenantId);
-  const [result] = await pool.query(`UPDATE tenants SET ${setClauses.join(', ')} WHERE tenant_id = ?`, params);
+  const runner = conn || pool; // ✅ ใช้ conn ถ้ามี (อยู่ใน transaction) ไม่งั้น fallback เป็น pool ปกติ
+  const [result] = await runner.query(`UPDATE tenants SET ${setClauses.join(', ')} WHERE tenant_id = ?`, params);
   return result.affectedRows;
 };
 
-module.exports = { findAll, findById, findByUserId, findByIdCard, update };
+// ── ใช้ใน authController.register: เช็คว่า phone/email ผูกกับ tenant อยู่แล้วหรือไม่ ──
+const findConflictByPhoneOrEmail = async (phone, email) => {
+  const [rows] = await pool.query(
+    `SELECT tenant_id, phone, email FROM tenants
+     WHERE phone = ? OR (? IS NOT NULL AND ? != '' AND email = ?)
+     LIMIT 1`,
+    [phone, email || null, email || '', email || null]
+  );
+  return rows[0] || null;
+};
+
+// ── ใช้ใน authController.register: สร้าง tenant record แบบ placeholder ──
+const createFromSelfRegistration = async ({ userId, firstName, lastName, phone, email }) => {
+  const placeholderIdCard = `REG${String(userId).padStart(9, '0')}`;
+  await pool.query(
+    `INSERT IGNORE INTO tenants (user_id, first_name, last_name, id_card_number, phone, email)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [userId, firstName, lastName || 'ไม่ระบุ', placeholderIdCard, phone || '0000000000', email || null]
+  );
+};
+
+// ── ใช้ใน tenantController.createTenant: หา record เดิมที่ผูกกับ phone หรือ email นี้ ──
+const findMatchesByPhoneOrEmail = async (phone, email) => {
+  const [rows] = await pool.query(
+    `SELECT t.tenant_id, t.user_id, t.id_card_number, t.phone, t.email, u.username
+     FROM tenants t JOIN users u ON t.user_id = u.user_id
+     WHERE t.phone = ? OR (? IS NOT NULL AND ? != '' AND t.email = ?)`,
+    [phone, email || null, email || '', email || null]
+  );
+  return rows;
+};
+
+// ── ใช้ใน tenantController.createTenant: เช็คว่า id_card_number ชนกับ tenant คนอื่นไหม ──
+const findIdCardConflictExcluding = async (idCardNumber, excludeTenantId) => {
+  const [rows] = await pool.query(
+    `SELECT tenant_id FROM tenants WHERE id_card_number = ? AND tenant_id != ? LIMIT 1`,
+    [idCardNumber, excludeTenantId]
+  );
+  return rows[0] || null;
+};
+
+// ── ใช้ใน tenantController.createTenant: อัปเกรดบัญชีที่สมัครเองไว้ก่อน (ต้องอยู่ใน transaction เดียวกับ conn) ──
+const upgradeSelfRegistered = async (conn, tenantId, userId, data) => {
+  const {
+    first_name, last_name, id_card_number, phone, email,
+    emergency_contact_name, emergency_contact_phone,
+  } = data;
+
+  await conn.query(
+    `UPDATE tenants
+     SET first_name = ?, last_name = ?, id_card_number = ?,
+         phone = ?, email = COALESCE(?, email),
+         emergency_contact_name = ?, emergency_contact_phone = ?
+     WHERE tenant_id = ?`,
+    [
+      first_name, last_name, id_card_number,
+      phone, email || null,
+      emergency_contact_name || null, emergency_contact_phone || null,
+      tenantId,
+    ]
+  );
+
+  await conn.query(
+    `UPDATE users SET first_name = ?, last_name = ?, phone = ? WHERE user_id = ?`,
+    [first_name, last_name, phone, userId]
+  );
+};
+
+// ── ใช้ใน tenantController.createTenant: สร้าง tenant ใหม่ทั้งหมด (ต้องอยู่ใน transaction เดียวกับ conn) ──
+const createFull = async (conn, userId, data) => {
+  const {
+    first_name, last_name, id_card_number, phone, email,
+    emergency_contact_name, emergency_contact_phone,
+  } = data;
+  const [result] = await conn.query(
+    `INSERT INTO tenants
+       (user_id, first_name, last_name, id_card_number, phone, email,
+        emergency_contact_name, emergency_contact_phone)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, first_name, last_name, id_card_number, phone,
+     email || null, emergency_contact_name || null, emergency_contact_phone || null]
+  );
+  return result.insertId;
+};
+
+// ── ใช้ใน telegram.routes.js POST /broadcast: นับ tenant ที่ active + เชื่อม Telegram แล้ว ──
+const countActiveWithTelegram = async () => {
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS total FROM users u
+     JOIN tenants t ON u.user_id = t.user_id
+     JOIN contracts c ON c.tenant_id = t.tenant_id AND c.status = 'active'
+     WHERE u.is_active = 1 AND u.telegram_chat_id IS NOT NULL`
+  );
+  return rows[0]?.total ?? 0;
+};
+
+module.exports = {
+  findAll, findById, findByUserId, findByIdCard, update,
+  findConflictByPhoneOrEmail, createFromSelfRegistration,
+  findMatchesByPhoneOrEmail, findIdCardConflictExcluding,
+  upgradeSelfRegistered, createFull, countActiveWithTelegram,
+};

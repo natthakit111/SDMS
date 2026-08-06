@@ -96,4 +96,4 @@ const getDefaultDueDate = (month, year) => {
   return `${lastDay.getFullYear()}-${mm}-${dd}`;
 };
 
-module.exports = { calculateBill, getDefaultDueDate };
+module.exports = { calculateBill, getDefaultDueDate, getSetting };

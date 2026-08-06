@@ -1,3 +1,5 @@
+//app/register/page.tsx
+
 "use client";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +21,16 @@ import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { Building2, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useLanguage } from "@/context/language-context";
 
+// ตรวจรูปแบบอีเมลแบบเข้มขึ้น (ต้องมี @ และโดเมนที่มีจุด)
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// ตรวจรูปแบบเบอร์โทรไทย: รับทั้งแบบมีขีดหรือไม่มีขีด เช่น 081-234-5678 หรือ 0812345678
+// อนุญาตเลข 9-10 หลัก ขึ้นต้นด้วย 0
+function isValidThaiPhone(phone: string) {
+  const digitsOnly = phone.replace(/[-\s]/g, "");
+  return /^0\d{8,9}$/.test(digitsOnly);
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const { register } = useAuth();
@@ -32,6 +44,7 @@ export default function RegisterPage() {
     confirmPassword: "",
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -50,19 +63,34 @@ export default function RegisterPage() {
       !formData.password.trim() ||
       !formData.confirmPassword.trim()
     ) {
-      // แจ้งเตือนให้กรอกข้อมูลให้ครบ
       setError(t("common.requiredFields") || "กรุณากรอกข้อมูลให้ครบถ้วน");
       return;
     }
 
-    // คลีนข้อมูลและตัดช่องว่าง
     const cleanEmail = formData.email.trim();
     const cleanPassword = formData.password.trim();
     const cleanConfirmPassword = formData.confirmPassword.trim();
     const cleanPhone = formData.phone.trim();
     const cleanName = formData.name.trim();
 
-    // Validate เบื้องต้น
+    // Validate ชื่อ (กันกรอกแค่ช่องว่างหรือสั้นเกินไป)
+    if (cleanName.length < 2) {
+      setError(t("register.errorNameLength"));
+      return;
+    }
+
+    // Validate อีเมลแบบเข้มขึ้น
+    if (!EMAIL_REGEX.test(cleanEmail)) {
+      setError(t("register.errorInvalidEmail"));
+      return;
+    }
+
+    // Validate เบอร์โทร
+    if (!isValidThaiPhone(cleanPhone)) {
+      setError(t("register.errorInvalidPhone"));
+      return;
+    }
+
     if (cleanPassword !== cleanConfirmPassword) {
       setError(t("register.errorPasswordMismatch"));
       return;
@@ -72,20 +100,7 @@ export default function RegisterPage() {
       return;
     }
 
-    if (cleanEmail && !cleanEmail.includes("@")) {
-      setError(t("register.errorInvalidEmail"));
-      return;
-    }
-
     setIsLoading(true);
-
-    // ส่งข้อมูลไปโดยไม่มี username แล้ว
-    // generate a username if the backend requires it (use part before @ or fallback to name)
-    const usernameFromEmail = cleanEmail.includes("@")
-      ? cleanEmail.split("@")[0]
-      : "";
-    const usernameFromName = cleanName.replace(/\s+/g, "").toLowerCase();
-    const username = usernameFromEmail || usernameFromName || "user";
 
     const result = await register({
       password: cleanPassword,
@@ -97,7 +112,6 @@ export default function RegisterPage() {
     if (result.success) {
       router.push("/tenant");
     } else {
-      // 💡 ดักจับ Error Code จากหลังบ้าน และแปลงเป็นภาษาที่เลือก
       if (result.error === "ERROR_DUPLICATE_ENTRY") {
         setError(t("register.errorDuplicate"));
       } else {
@@ -128,7 +142,6 @@ export default function RegisterPage() {
           <CardDescription>{t("register.subtitle")}</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* ปิด Validate ของเบราว์เซอร์ */}
           <form onSubmit={handleSubmit} noValidate>
             <FieldGroup>
               <Field>
@@ -204,16 +217,30 @@ export default function RegisterPage() {
                 <FieldLabel htmlFor="confirmPassword">
                   {t("register.confirmPassword")}
                 </FieldLabel>
-                <Input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  placeholder="••••••••"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  required
-                  disabled={isLoading}
-                />
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    required
+                    disabled={isLoading}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </Field>
 
               {error && (

@@ -81,6 +81,7 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "กรุณากรอกข้อมูลให้ครบถ้วน",
     en: "Please fill out all fields",
   },
+  "common.required": { th: "จำเป็นต้องกรอก", en: "Required" },
 
   // ── Login ──────────────────────────────────────────────────────────────────
   "login.subtitle": {
@@ -107,8 +108,8 @@ const translations: Record<string, { th: string; en: string }> = {
   // ── Forgot Password ────────────────────────────────────────────────────────
   "forgotPassword.title": { th: "ลืมรหัสผ่าน", en: "Forgot Password" },
   "forgotPassword.subtitle": {
-    th: "กรอก Username เพื่อรับลิงก์รีเซ็ตรหัสผ่าน",
-    en: "Enter your username to receive a reset link",
+    th: "กรอกเบอร์โทรศัพท์หรืออีเมลเพื่อรับลิงก์รีเซ็ตรหัสผ่าน",
+    en: "Enter your phone number or email to receive a password reset link.",
   },
   "forgotPassword.usernameLabel": {
     th: "ชื่อผู้ใช้ (Username)",
@@ -233,9 +234,8 @@ const translations: Record<string, { th: string; en: string }> = {
   "rooms.area": { th: "พื้นที่ (ตร.ม.)", en: "Area (sqm)" },
   "rooms.rent": { th: "ค่าเช่า/เดือน", en: "Rent/Month" },
   "rooms.list": { th: "รายการห้องพัก", en: "Room List" },
-  "rooms.standard": { th: "ห้องมาตรฐาน", en: "Standard" },
-  "rooms.deluxe": { th: "ห้องดีลักซ์", en: "Deluxe" },
-  "rooms.suite": { th: "ห้องสวีท", en: "Suite" },
+  "rooms.fanRoom": { th: "ห้องพัดลม", en: "Fan Room" },
+  "rooms.airConditionedRoom": { th: "ห้องแอร์", en: "Air-conditioned Room" },
   "rooms.searchPlaceholder": {
     th: "ค้นหาหมายเลขห้อง...",
     en: "Search room number...",
@@ -252,44 +252,51 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "จัดการข้อมูลผู้เช่าทั้งหมด",
     en: "Manage all tenant information",
   },
+
   "tenants.add": { th: "เพิ่มผู้เช่า", en: "Add Tenant" },
-  "tenants.firstName": { th: "ชื่อ", en: "First Name" },
-  "tenants.lastName": { th: "นามสกุล", en: "Last Name" },
-  "tenants.idCard": { th: "เลขบัตรประชาชน", en: "ID Card Number" },
-  "tenants.emergency": { th: "ผู้ติดต่อฉุกเฉิน", en: "Emergency Contact" },
-  "tenants.emergencyPhone": { th: "เบอร์ติดต่อฉุกเฉิน", en: "Emergency Phone" },
-  "tenants.username": { th: "ชื่อผู้ใช้ (Login)", en: "Username (Login)" },
-  "tenants.password": { th: "รหัสผ่าน", en: "Password" },
-  "tenants.list": { th: "รายการผู้เช่า", en: "Tenant List" },
-  "tenants.contractStatus": { th: "สถานะสัญญา", en: "Contract Status" },
-  "tenants.hasContract": { th: "มีสัญญาเช่า", en: "Has Contract" },
-  "tenants.noContract": { th: "ยังไม่มีสัญญา", en: "No Contract" },
-  "tenants.searchPlaceholder": {
-    th: "ค้นหาชื่อ, อีเมล, เบอร์โทร หรือเลขบัตร...",
-    en: "Search name, email, phone or ID...",
+  "tenants.addNew": { th: "เพิ่มผู้เช่าใหม่", en: "Add New Tenant" },
+  "tenants.addDesc": {
+    th: "กรอกข้อมูลผู้เช่าใหม่ — ระบบจะใช้เบอร์โทรศัพท์เป็นชื่อผู้ใช้สำหรับเข้าสู่ระบบโดยอัตโนมัติ",
+    en: "Fill in the new tenant's details — the phone number will automatically be used as their login username.",
   },
   "tenants.edit": { th: "แก้ไขข้อมูลผู้เช่า", en: "Edit Tenant" },
-  "tenants.addNew": { th: "เพิ่มผู้เช่าใหม่", en: "Add New Tenant" },
   "tenants.editDesc": {
-    th: "แก้ไขข้อมูลผู้เช่า",
-    en: "Edit tenant information",
+    th: "แก้ไขข้อมูลของผู้เช่ารายนี้",
+    en: "Edit this tenant's information",
   },
-  "tenants.addDesc": {
-    th: "กรอกข้อมูลผู้เช่าใหม่",
-    en: "Fill in new tenant information",
+  "tenants.idCard": { th: "เลขบัตรประชาชน", en: "ID Card Number" },
+  "tenants.emergencyName": { th: "ผู้ติดต่อฉุกเฉิน", en: "Emergency Contact" },
+  "tenants.emergencyPhone": { th: "เบอร์ติดต่อฉุกเฉิน", en: "Emergency Phone" },
+  "tenants.list": { th: "รายการผู้เช่า", en: "Tenant List" },
+  "tenants.searchPlaceholder": {
+    th: "ค้นหาชื่อ อีเมล เบอร์โทร หรือเลขบัตรประชาชน",
+    en: "Search name, email, phone or ID card",
   },
-  "tenants.emergencyName": {
-    th: "ผู้ติดต่อฉุกเฉิน",
-    en: "Emergency Contact Name",
-  },
-
+  "tenants.hasContract": { th: "มีสัญญา", en: "Has Contract" },
+  "tenants.noContract": { th: "ยังไม่มีสัญญา", en: "No Contract" },
+  "tenants.contractStatus": { th: "สถานะสัญญา", en: "Contract Status" },
+  "tenants.deleted": { th: "ถูกลบแล้ว", en: "Deactivated" },
+  "tenants.viewCurrent": { th: "ดูผู้เช่าปัจจุบัน", en: "View Current" },
+  "tenants.viewHistory": { th: "ดูผู้เช่าเก่า", en: "View History" },
   "tenants.cannotDeleteActive": {
-    th: "ไม่สามารถลบผู้เช่าที่มีสัญญาอยู่ได้",
-    en: "Cannot delete tenant with active contract",
+    th: "ไม่สามารถลบผู้เช่าที่มีสัญญากำลังใช้งานอยู่ได้",
+    en: "Cannot delete a tenant with an active contract",
   },
-  "tenants.viewCurrent": { th: "ดูผู้เช่าปัจจุบัน", en: "Current Tenants" },
-  "tenants.viewHistory": { th: "ประวัติผู้เช่าเก่า", en: "Former Tenants" },
-  "tenants.deleted": { th: "ถูกลบแล้ว", en: "Deleted" },
+  "tenants.checkFormErrors": {
+    th: "กรุณาตรวจสอบข้อมูลที่กรอก",
+    en: "Please check the information you entered",
+  },
+  "tenants.usernameNote": {
+    th: "ระบบจะใช้เบอร์โทรศัพท์เป็นชื่อผู้ใช้สำหรับเข้าสู่ระบบโดยอัตโนมัติ",
+    en: "The phone number will be used as the login username automatically.",
+  },
+  "tenants.generatePassword": { th: "สุ่มรหัสผ่าน", en: "Generate password" },
+  "tenants.firstName": { th: "ชื่อ", en: "First Name" },
+  "tenants.lastName": { th: "นามสกุล", en: "Last Name" },
+  "tenants.emergency": { th: "ผู้ติดต่อฉุกเฉิน", en: "Emergency Contact" },
+  "tenants.username": { th: "ชื่อผู้ใช้ (Login)", en: "Username (Login)" },
+  "tenants.password": { th: "รหัสผ่าน", en: "Password" },
+
   "errors.PHONE_REQUIRED": {
     th: "กรุณากรอกเบอร์โทรศัพท์",
     en: "Phone number is required",
@@ -330,9 +337,37 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร",
     en: "Password must be at least 6 characters",
   },
-  "tenants.checkFormErrors": {
-    th: "กรุณาตรวจสอบข้อมูลที่กรอก",
-    en: "Please check the information you entered",
+  "errors.FIRST_NAME_TOO_LONG": {
+    th: "ชื่อยาวเกินไป",
+    en: "First name is too long",
+  },
+  "errors.LAST_NAME_TOO_LONG": {
+    th: "นามสกุลยาวเกินไป",
+    en: "Last name is too long",
+  },
+  "errors.ID_CARD_FORMAT": {
+    th: "เลขบัตรประชาชนต้องเป็นตัวเลขเท่านั้น",
+    en: "ID card number must contain digits only",
+  },
+  "errors.EMERGENCY_NAME_TOO_LONG": {
+    th: "ชื่อผู้ติดต่อฉุกเฉินยาวเกินไป",
+    en: "Emergency contact name is too long",
+  },
+  "errors.PHONE_ALREADY_REGISTERED": {
+    th: "เบอร์โทรศัพท์นี้มีบัญชีอยู่ในระบบแล้ว",
+    en: "This phone number is already registered",
+  },
+  "errors.EMAIL_ALREADY_REGISTERED": {
+    th: "อีเมลนี้มีบัญชีอยู่ในระบบแล้ว",
+    en: "This email is already registered",
+  },
+  "errors.ID_CARD_ALREADY_REGISTERED": {
+    th: "เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว",
+    en: "This ID card number is already registered",
+  },
+  "errors.PHONE_EMAIL_CONFLICT_DIFFERENT_TENANTS": {
+    th: "เบอร์โทรและอีเมลผูกกับผู้เช่าคนละคน กรุณาตรวจสอบข้อมูล",
+    en: "Phone and email belong to different tenants — please check the data",
   },
 
   // ── Contracts ──────────────────────────────────────────────────────────────
@@ -628,6 +663,13 @@ const translations: Record<string, { th: string; en: string }> = {
   },
   "paymentHistory.statsAll": { th: "ทั้งหมดในระบบ", en: "Total in System" },
   "paymentHistory.notFound": { th: "ไม่พบรายการใน", en: "No records in" },
+  "paymentHistory.includeRejected": { "th": "รวมรายการที่ถูกปฏิเสธ", "en": "Include rejected" },
+  "paymentHistory.totalIncludesRejected": { "th": "รวมรายการทั้งหมด", "en": "Total (includes rejected)" },
+  "paymentHistory.totalExcludesRejected": { "th": "ไม่รวมรายการที่ถูกปฏิเสธ", "en": "Total (excludes rejected)" },
+  "paymentHistory.countIncludesRejected": { "th": "รวมทุกสถานะ", "en": "Count (includes rejected)" },
+  "paymentHistory.countExcludesRejected": { "th": "ไม่รวมรายการที่ถูกปฏิเสธ", "en": "Count (excludes rejected)" },
+
+
 
   // ── Payment Verification ───────────────────────────────────────────────────
   "paymentVerify.title": {
@@ -968,6 +1010,21 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "อีเมลหรือเบอร์โทรศัพท์นี้ ถูกใช้สมัครสมาชิกไปแล้ว",
     en: "This email or phone number is already registered.",
   },
+  "register.errorInvalidPhone": { th: "รูปแบบเบอร์โทรไม่ถูกต้อง", en: "Invalid phone number format"},
+  "register.errorNameLength": { th: "กรุณากรอกชื่ออย่างน้อย 2 ตัวอักษร", en: "Name must be at least 2 characters" },
+
+  PHONE_ALREADY_REGISTERED: {
+    th: "เบอร์โทรศัพท์นี้มีผู้เช่าลงทะเบียนไว้แล้ว",
+    en: "This phone number is already registered to a tenant",
+  },
+  EMAIL_ALREADY_REGISTERED: {
+    th: "อีเมลนี้มีผู้เช่าลงทะเบียนไว้แล้ว",
+    en: "This email is already registered to a tenant",
+  },
+  PHONE_EMAIL_CONFLICT_DIFFERENT_TENANTS: {
+    th: "เบอร์โทรศัพท์และอีเมลที่กรอกตรงกับผู้เช่าคนละคนกันในระบบ กรุณาตรวจสอบข้อมูลอีกครั้ง หรือติดต่อผู้ดูแลระบบ",
+    en: "The phone and email match different tenants in the system. Please double-check the information or contact the system administrator.",
+  },
 
   // ── Settings ───────────────────────────────────────────────────────────────
   "settings.title": { th: "ตั้งค่าระบบ", en: "System Settings" },
@@ -1260,6 +1317,48 @@ const translations: Record<string, { th: string; en: string }> = {
   "settings.profileDesc": {
     th: "จัดการข้อมูลส่วนตัวและความปลอดภัยของบัญชี",
     en: "Manage your profile information and account security",
+  },
+  // เพิ่มเข้าไปใน object คำแปลของ frontend/context/language-context.tsx
+  // ตาม format: "KEY": { th: "...", en: "..." }
+  VALIDATION_FAILED: {
+    th: "ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง",
+    en: "Validation failed, please check your input",
+  },
+  NO_VALID_FIELDS: {
+    th: "ไม่มีข้อมูลที่จะอัปเดต",
+    en: "No valid fields to update",
+  },
+  PROMPTPAY_TYPE_INVALID: {
+    th: "กรุณาเลือกประเภท PromptPay ให้ถูกต้อง",
+    en: "Please select a valid PromptPay type",
+  },
+  PROMPTPAY_PHONE_FORMAT: {
+    th: "เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลัก ขึ้นต้นด้วย 0",
+    en: "Phone number must be 10 digits starting with 0",
+  },
+  PROMPTPAY_CITIZENID_FORMAT: {
+    th: "เลขบัตรประชาชน/นิติบุคคลต้องเป็นตัวเลข 13 หลัก",
+    en: "Citizen/corporate ID must be 13 digits",
+  },
+  PROMPTPAY_ID_FORMAT: {
+    th: "รูปแบบหมายเลข PromptPay ไม่ถูกต้อง",
+    en: "Invalid PromptPay ID format",
+  },
+  BANK_ACCOUNT_FORMAT: {
+    th: "เลขที่บัญชีต้องเป็นตัวเลข 5-20 หลัก",
+    en: "Bank account number must be 5-20 digits",
+  },
+  TAX_RATE_RANGE: {
+    th: "อัตราภาษีต้องอยู่ระหว่าง 0-100",
+    en: "Tax rate must be between 0-100",
+  },
+  WATER_FLAT_RATE_RANGE: {
+    th: "ค่าน้ำเหมาจ่ายต้องเป็นตัวเลขไม่ติดลบ",
+    en: "Flat water rate must be a non-negative number",
+  },
+  SETTINGS_UPDATED: {
+    th: "บันทึกการตั้งค่าสำเร็จ",
+    en: "Settings updated successfully",
   },
 
   // ── Tenant Telegram ────────────────────────────────────────────────────────

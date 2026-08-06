@@ -60,6 +60,7 @@ import { billAPI } from "@/lib/api/bill.api";
 import { roomAPI } from "@/lib/api/room.api";
 import { useLanguage } from "@/context/language-context";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -459,20 +460,41 @@ export default function BillsPage() {
     );
   });
 
+  const router = useRouter();
   // ── Generate bill ─────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await billAPI.generate({
+      const res = await billAPI.generate({
         room_id: parseInt(formData.room_id),
         month: parseInt(formData.month),
         year: parseInt(formData.year),
         other_amount: parseFloat(formData.other_amount) || 0,
-        note: formData.note || undefined, // 💡 ส่งหมายเหตุไปให้หลังบ้าน
+        note: formData.note || undefined,
         due_date: formData.due_date || undefined,
       });
-      toast.success(t("bills.generate"));
+
+      const createdBill = res?.data ?? res;
+
+      if (!createdBill?.qr_payload) {
+        // สร้างบิลสำเร็จ แต่ไม่มี QR — เตือนทันที พร้อมทางลัดไปตั้งค่า
+        toast.warning(
+          language === "th"
+            ? "สร้างบิลสำเร็จ แต่ไม่มี QR Code แนบไป (ยังไม่ได้ตั้งค่า PromptPay)"
+            : "Bill created, but no QR code attached (PromptPay not configured)",
+          {
+            duration: 8000,
+            action: {
+              label: language === "th" ? "ไปตั้งค่า" : "Go to Settings",
+              onClick: () => router.push("/admin/settings?tab=financial"),
+            },
+          },
+        );
+      } else {
+        toast.success(t("bills.generate"));
+      }
+
       resetForm();
       fetchBills();
     } catch (err: any) {

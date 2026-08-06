@@ -25,8 +25,14 @@ const loginValidation = [
 const updateProfileValidation = [
   body('firstName').optional().trim().isLength({ max: 100 }),
   body('lastName').optional().trim().isLength({ max: 100 }),
-  body('email').optional({ nullable: true }).trim().isEmail().withMessage('Invalid email format'),
-  body('phone').optional({ nullable: true }).trim().isLength({ max: 20 }),
+  body('email')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .isEmail().withMessage('Invalid email format'),
+  body('phone')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .isLength({ max: 20 }),
 ];
 
 const changePasswordValidation = [
@@ -51,6 +57,12 @@ router.post('/register', registerValidation, (req, res, next) => {
 router.post('/login', loginValidation, authController.login);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
+
+// ⚠️ ใหม่: logout ต้องผ่าน backend เสมอ เพราะ cookie `token` เป็น httpOnly
+// — JS ฝั่ง frontend แตะ/ลบเองไม่ได้อีกต่อไปหลัง migrate จาก localStorage
+// ไม่ต้อง authenticate ก่อนก็ได้ (ถ้าไม่มี session อยู่แล้ว การ clearCookie
+// ก็แค่ไม่มีผลอะไร ไม่ error)
+router.post('/logout', authController.logout);
 
 // Protected
 router.get('/me', authenticate, authController.getMe);

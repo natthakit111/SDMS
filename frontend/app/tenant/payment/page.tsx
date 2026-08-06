@@ -29,7 +29,15 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { BillStatusBadge } from "@/components/common/status-badge";
-import { QrCode, Upload, Loader2, CheckCircle, CreditCard } from "lucide-react";
+import {
+  QrCode,
+  Upload,
+  Loader2,
+  CheckCircle,
+  CreditCard,
+  Copy,
+  Check,
+} from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useLanguage } from "@/context/language-context";
 import { billAPI } from "@/lib/api/bill.api";
@@ -47,12 +55,35 @@ interface Bill {
   qr_payload: string | null;
 }
 
+// ── ข้อมูล QR + ธนาคาร ที่ได้จาก GET /bills/:id/qr ──
+// backend แนบ bank_name / bank_account / bank_account_name มาด้วย
+// (อ่านจาก dorm_settings) สำหรับผู้เช่าที่อยากโอนผ่านแอปธนาคารแทนสแกน QR
+interface QrData {
+  qr_payload: string | null;
+  bank_name?: string | null;
+  bank_account?: string | null;
+  bank_account_name?: string | null;
+}
+
 const fmt = (n: number) =>
   new Intl.NumberFormat("th-TH", {
     style: "currency",
     currency: "THB",
     maximumFractionDigits: 0,
   }).format(n);
+
+// จัดกลุ่มเลขบัญชีให้อ่านง่ายขึ้น (ไม่ใช่ format มาตรฐานตายตัวของทุกธนาคาร
+// แต่ช่วยให้เลขยาวๆ ไม่ติดกันเป็นพรืด)
+const formatBankAccount = (acc: string) => {
+  if (!acc) return "";
+  // รูปแบบมาตรฐานที่พบบ่อย: x-x-xxxxx-x (10 หลัก)
+  if (acc.length === 10) {
+    return `${acc.slice(0, 3)}-${acc.slice(3, 4)}-${acc.slice(4, 9)}-${acc.slice(9)}`;
+  }
+  // ความยาวอื่น (เช่นเลขทดสอบที่ยาวผิดปกติ) — โชว์ดิบๆ ไม่เดา format
+  // ดีกว่าหั่นมั่วแล้วดูเป็นเลขบัญชีปลอมๆ
+  return acc;
+};
 
 export default function TenantPaymentPage() {
   const { t, language } = useLanguage();
@@ -68,9 +99,10 @@ export default function TenantPaymentPage() {
   const [slipFile, setSlipFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadDone, setUploadDone] = useState(false);
-  const [qrPayload, setQrPayload] = useState<string | null>(null);
+  const [qrData, setQrData] = useState<QrData | null>(null);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [slipDialogOpen, setSlipDialogOpen] = useState(false);
+  const [copiedAccount, setCopiedAccount] = useState(false);
 
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString(language === "th" ? "th-TH" : "en-GB", {
@@ -139,10 +171,23 @@ export default function TenantPaymentPage() {
     }
     try {
       const res = await billAPI.getQR(selectedBill.bill_id);
-      setQrPayload(res.data?.qr_payload ?? null);
+      setQrData(res.data ?? null);
       setQrDialogOpen(true);
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? t("payment.loadError"));
+    }
+  };
+
+  const handleCopyAccount = async (acc: string) => {
+    try {
+      await navigator.clipboard.writeText(acc);
+      setCopiedAccount(true);
+      toast.success(
+        language === "th" ? "คัดลอกเลขบัญชีแล้ว" : "Account number copied",
+      );
+      setTimeout(() => setCopiedAccount(false), 2000);
+    } catch {
+      toast.error(language === "th" ? "คัดลอกไม่สำเร็จ" : "Copy failed");
     }
   };
 
@@ -312,8 +357,8 @@ export default function TenantPaymentPage() {
                         </DialogHeader>
                         <div className="space-y-4">
                           <div className="bg-white p-6 rounded-lg flex items-center justify-center">
-                            {qrPayload ? (
-                              <QRCodeSVG value={qrPayload} size={240} />
+                            {qrData?.qr_payload ? (
+                              <QRCodeSVG value={qrData.qr_payload} size={240} />
                             ) : (
                               <QrCode className="w-48 h-48 text-gray-800" />
                             )}
@@ -323,6 +368,50 @@ export default function TenantPaymentPage() {
                               {fmt(selectedBill.total_amount)}
                             </p>
                           )}
+
+                          {/* ข้อมูลธนาคาร — โชว์เฉพาะเมื่อ admin ตั้งค่าไว้ */}
+                          {qrData?.bank_account && (
+                            <div className="border-t pt-4 space-y-2">
+                              <p className="text-xs text-muted-foreground text-center">
+                                {language === "th"
+                                  ? "หรือโอนผ่านแอปธนาคาร"
+                                  : "Or transfer via bank app"}
+                              </p>
+                              <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
+                                <div className="min-w-0">
+                                  {qrData.bank_name && (
+                                    <p className="text-sm font-medium truncate">
+                                      {qrData.bank_name}
+                                    </p>
+                                  )}
+                                  <p className="text-sm font-mono">
+                                    {formatBankAccount(qrData.bank_account)}
+                                  </p>
+                                  {qrData.bank_account_name && (
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {qrData.bank_account_name}
+                                    </p>
+                                  )}
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="shrink-0"
+                                  onClick={() =>
+                                    handleCopyAccount(qrData.bank_account!)
+                                  }
+                                >
+                                  {copiedAccount ? (
+                                    <Check className="h-4 w-4 text-green-500" />
+                                  ) : (
+                                    <Copy className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
                           <p className="text-sm text-muted-foreground text-center">
                             {t("tenant.payment.afterPay")}
                           </p>

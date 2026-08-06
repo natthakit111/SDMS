@@ -48,12 +48,29 @@ const telegramAPI = {
   unlink: () => api.delete("/telegram/unlink"),
 };
 
+// Simple, reasonably permissive email check for client-side UX.
+// Backend must still be the source of truth for validation.
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Accepts Thai mobile formats like 08x-xxx-xxxx, 0xxxxxxxxx, +66xxxxxxxxx
+const PHONE_REGEX = /^(\+66|0)\d{9,10}$/;
+
+const OAUTH_PROVIDER_LABELS: Record<string, string> = {
+  google: "Google",
+  telegram: "Telegram",
+  facebook: "Facebook",
+  line: "Line",
+};
+
 export default function TenantProfilePage() {
   const { user } = useAuth();
   const { t, language } = useLanguage();
 
   const hasPassword = !!(user as any)?.has_password;
   const oauthProvider = (user as any)?.oauth_provider ?? null;
+  const oauthProviderLabel = oauthProvider
+    ? (OAUTH_PROVIDER_LABELS[oauthProvider] ?? oauthProvider)
+    : null;
 
   /* ── Profile state ── */
   const [profile, setProfile] = useState({
@@ -64,6 +81,11 @@ export default function TenantProfilePage() {
   });
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState(false);
+  const [profileErrors, setProfileErrors] = useState<{
+    firstName?: string;
+    email?: string;
+    phone?: string;
+  }>({});
 
   /* ── Password state ── */
   const [passwords, setPasswords] = useState({
@@ -117,7 +139,7 @@ export default function TenantProfilePage() {
         setTgLinked(r.data?.data?.linked ?? false);
         setTgChatId(r.data?.data?.chat_id ?? null);
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
@@ -138,7 +160,7 @@ export default function TenantProfilePage() {
           }));
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [tgLinked]);
 
   /* ── Password strength ── */
@@ -170,17 +192,47 @@ export default function TenantProfilePage() {
     language === "th" ? "แข็งแรงมาก" : "Very Strong",
   ][strength];
 
+  // Minimum bar we actually enforce: at least 6 chars AND
+  // (at least one letter AND one number), matching what the
+  // strength meter visually promises instead of silently allowing "123456".
+  const isPasswordStrongEnough = (pw: string) =>
+    pw.length >= 6 && /[A-Za-z]/.test(pw) && /[0-9]/.test(pw);
+
+  /* ── Profile validation ── */
+  const validateProfile = () => {
+    const errors: typeof profileErrors = {};
+    if (!profile.firstName.trim()) {
+      errors.firstName =
+        language === "th" ? "กรุณากรอกชื่อจริง" : "First name is required";
+    }
+    if (profile.email && !EMAIL_REGEX.test(profile.email.trim())) {
+      errors.email =
+        language === "th"
+          ? "รูปแบบอีเมลไม่ถูกต้อง"
+          : "Invalid email format";
+    }
+    if (profile.phone && !PHONE_REGEX.test(profile.phone.trim())) {
+      errors.phone =
+        language === "th"
+          ? "รูปแบบเบอร์โทรไม่ถูกต้อง (เช่น 0812345678)"
+          : "Invalid phone number format (e.g. 0812345678)";
+    }
+    setProfileErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   /* ── Submit profile ── */
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setProfileLoading(true);
     setProfileSuccess(false);
+    if (!validateProfile()) return;
+    setProfileLoading(true);
     try {
       await authAPI.updateProfile({
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        email: profile.email,
-        phone: profile.phone,
+        firstName: profile.firstName.trim(),
+        lastName: profile.lastName.trim(),
+        email: profile.email.trim(),
+        phone: profile.phone.trim(),
       });
       setProfileSuccess(true);
       toast.success(
@@ -190,7 +242,7 @@ export default function TenantProfilePage() {
     } catch (err: any) {
       toast.error(
         err.response?.data?.message ??
-          (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
+        (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
       );
     } finally {
       setProfileLoading(false);
@@ -209,11 +261,11 @@ export default function TenantProfilePage() {
       );
       return;
     }
-    if (passwords.newPassword.length < 6) {
+    if (!isPasswordStrongEnough(passwords.newPassword)) {
       setPasswordError(
         language === "th"
-          ? "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"
-          : "Password must be at least 6 characters",
+          ? "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร และมีทั้งตัวอักษรและตัวเลข"
+          : "Password must be at least 6 characters and include both letters and numbers",
       );
       return;
     }
@@ -235,7 +287,7 @@ export default function TenantProfilePage() {
     } catch (err: any) {
       setPasswordError(
         err.response?.data?.message ??
-          (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
+        (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
       );
     } finally {
       setPasswordLoading(false);
@@ -254,11 +306,22 @@ export default function TenantProfilePage() {
       );
       return;
     }
-    if (passwords.newPassword.length < 6) {
+    if (!isPasswordStrongEnough(passwords.newPassword)) {
       setPasswordError(
         language === "th"
-          ? "รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร"
-          : "New password must be at least 6 characters",
+          ? "รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร และมีทั้งตัวอักษรและตัวเลข"
+          : "New password must be at least 6 characters and include both letters and numbers",
+      );
+      return;
+    }
+    if (
+      passwords.currentPassword &&
+      passwords.newPassword === passwords.currentPassword
+    ) {
+      setPasswordError(
+        language === "th"
+          ? "รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม"
+          : "New password must be different from the current password",
       );
       return;
     }
@@ -283,9 +346,9 @@ export default function TenantProfilePage() {
     } catch (err: any) {
       setPasswordError(
         err.response?.data?.message ??
-          (language === "th"
-            ? "รหัสผ่านปัจจุบันไม่ถูกต้อง"
-            : "Current password is incorrect"),
+        (language === "th"
+          ? "รหัสผ่านปัจจุบันไม่ถูกต้อง"
+          : "Current password is incorrect"),
       );
     } finally {
       setPasswordLoading(false);
@@ -294,6 +357,14 @@ export default function TenantProfilePage() {
 
   /* ── Telegram ── */
   const handleGenerateLink = async () => {
+    // Prevent stacking multiple intervals if the user clicks "refresh"
+    // while a previous polling loop is still running.
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    setTgPolling(false);
+
     setTgLinkLoading(true);
     try {
       const res = await telegramAPI.generateLink();
@@ -310,23 +381,25 @@ export default function TenantProfilePage() {
             setTgChatId(r.data?.data?.chat_id);
             setTgDeepLink(null);
             setTgPolling(false);
-            clearInterval(pollingRef.current!);
+            if (pollingRef.current) clearInterval(pollingRef.current);
+            pollingRef.current = null;
             toast.success(
               language === "th"
                 ? "เชื่อมต่อ Telegram สำเร็จ! 🎉"
                 : "Telegram connected successfully! 🎉",
             );
           }
-        } catch {}
+        } catch { }
         if (attempts >= 200) {
-          clearInterval(pollingRef.current!);
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          pollingRef.current = null;
           setTgPolling(false);
         }
       }, 3000);
     } catch (err: any) {
       toast.error(
         err.response?.data?.message ??
-          (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
+        (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
       );
     } finally {
       setTgLinkLoading(false);
@@ -341,6 +414,7 @@ export default function TenantProfilePage() {
       setTgChatId(null);
       setTgDeepLink(null);
       if (pollingRef.current) clearInterval(pollingRef.current);
+      pollingRef.current = null;
       setTgPolling(false);
       toast.success(
         language === "th"
@@ -350,7 +424,7 @@ export default function TenantProfilePage() {
     } catch (err: any) {
       toast.error(
         err.response?.data?.message ??
-          (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
+        (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
       );
     } finally {
       setTgUnlinkLoading(false);
@@ -374,6 +448,36 @@ export default function TenantProfilePage() {
       setPrefsLoading(false);
     }
   };
+
+  // Steps shown while waiting for the Telegram deep link to be confirmed.
+  const telegramConnectSteps =
+    language === "th"
+      ? [
+        'กดปุ่ม "เปิด Telegram" ด้านล่าง',
+        "กด Start หรือ เริ่ม ใน Telegram",
+        "กลับมาหน้านี้ — ระบบจะเชื่อมต่อให้อัตโนมัติ",
+      ]
+      : [
+        'Tap "Open Telegram" below',
+        "Tap Start in Telegram",
+        "Return here — the system will connect automatically",
+      ];
+
+  // Benefits list shown before the user has linked Telegram.
+  const telegramBenefits =
+    language === "th"
+      ? [
+        "📄 บิลค่าเช่าใหม่",
+        "✅ ยืนยันการชำระเงิน",
+        "🔧 อัปเดตการแจ้งซ่อม",
+        "📢 ประกาศจากหอพัก",
+      ]
+      : [
+        "📄 New bills",
+        "✅ Payment confirmed",
+        "🔧 Maintenance updates",
+        "📢 Announcements",
+      ];
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -417,7 +521,7 @@ export default function TenantProfilePage() {
           <CardDescription>{t("tenant.profile.subtitle")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleProfileSubmit}>
+          <form onSubmit={handleProfileSubmit} noValidate>
             <FieldGroup>
               <div className="grid grid-cols-2 gap-3">
                 <Field>
@@ -432,13 +536,20 @@ export default function TenantProfilePage() {
                         language === "th" ? "ชื่อจริง" : "First name"
                       }
                       value={profile.firstName}
-                      onChange={(e) =>
-                        setProfile((p) => ({ ...p, firstName: e.target.value }))
-                      }
+                      onChange={(e) => {
+                        setProfile((p) => ({ ...p, firstName: e.target.value }));
+                        setProfileErrors((er) => ({ ...er, firstName: undefined }));
+                      }}
                       disabled={profileLoading}
                       className="pl-9"
+                      aria-invalid={!!profileErrors.firstName}
                     />
                   </div>
+                  {profileErrors.firstName && (
+                    <p className="text-xs text-destructive mt-1">
+                      {profileErrors.firstName}
+                    </p>
+                  )}
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="lastName">
@@ -464,13 +575,20 @@ export default function TenantProfilePage() {
                     type="email"
                     placeholder="example@email.com"
                     value={profile.email}
-                    onChange={(e) =>
-                      setProfile((p) => ({ ...p, email: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      setProfile((p) => ({ ...p, email: e.target.value }));
+                      setProfileErrors((er) => ({ ...er, email: undefined }));
+                    }}
                     disabled={profileLoading}
                     className="pl-9"
+                    aria-invalid={!!profileErrors.email}
                   />
                 </div>
+                {profileErrors.email && (
+                  <p className="text-xs text-destructive mt-1">
+                    {profileErrors.email}
+                  </p>
+                )}
               </Field>
               <Field>
                 <FieldLabel htmlFor="phone">{t("common.phone")}</FieldLabel>
@@ -481,13 +599,20 @@ export default function TenantProfilePage() {
                     type="tel"
                     placeholder="0xx-xxx-xxxx"
                     value={profile.phone}
-                    onChange={(e) =>
-                      setProfile((p) => ({ ...p, phone: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      setProfile((p) => ({ ...p, phone: e.target.value }));
+                      setProfileErrors((er) => ({ ...er, phone: undefined }));
+                    }}
                     disabled={profileLoading}
                     className="pl-9"
+                    aria-invalid={!!profileErrors.phone}
                   />
                 </div>
+                {profileErrors.phone && (
+                  <p className="text-xs text-destructive mt-1">
+                    {profileErrors.phone}
+                  </p>
+                )}
               </Field>
               <Button
                 type="submit"
@@ -625,24 +750,14 @@ export default function TenantProfilePage() {
                   {language === "th" ? "วิธีเชื่อมต่อ:" : "How to connect:"}
                 </p>
                 <ol className="text-sm text-muted-foreground space-y-1.5 list-none">
-                  {language === "th"
-                    ? [
-                        'กดปุ่ม "เปิด Telegram" ด้านล่าง',
-                        "กด Start หรือ เริ่ม ใน Telegram",
-                        "กลับมาหน้านี้ — ระบบจะเชื่อมต่อให้อัตโนมัติ",
-                      ]
-                    : [
-                        'Tap "Open Telegram" below',
-                        "Tap Start in Telegram",
-                        "Return here — the system will connect automatically",
-                      ].map((step, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="bg-primary/20 text-primary rounded-full w-5 h-5 flex items-center justify-center text-xs shrink-0 mt-0.5">
-                            {i + 1}
-                          </span>
-                          {step}
-                        </li>
-                      ))}
+                  {telegramConnectSteps.map((step, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="bg-primary/20 text-primary rounded-full w-5 h-5 flex items-center justify-center text-xs shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      {step}
+                    </li>
+                  ))}
                 </ol>
               </div>
               <div className="flex gap-3">
@@ -664,7 +779,7 @@ export default function TenantProfilePage() {
                   size="icon"
                   onClick={handleGenerateLink}
                   disabled={tgLinkLoading}
-                  title="สร้างลิงก์ใหม่"
+                  title={language === "th" ? "สร้างลิงก์ใหม่" : "Generate a new link"}
                 >
                   <RefreshCw className="h-4 w-4" />
                 </Button>
@@ -682,26 +797,16 @@ export default function TenantProfilePage() {
             <div className="space-y-4">
               <div className="p-4 rounded-lg bg-muted/50 space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  รับแจ้งเตือนผ่าน Telegram สำหรับ:
+                  {language === "th"
+                    ? "รับแจ้งเตือนผ่าน Telegram สำหรับ:"
+                    : "Get Telegram notifications for:"}
                 </p>
                 <ul className="text-sm space-y-1">
-                  {language === "th"
-                    ? [
-                        "📄 บิลค่าเช่าใหม่",
-                        "✅ ยืนยันการชำระเงิน",
-                        "🔧 อัปเดตการแจ้งซ่อม",
-                        "📢 ประกาศจากหอพัก",
-                      ]
-                    : [
-                        "📄 New bills",
-                        "✅ Payment confirmed",
-                        "🔧 Maintenance updates",
-                        "📢 Announcements",
-                      ].map((item) => (
-                        <li key={item} className="text-muted-foreground">
-                          {item}
-                        </li>
-                      ))}
+                  {telegramBenefits.map((item) => (
+                    <li key={item} className="text-muted-foreground">
+                      {item}
+                    </li>
+                  ))}
                 </ul>
               </div>
               <Button
@@ -744,8 +849,8 @@ export default function TenantProfilePage() {
           <CardDescription>
             {oauthProvider && !hasPassword
               ? language === "th"
-                ? `คุณ login ด้วย ${oauthProvider === "google" ? "Google" : "Telegram"} — ตั้งรหัสผ่านเพื่อให้ login ด้วย username ได้ด้วย (ไม่บังคับ)`
-                : `You signed in with ${oauthProvider === "google" ? "Google" : "Telegram"} — set a password to also login with username (optional)`
+                ? `คุณ login ด้วย ${oauthProviderLabel} — ตั้งรหัสผ่านเพื่อให้ login ด้วย username ได้ด้วย (ไม่บังคับ)`
+                : `You signed in with ${oauthProviderLabel} — set a password to also login with username (optional)`
               : language === "th"
                 ? "ควรใช้รหัสผ่านที่คาดเดาได้ยาก"
                 : "Use a strong password that is hard to guess"}
@@ -756,6 +861,7 @@ export default function TenantProfilePage() {
             onSubmit={
               hasPassword ? handlePasswordSubmit : handleSetPasswordSubmit
             }
+            noValidate
           >
             <FieldGroup>
               {/* แสดงช่องรหัสเดิมเฉพาะ user ที่มีรหัสผ่านแล้ว */}
@@ -854,6 +960,13 @@ export default function TenantProfilePage() {
                         {strengthLabel}
                       </span>
                     </p>
+                    {!isPasswordStrongEnough(passwords.newPassword) && (
+                      <p className="text-xs text-muted-foreground">
+                        {language === "th"
+                          ? "ต้องมีอย่างน้อย 6 ตัวอักษร และมีทั้งตัวอักษรและตัวเลข"
+                          : "Must be at least 6 characters with both letters and numbers"}
+                      </p>
+                    )}
                   </div>
                 )}
               </Field>
@@ -921,7 +1034,8 @@ export default function TenantProfilePage() {
                   (hasPassword && !passwords.currentPassword) ||
                   !passwords.newPassword ||
                   !passwords.confirmPassword ||
-                  passwords.newPassword !== passwords.confirmPassword
+                  passwords.newPassword !== passwords.confirmPassword ||
+                  !isPasswordStrongEnough(passwords.newPassword)
                 }
                 className="w-full sm:w-auto"
                 variant="outline"

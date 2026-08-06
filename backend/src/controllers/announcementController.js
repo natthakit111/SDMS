@@ -32,8 +32,6 @@ const getAll = async (req, res, next) => {
   try {
     const isAdmin = req.user.role === 'admin'
     const audience = isAdmin ? undefined : 'tenant'
-    // Admins see everything regardless of floor; tenants only see
-    // announcements for "all floors" or their own floor.
     const tenantFloor = isAdmin ? null : await getTenantFloor(req.user.user_id)
 
     const items = await AnnouncementModel.findAll({

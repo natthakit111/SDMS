@@ -6,6 +6,22 @@
  * Telegram: GET /api/auth/telegram  (Login Widget page)
  *           GET /api/auth/telegram/callback  (widget redirects here)
  *
+ * ⚠️ SECURITY FIX (สำคัญ):
+ * เดิม callback ทั้งสองฝั่ง (Google/Telegram) redirect กลับ frontend พร้อม
+ * JWT เต็มๆ (session token อายุ 1 วัน) ฝังใน query string ตรงๆ
+ * (?token=eyJhbGci...) ซึ่งเสี่ยงหลุดผ่าน:
+ *   - Browser history (ใครก็ตามที่เข้าถึงเครื่อง/ประวัติได้ คัดลอกไป
+ *     login แทนได้เลย)
+ *   - Server / proxy access log (เห็นตัวอย่างจริงว่า token โผล่ในเทอร์มินัล
+ *     log ตรงๆ ระหว่าง dev — ถ้า deploy จริงจะไปอยู่ใน log service ตลอดอายุ
+ *     retention)
+ *   - Referer header (ถ้าหน้า callback โหลด resource จากภายนอก)
+ *
+ * แก้โดยเปลี่ยนมาส่ง "exchange code" แบบ opaque, สุ่ม, ใช้ได้ครั้งเดียว,
+ * อายุแค่ 60 วินาที แทน แล้วให้ frontend ยิง POST ไป exchange เป็น JWT จริง
+ * ทันที (ได้ JWT กลับทาง JSON response body เท่านั้น ไม่ผ่าน URL อีกเลย)
+ * ดู models/oauthCode.model.js สำหรับรายละเอียด flow เต็ม
+ *
  * Install:
  *   npm install passport passport-google-oauth20
  *   (ไม่ต้องใช้ passport-telegram แล้ว — verify เองด้วย HMAC)
@@ -26,19 +42,16 @@ const crypto   = require('crypto');
 const jwt      = require('jsonwebtoken');
 const router   = express.Router();
 const { pool } = require('../config/db');
+const OAuthCodeModel = require('../models/oauthCode.model');
+const { sendSuccess, sendBadRequest } = require('../utils/response');
+// ⚠️ ใช้ signToken + setAuthCookies ตัวเดียวกับ authController.js เสมอ —
+// ห้ามเขียน logic sign JWT / set cookie ซ้ำอีกที่ ไม่งั้นถ้าแก้ค่า (เช่น
+// เพิ่ม csrf claim, เปลี่ยน sameSite) ทีหลังแล้วลืมแก้ให้ครบทุกจุด จะมี
+// behavior ไม่ตรงกันระหว่าง regular login กับ OAuth login
+const { signToken, setAuthCookies } = require('../controllers/authController');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const BACKEND_URL  = process.env.BACKEND_URL  || 'http://localhost:5000/api';
-
-/* ─────────────────────────────────────────
-   Helper: sign JWT
-───────────────────────────────────────── */
-const signToken = (user) =>
-  jwt.sign(
-    { user_id: user.user_id, username: user.username, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: '1d' }
-  );
 
 /* ─────────────────────────────────────────
    Helper: upsert OAuth user
@@ -124,6 +137,44 @@ async function upsertOAuthUser({ provider, providerId, email, displayName }) {
 }
 
 /* ═════════════════════════════════════════
+   OAUTH EXCHANGE — endpoint กลาง ใช้ร่วมกันทั้ง Google/Telegram
+   Frontend เรียกทันทีหลังถูก redirect กลับมาพร้อม ?code=xxx
+═════════════════════════════════════════ */
+router.post('/oauth/exchange', async (req, res, next) => {
+  try {
+    const { code } = req.body;
+    if (!code) return sendBadRequest(res, 'Missing exchange code');
+
+    const userId = await OAuthCodeModel.consumeCode(code);
+    if (!userId) return sendBadRequest(res, 'Code ไม่ถูกต้องหรือหมดอายุ กรุณาเข้าสู่ระบบใหม่');
+
+    const [rows] = await pool.query('SELECT * FROM users WHERE user_id = ? LIMIT 1', [userId]);
+    const user = rows[0];
+    if (!user || !user.is_active) return sendBadRequest(res, 'บัญชีนี้ถูกปิดการใช้งาน');
+
+    const { token, csrfToken } = signToken(user);
+
+    // ⚠️ เดิมคืน `token` ทาง JSON body — ตัดออกแล้ว เปลี่ยนมา set httpOnly
+    // cookie เหมือนกับ regular login ใน authController.js แทน (ใช้ helper
+    // เดียวกัน ไม่เขียนซ้ำ) frontend จะได้ role จาก `user` ใน response
+    // เพื่อตัดสินใจ redirect เท่านั้น ไม่ต้องแตะ token เลย
+    setAuthCookies(res, token, csrfToken, false); // OAuth login ไม่มี "remember me" — ใช้ 1 วันเสมอ
+
+    return sendSuccess(res, {
+      user: {
+        user_id: user.user_id,
+        username: user.username,
+        role: user.role,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+        phone: user.phone,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+/* ═════════════════════════════════════════
    GOOGLE OAUTH
 ═════════════════════════════════════════ */
 passport.use(
@@ -155,11 +206,17 @@ router.get('/google',
 
 router.get('/google/callback',
   passport.authenticate('google', { session: false, failureRedirect: `${FRONTEND_URL}/login` }),
-  (req, res) => {
+  async (req, res) => {
     try {
-      const token = signToken(req.user);
-      res.redirect(`${FRONTEND_URL}/auth/google/callback?token=${token}`);
-    } catch {
+      // ⚠️ FIX: เดิม sign JWT เต็มแล้วฝังใน query ตรงๆ (?token=...)
+      // เปลี่ยนเป็นสร้าง exchange code สั้นๆ อายุ 60 วิ ใช้ครั้งเดียวแทน
+      const code = await OAuthCodeModel.createCode(req.user.user_id);
+      res.redirect(`${FRONTEND_URL}/auth/google/callback?code=${code}`);
+    } catch (err) {
+      // ⚠️ เดิม catch เฉยๆ ไม่ log อะไรเลย ทำให้ debug ไม่ได้ว่าพังเพราะอะไร
+      // เพิ่ม log ไว้ชั่วคราวเพื่อเห็นสาเหตุจริง (เช่น ตาราง
+      // oauth_exchange_codes ยังไม่ถูกสร้าง จาก migration ที่ยังไม่ได้รัน)
+      console.error('[OAuth] Failed to create exchange code:', err);
       res.redirect(`${FRONTEND_URL}/auth/google/callback?error=${encodeURIComponent('เกิดข้อผิดพลาด')}`);
     }
   }
@@ -251,8 +308,10 @@ router.get('/telegram/callback', async (req, res) => {
       [String(id), user.user_id]
     );
 
-    const token = signToken(user);
-    res.redirect(`${FRONTEND_URL}/auth/telegram/callback?token=${token}`);
+    // ⚠️ FIX: เดิม sign JWT เต็มแล้วฝังใน query ตรงๆ (?token=...) เหมือนฝั่ง
+    // Google — เปลี่ยนเป็น exchange code สั้นๆ อายุ 60 วิ ใช้ครั้งเดียวแทน
+    const code = await OAuthCodeModel.createCode(user.user_id);
+    res.redirect(`${FRONTEND_URL}/auth/telegram/callback?code=${code}`);
   } catch (err) {
     console.error('Telegram OAuth error:', err);
     res.redirect(

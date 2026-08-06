@@ -175,6 +175,24 @@ export default function RoomsPage() {
     }
   };;
 
+  const getRoomTypeLabel = (type: string) => {
+    // รองรับทั้งกรณีที่หลังบ้านเก็บเป็น "fan"/"aircon" หรือเก็บเป็นภาษาไทยเดิม
+    switch (type) {
+      case "fan":
+      case "ห้องพัดลม":
+      case "standard":
+        return t("rooms.fanRoom"); // จะได้ "ห้องพัดลม" หรือ "Fan Room" ตามภาษาที่เลือก
+
+      case "aircon":
+      case "ห้องแอร์":
+      case "deluxe":
+        return t("rooms.airConditionedRoom"); // จะได้ "ห้องแอร์" หรือ "Air-conditioned Room"
+
+      default:
+        return type;
+    }
+  };
+
   const handleEdit = (room: Room) => {
     setEditingRoom(room);
     setFormData({
@@ -297,14 +315,11 @@ export default function RoomsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="standard">
-                          {t("rooms.standard")}
+                        <SelectItem value="fan">
+                          {t("rooms.fanRoom")}
                         </SelectItem>
-                        <SelectItem value="deluxe">
-                          {t("rooms.deluxe")}
-                        </SelectItem>
-                        <SelectItem value="suite">
-                          {t("rooms.suite")}
+                        <SelectItem value="aircon">
+                          {t("rooms.airConditionedRoom")}
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -456,7 +471,7 @@ export default function RoomsPage() {
                       {room.room_number}
                     </TableCell>
                     <TableCell>{room.floor}</TableCell>
-                    <TableCell>{room.room_type}</TableCell>
+                    <TableCell>{getRoomTypeLabel(room.room_type)}</TableCell>
                     <TableCell>
                       {room.area_sqm
                         ? `${room.area_sqm} ${t("rooms.sqm")}`

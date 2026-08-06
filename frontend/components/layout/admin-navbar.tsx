@@ -1,3 +1,5 @@
+//admin-navbar.tsx
+
 "use client";
 
 import { useAuth } from "@/context/auth-context";
@@ -86,7 +88,11 @@ export function AdminNavbar() {
               new Date().toISOString(),
             );
             setUnreadCount(0);
-            router.push("/admin/notifications");
+            // เดิมชี้ไป /admin/notifications ซึ่งเป็นหน้าซ้ำซ้อนกับ
+            // /admin/announcements (ฟอร์มสร้างประกาศไม่ครบฟิลด์ + นอกขอบเขต
+            // เอกสารโปรเจกต์) — ลบหน้านั้นทิ้งแล้ว ให้กระดิ่งพาไปหน้าประกาศ
+            // จริงที่มีฟีเจอร์ครบแทน (floor targeting, urgent bypass, expiry)
+            router.push("/admin/announcements");
           }}
         >
           <Bell className="h-5 w-5" />

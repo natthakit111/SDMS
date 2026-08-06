@@ -21,6 +21,8 @@ const QRCode = require('qrcode');
 const { thaiDateBangkok } = require('../utils/dateHelper');
 const TelegramBot = require('node-telegram-bot-api');
 const { pool }    = require('../config/db');
+const UserModel = require('../models/user.model');
+const TelegramLinkTokenModel = require('../models/telegramLinkToken.model');
 
 // ── Bot singleton ─────────────────────────────────────────────
 let bot = null;
@@ -272,9 +274,6 @@ const sendBillReminder = async (bill) => {
 // ════════════════════════════════════════════════════════════════
 // 5. OVERDUE NOTICE  (sent by cron — bill is now overdue, decaying frequency)
 //    Muteable via notify_overdue
-//    NEW: เพิ่มปุ่มพาไปหน้าชำระเงิน + เปลี่ยนข้อความจาก "ติดต่อผู้ดูแล"
-//    เป็น "เข้าเว็บไซต์ชำระเงิน" ให้สอดคล้องกับระบบ self-service (ระบบนี้เป็น
-//    เว็บแอปพลิเคชัน ไม่ใช่ mobile app จึงไม่ใช้คำว่า "แอป" ในข้อความที่ผู้ใช้เห็น)
 // ════════════════════════════════════════════════════════════════
 const sendOverdueNotice = async (bill) => {
   if (!bill.telegram_chat_id) return;
@@ -304,7 +303,6 @@ const sendOverdueNotice = async (bill) => {
 
 // ════════════════════════════════════════════════════════════════
 // 6. MAINTENANCE STATUS UPDATE  (sent to tenant on status change)
-//    Muteable via notify_maintenance — ไม่มี action ต่อ ไม่ต้องมีปุ่ม
 // ════════════════════════════════════════════════════════════════
 const sendMaintenanceUpdate = async (request) => {
   if (!request.telegram_chat_id) return;
@@ -334,9 +332,6 @@ const sendMaintenanceUpdate = async (request) => {
 
 // ════════════════════════════════════════════════════════════════
 // 7. CONTRACT EXPIRED  (sent by cron — expireContractsJob)
-//    NOT muteable — administrative/legal notice
-//    ตั้งใจ "ติดต่อผู้ดูแล" ไว้เหมือนเดิม — ต่อสัญญาต้องคุยกับคนจริง
-//    (เอกสาร/เงื่อนไขใหม่) ไม่ใช่ action ที่กดเองบนเว็บไซต์ได้ จึงไม่ใส่ปุ่ม
 // ════════════════════════════════════════════════════════════════
 const sendContractExpired = async (contract) => {
   if (!contract.telegram_chat_id) return;
@@ -404,7 +399,6 @@ const notifyAdminNewMaintenance = async (request) => {
 
 // ════════════════════════════════════════════════════════════════
 // 10. BROADCAST ANNOUNCEMENT  (sent to all tenants with chat_id)
-//     Muteable via notify_announcement — ยกเว้น isUrgent=true bypass เสมอ
 // ════════════════════════════════════════════════════════════════
 const broadcastAnnouncement = async (title, content, targetAudience = 'all', targetFloor = null, isUrgent = false) => {
   const instance = getBot();
@@ -440,6 +434,40 @@ const broadcastAnnouncement = async (title, content, targetAudience = 'all', tar
   console.log(`[Telegram] Broadcast sent to ${users.length} tenant(s)${floorLabel}${isUrgent ? ' [URGENT — bypassed mute]' : ''}`);
 };
 
+// ════════════════════════════════════════════════════════════════
+// 11. CONFIRM TELEGRAM LINK  (called from telegram.routes.js POST /link)
+//     ตรวจ token → บันทึก chat_id ลง users → ลบ token → ส่งข้อความต้อนรับ
+//     ใช้ getBot()/sendMessage() ตัวเดียวกับฟังก์ชันอื่นในไฟล์นี้ แทนการ
+//     สร้าง TelegramBot instance ใหม่ซ้ำซ้อน
+// ════════════════════════════════════════════════════════════════
+const confirmLink = async (token, chatId, telegramUsername) => {
+  const record = await TelegramLinkTokenModel.findValid(token);
+  if (!record) return false;
+
+  const { user_id } = record;
+
+  await UserModel.updateTelegramChatId(user_id, String(chatId));
+  await TelegramLinkTokenModel.deleteToken(token);
+
+  const user = await UserModel.findById(user_id);
+  const displayName = telegramUsername || user?.username || 'ผู้เช่า';
+
+  const message = [
+    `✅ *เชื่อมต่อ Telegram สำเร็จ!*`,
+    ``,
+    `สวัสดี @${displayName}!`,
+    `คุณจะได้รับการแจ้งเตือนค่าเช่า บิล และข่าวสารจากหอพักผ่าน Telegram นี้`,
+    ``,
+    `พิมพ์ /status เพื่อดูสถานะบิลปัจจุบัน`,
+  ].join('\n');
+
+  // ข้อความต้อนรับเป็น nice-to-have — ถ้าส่งไม่สำเร็จไม่ควรทำให้ /link ทั้ง request fail
+  // sendMessage() จัดการ try/catch + log ให้อยู่แล้ว จึงไม่ต้อง wrap ซ้ำตรงนี้
+  await sendMessage(chatId, message, user_id, 'telegram_link_welcome');
+
+  return true;
+};
+
 module.exports = {
   sendBillNotification,
   sendPaymentConfirmation,
@@ -451,4 +479,5 @@ module.exports = {
   notifyAdminNewPayment,
   notifyAdminNewMaintenance,
   broadcastAnnouncement,
+  confirmLink,
 };

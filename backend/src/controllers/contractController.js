@@ -46,7 +46,7 @@ const createContract = async (req, res, next) => {
       return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง', errors.array())
     }
 
-    const { tenant_id, room_id, start_date, end_date, rent_amount, deposit_amount, note } = req.body
+    const { tenant_id, room_id, start_date, end_date, rent_amount, deposit_amount, note, tenant_id_card } = req.body                                                                                       
 
     const room = await RoomModel.findById(room_id)
     if (!room) { conn.release(); return sendNotFound(res, 'ไม่พบห้องพักนี้') }
@@ -68,25 +68,36 @@ const createContract = async (req, res, next) => {
 
     await conn.beginTransaction()
 
+    if (tenant_id_card && tenant_id_card.trim() && tenant_id_card.trim() !== tenant.id_card_number) {
+      const idCard = tenant_id_card.trim()
+      const conflict = await TenantModel.findIdCardConflictExcluding(idCard, tenant_id)
+      if (conflict) {
+        await conn.rollback()
+        conn.release()
+        return sendBadRequest(res, 'เลขประจำตัวประชาชนนี้ถูกใช้กับผู้เช่ารายอื่นแล้ว')
+      }
+      await TenantModel.update(tenant_id, { id_card_number: idCard }, conn)
+    }
+
     const contractId = await ContractModel.create({
       tenant_id, room_id, start_date, end_date,
       rent_amount: rent_amount || room.base_rent,
       deposit_amount: finalDeposit, note,
-    }, conn)                                    // ← ส่ง conn เข้าไป
+    }, conn)
 
-    await RoomModel.updateStatus(room_id, 'occupied', conn)   // ← ส่ง conn เข้าไป
+    await RoomModel.updateStatus(room_id, 'occupied', conn)
 
     if (finalDeposit > 0) {
       await DepositModel.create({
         contract_id: contractId,
         tenant_id,
         total_deposit: finalDeposit,
-      }, conn)                                  // ← ส่ง conn เข้าไป
+      }, conn)
     }
 
     await conn.commit()
 
-    const newContract = await ContractModel.findById(contractId)   // อ่านหลัง commit ผ่าน pool ปกติ
+    const newContract = await ContractModel.findById(contractId)
     return sendCreated(res, newContract, 'Contract created — tenant checked in successfully')
   } catch (err) {
     await conn.rollback()

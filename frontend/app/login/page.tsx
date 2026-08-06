@@ -59,6 +59,25 @@ const TelegramIcon = () => (
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
+// ⚠️ FIX: เดิม `router.push(decodeURIComponent(redirectTo))` เชื่อ query
+// param ตรงๆ — เข้า /login?redirect=https://evil-site.com แล้ว login สำเร็จ
+// จะโดนพาออกไปเว็บนอกทันที (open redirect) ต้องยอมรับเฉพาะ path ภายใน
+// ระบบเท่านั้น (ขึ้นต้นด้วย "/" เดี่ยว ไม่ใช่ "//" หรือ "/\" ซึ่งเบราว์เซอร์
+// บางตัวตีความเป็น protocol-relative URL ออกนอกโดเมนได้เหมือนกัน)
+function getSafeRedirect(raw: string | null): string | null {
+  if (!raw) return null;
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+  // ต้องขึ้นต้นด้วย "/" ตัวเดียว และห้ามเป็น "//" หรือ "/\" ตามด้วยอะไรก็ตาม
+  // (เบราว์เซอร์บางตัวมองว่าเป็น scheme-relative URL แล้ววิ่งออกโดเมนได้)
+  if (!/^\/(?!\/|\\)/.test(decoded)) return null;
+  return decoded;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
@@ -75,21 +94,21 @@ export default function LoginPage() {
     "google" | "telegram" | null
   >(null);
 
-
-  // ในตัว component
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    // ... เดิม ...
+    setIsLoading(true);
     const result = await login(username, password, rememberMe);
 
     if (result.success && result.user) {
-      // ถ้ามี redirect param ใช้ก่อน ไม่งั้น fallback ตาม role เหมือนเดิม
-      if (redirectTo) {
-        router.push(decodeURIComponent(redirectTo));
+      // ใช้ redirect param เฉพาะเมื่อเป็น path ภายในระบบเท่านั้น
+      // ไม่งั้น fallback ไปตาม role เหมือนเดิม
+      const safeRedirect = getSafeRedirect(redirectTo);
+      if (safeRedirect) {
+        router.push(safeRedirect);
       } else {
         router.push(result.user.role === "admin" ? "/admin" : "/tenant");
       }
@@ -197,7 +216,6 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} noValidate>
             <FieldGroup>
-              {/* 💡 จุดที่แก้ไข: เปลี่ยน Label และ Placeholder */}
               <Field>
                 <FieldLabel htmlFor="username">
                   {t("login.phoneOrEmail")}

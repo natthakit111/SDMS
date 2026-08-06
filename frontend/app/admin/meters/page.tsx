@@ -54,6 +54,7 @@ import { roomAPI } from "@/lib/api/room.api";
 import { utilityRateAPI } from "@/lib/api/utilityRate.api";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
+import { settingsAPI } from "@/lib/api/settings.api";
 
 // Month names are generated from t("month.N") inside the component
 
@@ -157,11 +158,7 @@ export default function MetersPage() {
         meterAPI.getAll(),
         roomAPI.getAll({ status: "occupied" }),
         utilityRateAPI.getCurrent(),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/settings`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        })
-          .then((r) => r.json())
-          .catch(() => ({ data: {} })),
+        settingsAPI.getAll().catch(() => ({ data: {} })),
       ]);
       setReadings(readRes?.data ?? readRes ?? []);
       setRooms(roomRes?.data ?? roomRes ?? []);
@@ -181,6 +178,7 @@ export default function MetersPage() {
       setLoading(false);
     }
   }, []);
+  
 
   useEffect(() => {
     fetchAll();

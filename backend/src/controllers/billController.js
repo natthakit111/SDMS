@@ -9,13 +9,14 @@ const { validationResult } = require('express-validator');
 const QRCode              = require('qrcode');
 const BillModel           = require('../models/bill.model');
 const ContractModel       = require('../models/contract.model');
-const { calculateBill, getDefaultDueDate } = require('../services/bill.service');
+const { calculateBill, getDefaultDueDate, getSetting } = require('../services/bill.service');
 const { generatePromptPayQR } = require('../services/qr.service');
 const TelegramService     = require('../services/telegram.service');
 const TenantModel         = require('../models/tenant.model');
 const { htmlToPdfBuffer } = require('../services/pdf.service');
 const { renderInvoiceHtml } = require('../services/invoiceTemplate');
 const { sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendError } = require('../utils/response');
+const SettingsModel = require('../models/settings.model');
 
 const getAllBills = async (req, res, next) => {
   try {
@@ -50,20 +51,39 @@ const getBillQR = async (req, res, next) => {
   try {
     const bill = await BillModel.findById(req.params.id);
     if (!bill) return sendNotFound(res, 'Bill not found');
+
+    // ⚠️ FIX: เดิมไม่มี ownership check — tenant คนไหนก็เรียกดู QR/เลขบัญชี
+    // ของบิลห้องอื่นได้ถ้ารู้ bill_id (IDOR)
+    if (req.user.role === 'tenant') {
+      const tenant = await TenantModel.findByUserId(req.user.user_id);
+      if (!tenant || tenant.tenant_id !== bill.tenant_id) return sendNotFound(res, 'Bill not found');
+    }
+
     if (bill.status === 'paid')      return sendBadRequest(res, 'This bill has already been paid');
     if (bill.status === 'cancelled') return sendBadRequest(res, 'This bill is cancelled');
 
     let qrPayload = bill.qr_payload;
     if (!qrPayload) {
-      const promptPayId = process.env.PROMPTPAY_ID;
+      // FIX: อ่านจาก dorm_settings แทน process.env — ให้ตรงกับ generateBill
+      // (เดิม fallback ไป env var ทำให้บิลเก่าพังถ้า admin ตั้งค่าผ่าน UI อย่างเดียว)
+      const promptPayId = await getSetting('promptpay_id');
       if (!promptPayId) return sendError(res, 'PromptPay ID not configured');
       qrPayload = generatePromptPayQR(promptPayId, bill.total_amount, bill.bill_id);
       await BillModel.updateQrPayload(bill.bill_id, qrPayload);
     }
+
+    // ข้อมูลธนาคาร — โชว์ใต้ QR สำหรับผู้เช่าที่โอนผ่านแอปธนาคารแทนสแกน
+    const bankInfo = await SettingsModel.getByKeys([
+      'bank_name', 'bank_account', 'bank_account_name',
+    ]);
+
     return sendSuccess(res, {
       bill_id: bill.bill_id, room_number: bill.room_number,
       tenant_name: bill.tenant_name, total_amount: bill.total_amount,
       due_date: bill.due_date, qr_payload: qrPayload,
+      bank_name: bankInfo.bank_name || null,
+      bank_account: bankInfo.bank_account || null,
+      bank_account_name: bankInfo.bank_account_name || null,
     });
   } catch (err) { next(err); }
 };
@@ -102,10 +122,18 @@ const generateBill = async (req, res, next) => {
     }
 
     const due_date = customDueDate || getDefaultDueDate(parseInt(month), parseInt(year));
-    const promptPayId = process.env.PROMPTPAY_ID;
+    const promptPayId = await getSetting('promptpay_id');
     let qrPayload = null;
     if (promptPayId) {
-      try { qrPayload = generatePromptPayQR(promptPayId, amounts.total_amount); } catch (_) {}
+      try {
+        qrPayload = generatePromptPayQR(promptPayId, amounts.total_amount);
+      } catch (qrErr) {
+        // ไม่ throw ต่อ — บิลยังสร้างได้แม้ QR พัง (เช่น promptpay_id
+        // format ผิดที่หลุดผ่าน validation มาได้) แต่ log ไว้เพื่อตรวจสอบ
+        console.error('[Bill] Failed to generate PromptPay QR:', qrErr.message);
+      }
+    } else {
+      console.warn('[Bill] promptpay_id not configured in dorm_settings — bill created without QR');
     }
 
     const billId = await BillModel.create({

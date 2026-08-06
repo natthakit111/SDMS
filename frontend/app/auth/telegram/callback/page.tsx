@@ -1,3 +1,5 @@
+//app/auth/telegram/callback/page.tsx
+
 "use client";
 
 export const dynamic = "force-dynamic";
@@ -14,20 +16,28 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import Link from "next/link";
+import api from "@/lib/api/axiosInstance";
+import { useAuth } from "@/context/auth-context";
 
 /**
- * /auth/telegram/callback?token=<JWT>
+ * /auth/telegram/callback?code=<short-lived exchange code>
  *
- * Backend (passport-telegram) redirects here after user authorizes via Telegram.
- * Same flow as Google callback — stores JWT and redirects by role.
+ * ⚠️ SECURITY FIX (เหมือนกับ /auth/google/callback):
+ * เดิมหน้านี้รับ JWT เต็มๆ ตรงๆ จาก query param (?token=...) แล้วเก็บลง
+ * localStorage ทันที — เปลี่ยนมารับแค่ opaque exchange code แบบสุ่ม
+ * ใช้ได้ครั้งเดียว อายุ 60 วิ แล้วยิง POST /api/auth/oauth/exchange
+ * ทันทีเพื่อแลกเป็น session จริง backend จะ set httpOnly cookie ให้เอง
+ * ผ่าน response header (ไม่ผ่าน URL อีกเลย) frontend ไม่ต้องแตะ token
+ * โดยตรงอีกต่อไป — ใช้แค่ `user.role` จาก response เพื่อ redirect เท่านั้น
  */
 function TelegramCallbackInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = searchParams.get("token");
+    const code = searchParams.get("code");
     const err = searchParams.get("error");
 
     if (err) {
@@ -35,20 +45,41 @@ function TelegramCallbackInner() {
       return;
     }
 
-    if (!token) {
-      setError("ไม่ได้รับ token จาก Telegram");
+    if (!code) {
+      setError("ไม่ได้รับ code จาก Telegram");
       return;
     }
 
-    localStorage.setItem("token", token);
+    let cancelled = false;
 
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      const role: string = payload.role ?? "tenant";
-      router.replace(role === "admin" ? "/admin" : "/tenant");
-    } catch {
-      router.replace("/tenant");
-    }
+    (async () => {
+      try {
+        const res = await api.post("/auth/oauth/exchange", { code });
+        const { user } = res.data?.data ?? {};
+
+        if (cancelled) return;
+
+        if (!user) {
+          setError("แลก session ไม่สำเร็จ กรุณาลองเข้าสู่ระบบใหม่");
+          return;
+        }
+
+        // ⚠️ สำคัญ: เหมือน Google callback — ต้อง refreshUser() ก่อน
+        // redirect เสมอ ไม่งั้น AuthProvider จะยังเห็น user เป็น null
+        await refreshUser();
+        router.replace(user.role === "admin" ? "/admin" : "/tenant");
+      } catch (e: any) {
+        if (cancelled) return;
+        setError(
+          e?.response?.data?.message ??
+            "Code ไม่ถูกต้องหรือหมดอายุ กรุณาเข้าสู่ระบบใหม่",
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [searchParams, router]);
 
   if (error) {

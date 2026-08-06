@@ -1,3 +1,5 @@
+//tenant-navbar.tsx
+
 "use client";
 
 import { useAuth } from "@/context/auth-context";

@@ -11,11 +11,12 @@ const {
   sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden,
 } = require('../utils/response');
 
+const PLACEHOLDER_ID_CARD_REGEX = /^REG\d{9}$/;
+
 // GET /api/tenants  — admin: list all (with optional ?search=)
 const getAllTenants = async (req, res, next) => {
   try {
     const { search, inactive } = req.query;
-    // inactive=true → ดูผู้เช่าเก่าที่ถูกลบ, ค่าเริ่มต้น → ผู้เช่าปัจจุบัน
     const isActive = inactive === 'true' ? false : true;
     const tenants = await TenantModel.findAll({ search: search || null, isActive });
     return sendSuccess(res, tenants);
@@ -40,7 +41,8 @@ const getTenantById = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// POST /api/tenants  — admin only: creates user + tenant in one transaction
+// POST /api/tenants  — admin only: creates user + tenant, OR upgrades an
+// existing self-registered (placeholder) account if phone OR email already matches
 const createTenant = async (req, res, next) => {
   const conn = await pool.getConnection();
   try {
@@ -48,38 +50,84 @@ const createTenant = async (req, res, next) => {
     if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
 
     const {
-      username, password, first_name, last_name,
+      password, first_name, last_name,
       id_card_number, phone, email,
       emergency_contact_name, emergency_contact_phone,
     } = req.body;
 
+    // username ไม่รับจาก client อีกต่อไป — ใช้เบอร์โทรเสมอ ให้สอดคล้องกับ
+    // flow self-register ใน authController.register
+    const username = phone;
+
+    // ── ขั้นที่ 1: หา record ที่ผูกกับเบอร์นี้ "หรือ" อีเมลนี้อยู่แล้ว ──
+    const matches = await TenantModel.findMatchesByPhoneOrEmail(phone, email);
+
+    let existingTenant = null;
+
+    if (matches.length > 1) {
+      const distinctTenantIds = new Set(matches.map(m => m.tenant_id));
+      if (distinctTenantIds.size > 1) {
+        return sendBadRequest(res, 'PHONE_EMAIL_CONFLICT_DIFFERENT_TENANTS');
+      }
+      existingTenant = matches[0];
+    } else if (matches.length === 1) {
+      existingTenant = matches[0];
+    }
+
+    // ── ขั้นที่ 2: ถ้าเจอ record เดิม เช็คว่าเป็น "สมัครเองแบบข้อมูลไม่ครบ" หรือของจริง ──
+    if (existingTenant) {
+      const isPlaceholder = PLACEHOLDER_ID_CARD_REGEX.test(existingTenant.id_card_number);
+
+      if (!isPlaceholder) {
+        const conflictField = existingTenant.phone === phone ? 'phone' : 'email';
+        return sendBadRequest(
+          res,
+          conflictField === 'phone' ? 'PHONE_ALREADY_REGISTERED' : 'EMAIL_ALREADY_REGISTERED'
+        );
+      }
+
+      const idCardConflict = await TenantModel.findIdCardConflictExcluding(id_card_number, existingTenant.tenant_id);
+      if (idCardConflict) {
+        return sendBadRequest(res, 'ID_CARD_ALREADY_REGISTERED');
+      }
+
+      // ── อัปเกรด record เดิม แทนการสร้างใหม่ — user_id คงเดิม ──
+      await conn.beginTransaction();
+      await TenantModel.upgradeSelfRegistered(conn, existingTenant.tenant_id, existingTenant.user_id, {
+        first_name, last_name, id_card_number, phone, email,
+        emergency_contact_name, emergency_contact_phone,
+      });
+      await conn.commit();
+
+      return sendCreated(res, {
+        tenant_id: existingTenant.tenant_id,
+        user_id: existingTenant.user_id,
+        username: existingTenant.username,
+        full_name: `${first_name} ${last_name}`,
+        upgraded_from_self_registration: true,
+      }, 'Existing self-registered account upgraded with full tenant info');
+    }
+
+    // ── ขั้นที่ 3: ไม่มี record เดิมผูกกับเบอร์/อีเมลนี้เลย — สร้างใหม่ตามปกติ ──
     if (await UserModel.findByUsername(username))
-      return sendBadRequest(res, 'Username is already taken');
+      return sendBadRequest(res, 'PHONE_ALREADY_REGISTERED'); // username ชนกัน = เบอร์นี้มี user อยู่แล้ว
     if (await TenantModel.findByIdCard(id_card_number))
-      return sendBadRequest(res, 'ID card number is already registered');
+      return sendBadRequest(res, 'ID_CARD_ALREADY_REGISTERED');
 
     await conn.beginTransaction();
 
     const salt = await bcrypt.genSalt(12);
     const password_hash = await bcrypt.hash(password, salt);
-    const [userResult] = await conn.query(
-      'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
-      [username, password_hash, 'tenant']
-    );
-    const userId = userResult.insertId;
+    const userId = await UserModel.createUser({ username, password_hash, role: 'tenant' });
 
-    const [tenantResult] = await conn.query(
-      `INSERT INTO tenants
-         (user_id, first_name, last_name, id_card_number, phone, email,
-          emergency_contact_name, emergency_contact_phone)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [userId, first_name, last_name, id_card_number, phone,
-       email || null, emergency_contact_name || null, emergency_contact_phone || null]
-    );
+    const tenantId = await TenantModel.createFull(conn, userId, {
+      first_name, last_name, id_card_number, phone, email,
+      emergency_contact_name, emergency_contact_phone,
+    });
 
     await conn.commit();
     return sendCreated(res, {
-      tenant_id: tenantResult.insertId,
+      tenant_id: tenantId,
       user_id:   userId,
       username,
       full_name: `${first_name} ${last_name}`,
@@ -104,7 +152,6 @@ const updateTenant = async (req, res, next) => {
     if (req.user.role === 'tenant' && tenant.user_id !== req.user.user_id)
       return sendForbidden(res, 'You can only edit your own profile');
 
-    // FIX: correct method name is 'update', not 'updateTenant'
     await TenantModel.update(req.params.id, req.body);
     const updated = await TenantModel.findById(req.params.id);
     return sendSuccess(res, updated, 'Tenant profile updated');

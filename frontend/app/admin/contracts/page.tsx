@@ -1,4 +1,4 @@
-//rooms/page.tsx -> contracts/page.tsx
+//contracts/page.tsx
 
 "use client";
 
@@ -162,6 +162,12 @@ function toISODate(d: Date) {
   ).padStart(2, "0")}`;
 }
 
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
 function DatePickerField({
   id,
   value,
@@ -169,7 +175,6 @@ function DatePickerField({
   language,
   required,
   placeholder,
-  dropDirection = "down",
 }: {
   id?: string;
   value: string;
@@ -177,30 +182,15 @@ function DatePickerField({
   language: string;
   required?: boolean;
   placeholder?: string;
-  dropDirection?: "up" | "down";
 }) {
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState<Date>(
     value ? new Date(value + "T00:00:00") : new Date(),
   );
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (value) setViewDate(new Date(value + "T00:00:00"));
   }, [value]);
-
-  useEffect(() => {
-    const onClickOutside = (e: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-    if (open) document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
 
   const months = language === "th" ? MONTHS_TH : MONTHS_EN;
   const days = language === "th" ? DAYS_TH : DAYS_EN;
@@ -234,109 +224,102 @@ function DatePickerField({
 
   const label = value
     ? new Date(value + "T00:00:00").toLocaleDateString(
-        language === "th" ? "th-TH" : "en-US",
-        { year: "numeric", month: "short", day: "numeric" },
-      )
+      language === "th" ? "th-TH" : "en-US",
+      { year: "numeric", month: "short", day: "numeric" },
+    )
     : (placeholder ?? (language === "th" ? "เลือกวันที่" : "Select date"));
 
   return (
-    <div className="relative" ref={containerRef}>
-      <button
-        id={id}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus:ring-2 focus:ring-ring/50"
-      >
-        <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className={value ? "" : "text-muted-foreground"}>{label}</span>
-      </button>
+    <Popover open={open} onOpenChange={setOpen} modal={true}>
+      <PopoverTrigger asChild>
+        <button
+          id={id}
+          type="button"
+          className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus:ring-2 focus:ring-ring/50"
+        >
+          <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className={value ? "" : "text-muted-foreground"}>{label}</span>
+        </button>
+      </PopoverTrigger>
 
-      {/* hidden input keeps native `required` form validation working */}
       {required && (
         <input
           tabIndex={-1}
           value={value}
           required
-          onChange={() => {}}
+          onChange={() => { }}
           className="sr-only"
         />
       )}
 
-      {open && (
-        <div className={`absolute left-0 z-[100] w-64 rounded-md border bg-popover p-3 text-popover-foreground shadow-lg ${dropDirection === "up"
-              ? "bottom-full mb-2"
-              : "top-full mt-1" // ← เปลี่ยนให้เด้งลงล่างเป็นหลัก
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <button
-              type="button"
-              className="p-1 rounded hover:bg-muted"
-              onClick={() => setViewDate(new Date(year, month - 1, 1))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="text-sm font-medium">
-              {months[month]} {displayYear}
-            </span>
-            <button
-              type="button"
-              className="p-1 rounded hover:bg-muted"
-              onClick={() => setViewDate(new Date(year, month + 1, 1))}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-7 gap-1 mb-1 text-center text-xs text-muted-foreground">
-            {days.map((d) => (
-              <div key={d}>{d}</div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-1">
-            {cells.map((day, idx) =>
-              day === null ? (
-                <div key={idx} />
-              ) : (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    onChange(toISODate(new Date(year, month, day)));
-                    setOpen(false);
-                  }}
-                  className={`h-8 w-8 rounded-md text-sm hover:bg-muted transition-colors ${
-                    isSelected(day)
-                      ? "bg-primary text-primary-foreground hover:bg-primary"
-                      : isToday(day)
-                        ? "border border-primary"
-                        : ""
-                  }`}
-                >
-                  {day}
-                </button>
-              ),
-            )}
-          </div>
-
-          <div className="mt-2 flex justify-end">
-            <button
-              type="button"
-              className="text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                const today = new Date();
-                setViewDate(today);
-                onChange(toISODate(today));
-                setOpen(false);
-              }}
-            >
-              {language === "th" ? "วันนี้" : "Today"}
-            </button>
-          </div>
+      <PopoverContent className="w-64 p-3" align="start">
+        <div className="flex items-center justify-between mb-2">
+          <button
+            type="button"
+            className="p-1 rounded hover:bg-muted"
+            onClick={() => setViewDate(new Date(year, month - 1, 1))}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm font-medium">
+            {months[month]} {displayYear}
+          </span>
+          <button
+            type="button"
+            className="p-1 rounded hover:bg-muted"
+            onClick={() => setViewDate(new Date(year, month + 1, 1))}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
-      )}
-    </div>
+
+        <div className="grid grid-cols-7 gap-1 mb-1 text-center text-xs text-muted-foreground">
+          {days.map((d) => (
+            <div key={d}>{d}</div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1">
+          {cells.map((day, idx) =>
+            day === null ? (
+              <div key={idx} />
+            ) : (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  onChange(toISODate(new Date(year, month, day)));
+                  setOpen(false);
+                }}
+                className={`h-8 w-8 rounded-md text-sm hover:bg-muted transition-colors ${isSelected(day)
+                    ? "bg-primary text-primary-foreground hover:bg-primary"
+                    : isToday(day)
+                      ? "border border-primary"
+                      : ""
+                  }`}
+              >
+                {day}
+              </button>
+            ),
+          )}
+        </div>
+
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              const today = new Date();
+              setViewDate(today);
+              onChange(toISODate(today));
+              setOpen(false);
+            }}
+          >
+            {language === "th" ? "วันนี้" : "Today"}
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -531,6 +514,7 @@ export default function ContractsPage() {
       const created = await contractAPI.create({
         tenant_id: parseInt(formData.tenant_id),
         room_id: parseInt(formData.room_id),
+        tenant_id_card: idCard,
         start_date: formData.start_date,
         end_date: formData.end_date,
         rent_amount: formData.rent_amount
@@ -681,7 +665,7 @@ export default function ContractsPage() {
   // ── Checkout ────────────────────────────────────────────────────────────
   const openCheckoutDialog = (contract: Contract) => {
     setCheckoutForm({
-      checkout_date: new Date().toISOString().slice(0, 10),
+      checkout_date: toISODate(new Date()), 
     });
     setCheckingOutContract(contract);
   };

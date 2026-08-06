@@ -1,3 +1,5 @@
+//context/auth-context.tsx
+
 "use client";
 
 import {
@@ -34,10 +36,17 @@ interface AuthContextType {
   register: (
     data: RegisterData,
   ) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  // ⚠️ ใหม่: ให้หน้า OAuth callback (Google/Telegram) เรียกหลัง exchange
+  // code สำเร็จ เพื่อ sync `user` state เข้า context — จำเป็นเพราะหน้า
+  // callback เรียก exchange ผ่าน axios ตรงๆ ไม่ผ่าน context เลย และ
+  // AuthProvider ไม่ได้ remount ใหม่ตอน router.replace() (Next.js App
+  // Router คง provider เดิมไว้ทั้งแอป) ถ้าไม่เรียกตัวนี้ `user` จะค้าง
+  // เป็น null ต่อไป ทำให้ route guard ของหน้า /admin, /tenant เข้าใจผิด
+  // ว่ายังไม่ login แล้วเด้งกลับ /login ทันที
+  refreshUser: () => Promise<User | null>;
 }
 
-// 💡 แก้ไขตรงนี้: ลบ username ออก เพราะหน้า register ไม่ได้ส่งมาแล้ว
 interface RegisterData {
   password: string;
   name?: string;
@@ -60,55 +69,55 @@ const mapUser = (backendUser: any): User => ({
   telegramId: backendUser.telegram_chat_id,
 });
 
+// ⚠️ SECURITY MIGRATION (localStorage → httpOnly cookie):
+// เดิม auth-context เช็ค localStorage.getItem("token") เพื่อรู้ว่ามี
+// session อยู่ไหม (ทั้งตอน init และก่อนยิง /auth/me) — ตอนนี้ token จริง
+// อยู่ใน httpOnly cookie ที่ JS อ่านไม่ได้แล้ว จึงใช้ `auth_hint` cookie
+// (ไม่มีข้อมูลอ่อนไหว แค่บอกว่า "น่าจะมี session") เป็นตัวเช็คแทน เพื่อ
+// เลี่ยงการยิง /auth/me โดยไม่จำเป็นตอนเป็น anonymous visitor เฉยๆ
+// (เช่น คนที่ยังไม่เคย login เลยเข้าหน้า /login) — เป็นแค่ optimization
+// ไม่ใช่กลไกความปลอดภัย เพราะต่อให้เดา/ปลอมคุกกี้นี้ได้ ก็ยังต้องผ่าน
+// jwt.verify() ที่ auth.middleware.js ฝั่ง backend อยู่ดี
+const hasSessionHint = () =>
+  typeof document !== "undefined" && document.cookie.includes("auth_hint=1");
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
+  // ดึงข้อมูล user ปัจจุบันจาก /auth/me แล้ว sync เข้า state — ใช้ทั้งตอน
+  // init ครั้งแรก และตอน OAuth callback เรียกหลัง exchange สำเร็จ
+  const refreshUser = async (): Promise<User | null> => {
+    try {
+      const res = await api.get("/auth/me");
+      const backendUser = res.data.data ?? res.data.user ?? res.data;
+      const mappedUser = mapUser(backendUser);
+      setUser(mappedUser);
+      return mappedUser;
+    } catch {
+      setUser(null);
+      return null;
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
-      // ── ตรวจ OAuth token จาก URL query param (?token=...) ──
-      // Google/Telegram callback จะแนบ token มาใน URL
-      if (typeof window !== "undefined") {
-        const params = new URLSearchParams(window.location.search);
-        const urlToken = params.get("token");
-
-        if (urlToken) {
-          localStorage.setItem("token", urlToken);
-
-          // ลบ token ออกจาก URL โดยไม่ reload
-          const cleanUrl = window.location.pathname;
-          window.history.replaceState({}, "", cleanUrl);
-        }
+      // ⚠️ เดิมมี logic parse ?token=... จาก URL ตรงนี้ (สำหรับ OAuth
+      // callback) — ตัดออกทั้งหมดแล้ว เพราะตอนนี้หน้า
+      // /auth/google/callback และ /auth/telegram/callback แลก code
+      // เป็น session ของตัวเองโดยตรงผ่าน POST /auth/oauth/exchange
+      // (ซึ่ง backend set httpOnly cookie ให้เรียบร้อยตั้งแต่ตอนนั้น)
+      // แล้วเรียก refreshUser() ของตัวเองก่อน redirect ไป /admin หรือ
+      // /tenant เลย ไม่ต้องพึ่ง auth-context ตรงนี้จัดการ token จาก URL
+      // อีกต่อไป
+      if (!hasSessionHint()) {
+        setUser(null);
+        setIsLoading(false);
+        return;
       }
 
-      // ── โหลด user จาก token ที่มีอยู่ (เดิม หรือจาก URL) ──
-      const token = localStorage.getItem("token");
-      if (token) {
-        try {
-          const res = await api.get("/auth/me");
-          const backendUser = res.data.data ?? res.data.user ?? res.data;
-          const mappedUser = mapUser(backendUser);
-          setUser(mappedUser);
-
-          // ถ้าอยู่ที่หน้า callback ให้ redirect ไป dashboard เลย
-          if (typeof window !== "undefined") {
-            const path = window.location.pathname;
-            if (
-              path.includes("/auth/google/callback") ||
-              path.includes("/auth/telegram/callback")
-            ) {
-              router.replace(
-                mappedUser.role === "admin" ? "/admin" : "/tenant",
-              );
-            }
-          }
-        } catch {
-          localStorage.removeItem("token");
-          setUser(null);
-        }
-      }
-
+      await refreshUser();
       setIsLoading(false);
     };
 
@@ -127,25 +136,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         rememberMe,
       });
 
-      const payload = res.data.data;
-      const token = payload?.token;
-      const backendUser = payload?.user;
+      // ⚠️ เดิมอ่าน payload.token แล้วเก็บ localStorage เอง — ตัดออกแล้ว
+      // backend set httpOnly cookie ให้เองผ่าน response header (Set-Cookie)
+      // ของ request นี้โดยตรง ไม่ต้องทำอะไรกับ token ฝั่ง client เลย
+      const backendUser = res.data.data?.user;
 
-      if (!token) {
-        return { success: false, error: "ไม่ได้รับ token จาก server" };
+      if (!backendUser) {
+        return { success: false, error: "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่" };
       }
 
-      localStorage.setItem("token", token);
-
-      let mappedUser: User;
-      if (backendUser) {
-        mappedUser = mapUser(backendUser);
-      } else {
-        const meRes = await api.get("/auth/me");
-        const meUser = meRes.data.data ?? meRes.data.user ?? meRes.data;
-        mappedUser = mapUser(meUser);
-      }
-
+      const mappedUser = mapUser(backendUser);
       setUser(mappedUser);
       return { success: true, user: mappedUser };
     } catch (err: any) {
@@ -172,13 +172,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    setUser(null);
+  // ⚠️ เดิม logout() เป็น sync — แค่ localStorage.removeItem แล้วจบ
+  // ตอนนี้ต้องเป็น async และเรียก backend เสมอ เพราะ cookie `token` เป็น
+  // httpOnly ลบเองจาก JS ไม่ได้อีกต่อไป ต้องให้ backend สั่ง clearCookie
+  // ให้เท่านั้น (ดู POST /auth/logout ใน auth.routes.js)
+  const logout = async () => {
+    try {
+      await api.post("/auth/logout");
+    } catch {
+      // ต่อให้ request ล้มเหลว (เช่น เน็ตหลุด) ก็ยัง clear state ฝั่ง
+      // client ต่อไปตามปกติ — cookie อาจค้างอยู่ฝั่ง browser แต่ไม่กระทบ
+      // ผู้ใช้เพราะ UI แสดงว่า logout แล้ว และ token จะหมดอายุเองตามเวลา
+    } finally {
+      setUser(null);
+      router.push("/login");
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, login, register, logout, refreshUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

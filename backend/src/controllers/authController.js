@@ -1,5 +1,17 @@
 /**
  * controllers/authController.js
+ *
+ * ⚠️ SECURITY MIGRATION (localStorage → httpOnly cookie):
+ * เดิม login() คืน { token, user } ทาง JSON body แล้วให้ frontend เก็บ
+ * token เองใน localStorage — เปลี่ยนมาให้ backend เป็นคน set httpOnly
+ * cookie ตรงนี้แทน เพื่อไม่ให้ JS ฝั่ง frontend แตะ token ได้เลย
+ *
+ * ตั้งคุกกี้คู่กันเสมอ 2 ตัว (ดู setAuthCookies ด้านล่าง):
+ *   - `token`      → httpOnly, เก็บ JWT จริง (JS แตะไม่ได้)
+ *   - `auth_hint`  → ไม่ใช่ httpOnly, เก็บแค่ "1" ไม่มีข้อมูลอ่อนไหว
+ *                    มีไว้ให้ frontend เช็คได้ว่ามี session อยู่ไหม
+ *                    (ดู axiosInstance.js ฝั่ง frontend ที่ใช้ค่านี้
+ *                    ตัดสินใจว่าจะ force logout ตอนโดน 401 หรือไม่)
  */
 
 const crypto = require('crypto');
@@ -8,17 +20,64 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const UserModel = require('../models/user.model');
+const TenantModel = require('../models/tenant.model');
 const { sendResetPasswordEmail } = require('../services/email.service');
 const {
   sendSuccess, sendCreated, sendBadRequest, sendUnauthorized,
 } = require('../utils/response');
 
+// ⚠️ frontend และ backend อยู่คนละโดเมนกันแน่ๆ ตอน production (เช่น
+// frontend บน Vercel, backend บน Railway/Render) ตั้ง COOKIE_CROSS_SITE=true
+// ใน .env ของ production เท่านั้น — local dev ปล่อยว่างไว้ (false)
+const CROSS_SITE = process.env.COOKIE_CROSS_SITE === 'true';
+
 const signToken = (user, rememberMe = false) => {
-  return jwt.sign(
-    { user_id: user.user_id, username: user.username, role: user.role },
+  // ⚠️ ใหม่: csrf claim — ใช้คู่กับ csrf_token cookie (ไม่ httpOnly) ทำ
+  // double-submit CSRF protection เพราะพอย้าย sameSite เป็น 'none'
+  // (จำเป็นเนื่องจาก frontend/backend คนละโดเมน) เกราะป้องกัน CSRF ที่
+  // sameSite เคยให้ฟรีๆ จะหายไปทันที ต้องมีกลไกอื่นมาแทน
+  const csrfToken = crypto.randomBytes(24).toString('hex');
+  const token = jwt.sign(
+    { user_id: user.user_id, username: user.username, role: user.role, csrf: csrfToken },
     process.env.JWT_SECRET,
     { expiresIn: rememberMe ? "7d" : "1d" }
   );
+  return { token, csrfToken };
+};
+
+/**
+ * ตั้งคุกกี้ 3 ตัวพร้อมกันเสมอ:
+ *   - token       → httpOnly, JWT จริง
+ *   - auth_hint   → readable, บอกแค่ "มี session อยู่ไหม"
+ *   - csrf_token  → readable, ใช้คู่กับ header X-CSRF-Token (double-submit)
+ *
+ * sameSite/secure ปรับตาม CROSS_SITE:
+ *   - โดเมนเดียวกัน (dev, หรือ deploy จริงแบบ subdomain เดียวกัน)
+ *     → sameSite: 'lax' พอ ไม่ต้อง secure ก็ได้ (ทดสอบผ่าน http ได้)
+ *   - คนละโดเมน (deploy จริงของโปรเจกต์นี้)
+ *     → ต้อง sameSite: 'none' + secure: true เท่านั้น (browser บังคับ
+ *       ว่า SameSite=None ต้องมาคู่กับ Secure เสมอ ไม่งั้น cookie ใช้ไม่ได้เลย)
+ */
+const setAuthCookies = (res, token, csrfToken, rememberMe = false) => {
+  const maxAge = (rememberMe ? 7 : 1) * 24 * 60 * 60 * 1000; // ต้องตรงกับ expiresIn ของ JWT
+
+  // ⚠️ FIX: เดิมมี `|| IS_PROD` fallback ตรงนี้ ซึ่งพัง เพราะเครื่อง dev
+  // บางเครื่องตั้ง NODE_ENV=production ไว้ด้วยเหตุผลอื่น (เช่น performance
+  // ของ Express) ทำให้ secure: true ถูกบังคับใช้อยู่ดีแม้ตั้งใจจะปิดตอน
+  // local — ต้องคุมด้วย COOKIE_SECURE ที่ตั้งเองตรงๆ เท่านั้น ไม่ผูกกับ
+  // NODE_ENV อีกต่อไป (default false ถ้าไม่ตั้งค่า — ใช้งานผ่าน http ได้)
+  const secure = CROSS_SITE ? true : (process.env.COOKIE_SECURE === 'true');
+  const sameSite = CROSS_SITE ? 'none' : 'lax';
+
+  res.cookie('token', token, { httpOnly: true, secure, sameSite, maxAge, path: '/' });
+  res.cookie('auth_hint', '1', { httpOnly: false, secure, sameSite, maxAge, path: '/' });
+  res.cookie('csrf_token', csrfToken, { httpOnly: false, secure, sameSite, maxAge, path: '/' });
+};
+
+const clearAuthCookies = (res) => {
+  res.clearCookie('token', { path: '/' });
+  res.clearCookie('auth_hint', { path: '/' });
+  res.clearCookie('csrf_token', { path: '/' });
 };
 
 const register = async (req, res, next) => {
@@ -26,60 +85,47 @@ const register = async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
 
-    // ลบ username ออกจากการรับค่า
     const { password, role = 'tenant', name, email, phone } = req.body;
-    
-    // ตั้งค่าให้ใช้เบอร์โทรศัพท์เป็น Username สำหรับบันทึกลงฐานข้อมูล
-    const autoUsername = phone; 
+    const autoUsername = phone;
 
     const existing = await UserModel.findByUsername(autoUsername);
     if (existing) return sendBadRequest(res, 'เบอร์โทรศัพท์นี้ถูกใช้สมัครสมาชิกไปแล้ว');
 
-    // แยก name → first_name / last_name
+    if (role === 'tenant') {
+      const conflict = await TenantModel.findConflictByPhoneOrEmail(phone, email);
+      if (conflict) {
+        const conflictField = conflict.phone === phone ? 'เบอร์โทรศัพท์' : 'อีเมล';
+        return sendBadRequest(
+          res,
+          `${conflictField}นี้มีบัญชีผู้เช่าอยู่ในระบบแล้ว กรุณาติดต่อผู้ดูแลหอพัก หรือใช้ "ลืมรหัสผ่าน" หากจำรหัสผ่านไม่ได้`
+        );
+      }
+    }
+
     const nameParts = (name || '').trim().split(' ');
-    // ถ้าไม่ได้กรอกชื่อมา ให้ใส่เป็นเบอร์โทรไปก่อน
-    const firstName = nameParts[0] || autoUsername; 
+    const firstName = nameParts[0] || autoUsername;
     const lastName  = nameParts.slice(1).join(' ') || '';
 
     const salt = await bcrypt.genSalt(12);
     const password_hash = await bcrypt.hash(password, salt);
 
-    // สร้าง user พร้อมบันทึก autoUsername
-    const { pool } = require('../config/db');
-    const [userResult] = await pool.query(
-      `INSERT INTO users (username, password_hash, role, first_name, last_name, email, phone, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-      [autoUsername, password_hash, role, firstName, lastName || null, email || null, phone || null]
-    );
-    const userId = userResult.insertId;
+    const userId = await UserModel.createUser({
+      username: autoUsername, password_hash, role,
+      first_name: firstName, last_name: lastName, email, phone,
+    });
 
-    // สร้าง tenant record อัตโนมัติ (ถ้า role = tenant)
     if (role === 'tenant') {
-      const placeholderIdCard = `REG${String(userId).padStart(9, '0')}`;
-      await pool.query(
-        `INSERT IGNORE INTO tenants
-           (user_id, first_name, last_name, id_card_number, phone, email)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          userId,
-          firstName,
-          lastName || 'ไม่ระบุ',
-          placeholderIdCard,
-          phone || '0000000000',
-          email || null,
-        ]
-      );
+      await TenantModel.createFromSelfRegistration({
+        userId, firstName, lastName, phone, email,
+      });
     }
 
-    // ส่งค่ากลับไปหาหน้าบ้าน
     return sendCreated(res, { user_id: userId, username: autoUsername, role }, 'Account registered successfully');
-  } catch (err) { 
-    // ดักจับข้อมูลซ้ำ แล้วส่งกลับเป็น Error Code
+  } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
-      return sendBadRequest(res, 'ERROR_DUPLICATE_ENTRY'); 
+      return sendBadRequest(res, 'ERROR_DUPLICATE_ENTRY');
     }
-    
-    next(err); 
+    next(err);
   }
 };
 
@@ -92,53 +138,50 @@ const login = async (req, res, next) => {
       return sendBadRequest(res, "กรุณากรอกข้อมูลเข้าสู่ระบบ");
     }
 
-    // ค้นหาผู้ใช้จาก username, email หรือ phone
-    const { pool } = require('../config/db');
-    const [users] = await pool.query(
-      `SELECT * FROM users WHERE username = ? OR email = ? OR phone = ? LIMIT 1`,
-      [identifier, identifier, identifier]
-    );
-    const user = users[0];
+    const user = await UserModel.findByIdentifier(identifier);
 
     if (!user) return sendUnauthorized(res, "ไม่พบข้อมูลเบอร์โทรศัพท์ อีเมล หรือชื่อผู้ใช้นี้");
     if (!user.is_active) return sendUnauthorized(res, "บัญชีนี้ถูกปิดการใช้งาน");
 
-    // OAuth user ที่ยังไม่มีรหัสผ่าน
     if (!user.password_hash) return sendUnauthorized(res, "บัญชีนี้ใช้การเข้าสู่ระบบด้วย Google หรือ Telegram");
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) return sendUnauthorized(res, "รหัสผ่านไม่ถูกต้อง");
 
-    const token = signToken(user, rememberMe);
-    
-    // เปลี่ยนให้ส่งข้อมูลกลับไปให้ครบถ้วน หน้าบ้านจะได้เอาไปแสดงผลถูก
-    return sendSuccess(res, { 
-      token, 
-      user: { 
-        user_id: user.user_id, 
-        username: user.username, 
+    const { token, csrfToken } = signToken(user, rememberMe);
+    setAuthCookies(res, token, csrfToken, rememberMe);
+
+    // ⚠️ เดิมคืน `token` ใน body ด้วย — ตัดออกแล้ว เพราะตอนนี้ JWT อยู่ใน
+    // httpOnly cookie เท่านั้น ไม่ควรมี copy ของ token ลอยอยู่ใน JSON
+    // response ให้ JS อ่านได้อีกทาง (จะกลายเป็นช่องโหว่แทรกซ้อนทันที)
+    return sendSuccess(res, {
+      user: {
+        user_id: user.user_id,
+        username: user.username,
         role: user.role,
-        first_name: user.first_name, // เพิ่มบรรทัดพวกนี้เข้าไป
+        first_name: user.first_name,
         last_name: user.last_name,
         email: user.email,
         phone: user.phone
-      } 
+      }
     });
+  } catch (err) { next(err); }
+};
+
+// ⚠️ ใหม่: logout ต้องผ่าน backend เสมอ เพราะ `token` เป็น httpOnly
+// JS ฝั่ง frontend แตะ/ลบเองไม่ได้อีกต่อไป
+const logout = async (req, res, next) => {
+  try {
+    clearAuthCookies(res);
+    return sendSuccess(res, null, 'ออกจากระบบสำเร็จ');
   } catch (err) { next(err); }
 };
 
 const getMe = async (req, res, next) => {
   try {
-    const { pool } = require('../config/db');
-    const [rows] = await pool.query(
-      `SELECT user_id, username, role, first_name, last_name, email, phone,
-              telegram_chat_id, oauth_provider,
-              CASE WHEN password_hash IS NOT NULL AND password_hash != '' THEN 1 ELSE 0 END AS has_password
-       FROM users WHERE user_id = ? LIMIT 1`,
-      [req.user.user_id]
-    );
-    if (!rows[0]) return sendUnauthorized(res, 'User no longer exists');
-    return sendSuccess(res, rows[0]);
+    const profile = await UserModel.getProfileById(req.user.user_id);
+    if (!profile) return sendUnauthorized(res, 'User no longer exists');
+    return sendSuccess(res, profile);
   } catch (err) { next(err); }
 };
 
@@ -148,55 +191,31 @@ const updateProfile = async (req, res, next) => {
     if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
 
     const { firstName, lastName, email, phone } = req.body;
-    const { pool } = require('../config/db');
 
-    await pool.query(
-      `UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ? WHERE user_id = ?`,
-      [firstName || null, lastName || null, email || null, phone || null, req.user.user_id]
-    );
+    await UserModel.updateProfileFields(req.user.user_id, { firstName, lastName, email, phone });
+    const profile = await UserModel.getProfileById(req.user.user_id);
 
-    const [rows] = await pool.query(
-      `SELECT user_id, username, role, first_name, last_name, email, phone,
-              telegram_chat_id, oauth_provider,
-              CASE WHEN password_hash IS NOT NULL AND password_hash != '' THEN 1 ELSE 0 END AS has_password
-       FROM users WHERE user_id = ?`,
-      [req.user.user_id]
-    );
-    return sendSuccess(res, rows[0], 'Profile updated successfully');
+    return sendSuccess(res, profile, 'Profile updated successfully');
   } catch (err) { next(err); }
 };
 
-// ─────────────────────────────────────────────
-// POST /api/auth/set-password
-// สำหรับ OAuth user ที่ต้องการตั้งรหัสผ่านครั้งแรก
-// ไม่ต้องใส่รหัสเดิม เพราะไม่มี
-// ─────────────────────────────────────────────
 const setPassword = async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
 
     const { newPassword } = req.body;
-    const { pool } = require('../config/db');
 
-    // ตรวจว่ามีรหัสผ่านอยู่แล้วไหม
-    const [rows] = await pool.query(
-      'SELECT password_hash FROM users WHERE user_id = ? LIMIT 1',
-      [req.user.user_id]
-    );
-    const user = rows[0];
-    if (!user) return sendUnauthorized(res, 'User not found');
+    const currentHash = await UserModel.getPasswordHash(req.user.user_id);
+    if (currentHash === null) return sendUnauthorized(res, 'User not found');
 
-    if (user.password_hash && user.password_hash !== '') {
+    if (currentHash && currentHash !== '') {
       return sendBadRequest(res, 'บัญชีนี้มีรหัสผ่านอยู่แล้ว กรุณาใช้ "เปลี่ยนรหัสผ่าน" แทน');
     }
 
     const salt = await bcrypt.genSalt(12);
     const newHash = await bcrypt.hash(newPassword, salt);
-    await pool.query(
-      'UPDATE users SET password_hash = ? WHERE user_id = ?',
-      [newHash, req.user.user_id]
-    );
+    await UserModel.setPasswordHash(req.user.user_id, newHash);
 
     return sendSuccess(res, null, 'ตั้งรหัสผ่านสำเร็จ');
   } catch (err) { next(err); }
@@ -208,22 +227,20 @@ const changePassword = async (req, res, next) => {
     if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
 
     const { currentPassword, newPassword } = req.body;
-    const { pool } = require('../config/db');
 
-    const [rows] = await pool.query('SELECT * FROM users WHERE user_id = ? LIMIT 1', [req.user.user_id]);
-    const user = rows[0];
-    if (!user) return sendUnauthorized(res, 'User not found');
+    const currentHash = await UserModel.getPasswordHash(req.user.user_id);
+    if (currentHash === null) return sendUnauthorized(res, 'User not found');
 
-    if (!user.password_hash || user.password_hash === '') {
+    if (!currentHash || currentHash === '') {
       return sendBadRequest(res, 'บัญชีนี้ยังไม่มีรหัสผ่าน กรุณาใช้ "ตั้งรหัสผ่าน" แทน');
     }
 
-    const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+    const isMatch = await bcrypt.compare(currentPassword, currentHash);
     if (!isMatch) return sendBadRequest(res, 'รหัสผ่านปัจจุบันไม่ถูกต้อง');
 
     const salt = await bcrypt.genSalt(12);
     const newHash = await bcrypt.hash(newPassword, salt);
-    await pool.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [newHash, req.user.user_id]);
+    await UserModel.setPasswordHash(req.user.user_id, newHash);
 
     return sendSuccess(res, null, 'เปลี่ยนรหัสผ่านสำเร็จ');
   } catch (err) { next(err); }
@@ -236,18 +253,10 @@ const forgotPassword = async (req, res, next) => {
 
     if (!identifier) return sendBadRequest(res, 'กรุณากรอกอีเมลหรือเบอร์โทรศัพท์');
 
-    // ค้นหาผู้ใช้จาก username, email หรือ phone
-    const { pool } = require('../config/db');
-    const [users] = await pool.query(
-      `SELECT * FROM users WHERE username = ? OR email = ? OR phone = ? LIMIT 1`,
-      [identifier, identifier, identifier]
-    );
-    const user = users[0];
+    const user = await UserModel.findByIdentifier(identifier);
 
-    // ข้อความแจ้งเตือนที่เป็นมาตรฐานความปลอดภัย (ไม่บอกแฮกเกอร์ว่ามีบัญชีนี้ในระบบจริงหรือไม่)
     if (!user) return sendSuccess(res, null, 'หากมีข้อมูลของคุณในระบบ เราจะส่งลิงก์รีเซ็ตรหัสผ่านไปให้ทางอีเมล');
-    
-    // ตรวจสอบว่าบัญชีนี้มีอีเมลให้ส่งไปหาหรือไม่
+
     if (!user.email) return sendBadRequest(res, 'บัญชีนี้ไม่มีอีเมลผูกอยู่ ไม่สามารถส่งลิงก์รีเซ็ตได้ กรุณาติดต่อผู้ดูแลหอพัก');
 
     const token     = crypto.randomBytes(32).toString('hex');
@@ -268,12 +277,15 @@ const resetPassword = async (req, res, next) => {
 
     const salt = await bcrypt.genSalt(12);
     const newHash = await bcrypt.hash(newPassword, salt);
-    const { pool } = require('../config/db');
-    await pool.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [newHash, record.user_id]);
+    await UserModel.setPasswordHash(record.user_id, newHash);
     await PasswordResetModel.deleteToken(token);
 
     return sendSuccess(res, null, 'เปลี่ยนรหัสผ่านสำเร็จ');
   } catch (err) { next(err); }
 };
 
-module.exports = { register, login, getMe, updateProfile, changePassword, setPassword, forgotPassword, resetPassword };
+module.exports = {
+  register, login, logout, getMe, updateProfile,
+  changePassword, setPassword, forgotPassword, resetPassword,
+  signToken, setAuthCookies, clearAuthCookies, // export ไว้ให้ oauth.routes.js เรียกใช้ร่วมกัน
+};

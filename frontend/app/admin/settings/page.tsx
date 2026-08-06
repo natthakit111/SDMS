@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -21,42 +21,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   Save,
-  Send,
-  Copy,
-  Check,
   Loader2,
   Building2,
   Zap,
   Droplets,
-  LinkIcon,
-  Unlink,
-  ExternalLink,
-  RefreshCw,
-  CheckCircle2,
-  Bell,
   Download,
+  ShieldAlert,
+  QrCode,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { settingsAPI } from "@/lib/api/settings.api";
 import { utilityRateAPI } from "@/lib/api/utilityRate.api";
 import { reportAPI } from "@/lib/api/report.api";
-import api from "@/lib/api/axiosInstance";
 import { useLanguage } from "@/context/language-context";
-import { useAuth } from "@/context/auth-context";
 
-const telegramAPI = {
-  getStatus: () => api.get("/telegram/status"),
-  generateLink: () => api.post("/telegram/generate-link"),
-  unlink: () => api.delete("/telegram/unlink"),
-  broadcast: (message: string) => api.post("/telegram/broadcast", { message }),
-};
+// ── NOTE ─────────────────────────────────────────────────────────
+// เดิมหน้านี้มี 5 แท็บ (หอพัก, การเงิน, สาธารณูปโภค, การแจ้งเตือน, Telegram)
+// ตัดแท็บ "การแจ้งเตือน" และ "Telegram" ออก เพราะตรวจสอบแล้วว่าไม่เชื่อมกับ
+// backend จริงเลย (toggle ไม่มีจุดไหนถูกอ่านใน telegram.service.js,
+// การเชื่อมบัญชี Telegram ของ admin ไม่มีผลเพราะระบบส่งแจ้งเตือนแอดมินผ่าน
+// ADMIN_TELEGRAM_CHAT_ID ใน .env ตัวเดียวเสมอ ไม่ได้ query จาก user ที่เชื่อม)
+// เก็บ UI ที่ใช้งานไม่ได้จริงไว้จะหลอกผู้ใช้ว่าคุมได้ทั้งที่ไม่มีผล
+//
+// เพิ่มฟิลด์ PromptPay (promptpay_type, promptpay_id) เข้าไปในแท็บการเงิน
+// แทนที่การอ่านจาก process.env.PROMPTPAY_ID เดิม — เพื่อให้ระบบใช้ได้กับ
+// หอพักไหนก็ได้โดยไม่ต้องแก้โค้ด/redeploy ตามที่ต้องออกแบบไว้
+// ────────────────────────────────────────────────────────────────
+
+const telegramAPI_placeholder = null; // เอาไว้กันลืมว่าเคยมี ไม่ได้ใช้แล้ว
 
 export default function SettingsPage() {
   const { t, language } = useLanguage();
-  const { user } = useAuth();
   const [pageLoading, setPageLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("dorm");
 
@@ -71,17 +70,17 @@ export default function SettingsPage() {
   const [numFloors, setNumFloors] = useState("5");
   const [savingDorm, setSavingDorm] = useState(false);
 
-  /* ── Financial ── */
+  /* ── Financial: bank info (แสดงผลในใบแจ้งหนี้เท่านั้น ไม่ใช้สร้าง QR) ── */
   const [bankName, setBankName] = useState("");
   const [bankAccount, setBankAccount] = useState("");
   const [bankAccountName, setBankAccountName] = useState("");
-  const [savingFinancial, setSavingFinancial] = useState(false);
 
-  /* ── Notifications ── */
-  const [notifyPayment, setNotifyPayment] = useState(true);
-  const [notifyMaintenance, setNotifyMaintenance] = useState(true);
-  const [notifyOverdue, setNotifyOverdue] = useState(true);
-  const [savingNotif, setSavingNotif] = useState(false);
+  /* ── Financial: PromptPay (ใช้สร้าง Dynamic QR Code จริง) ── */
+  const [promptpayType, setPromptpayType] = useState<"phone" | "citizen_id">(
+    "phone",
+  );
+  const [promptpayId, setPromptpayId] = useState("");
+  const [savingFinancial, setSavingFinancial] = useState(false);
 
   /* ── Utility rates ── */
   const [waterBillingType, setWaterBillingType] = useState<"unit" | "flat">(
@@ -99,28 +98,13 @@ export default function SettingsPage() {
     water?: any;
   }>({});
 
-  /* ── Telegram ── */
-  const [tgLinked, setTgLinked] = useState(false);
-  const [tgChatId, setTgChatId] = useState<string | null>(null);
-  const [tgDeepLink, setTgDeepLink] = useState<string | null>(null);
-  const [tgLinkLoading, setTgLinkLoading] = useState(false);
-  const [tgPolling, setTgPolling] = useState(false);
-  const [tgUnlinkLoading, setTgUnlinkLoading] = useState(false);
-  const [broadcastMsg, setBroadcastMsg] = useState("");
-  const [broadcasting, setBroadcasting] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "";
-
   /* ── Load all ── */
   const loadSettings = useCallback(async () => {
     try {
       setPageLoading(true);
-      const [settingsRes, ratesRes, tgRes] = await Promise.allSettled([
+      const [settingsRes, ratesRes] = await Promise.allSettled([
         settingsAPI.getAll(),
         utilityRateAPI.getCurrent(),
-        telegramAPI.getStatus(),
       ]);
 
       if (settingsRes.status === "fulfilled") {
@@ -133,9 +117,10 @@ export default function SettingsPage() {
         setBankName(s.bank_name ?? "");
         setBankAccount(s.bank_account ?? "");
         setBankAccountName(s.bank_account_name ?? "");
-        setNotifyPayment(s.notify_payment !== "0");
-        setNotifyMaintenance(s.notify_maintenance !== "0");
-        setNotifyOverdue(s.notify_overdue !== "0");
+        setPromptpayType(
+          (s.promptpay_type as "phone" | "citizen_id") || "phone",
+        );
+        setPromptpayId(s.promptpay_id ?? "");
         setWaterBillingType(
           (s.water_billing_type as "unit" | "flat") || "unit",
         );
@@ -148,12 +133,6 @@ export default function SettingsPage() {
         setElectricRate(r.electric?.rate_per_unit ?? "");
         setWaterRate(r.water?.rate_per_unit ?? "");
       }
-
-      if (tgRes.status === "fulfilled") {
-        const tg = tgRes.value?.data?.data ?? {};
-        setTgLinked(!!tg.linked);
-        setTgChatId(tg.chat_id ?? null);
-      }
     } catch {
       toast.error(
         language === "th" ? "โหลดข้อมูลไม่สำเร็จ" : "Failed to load settings",
@@ -165,9 +144,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadSettings();
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
   }, [loadSettings]);
 
   /* ── System export ── */
@@ -199,14 +175,17 @@ export default function SettingsPage() {
       toast.success(
         language === "th" ? "บันทึกข้อมูลหอพักแล้ว" : "Dorm info saved",
       );
-    } catch {
-      toast.error(language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred");
+    } catch (err: any) {
+      toast.error(
+        t(err?.response?.data?.message) ??
+          (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
+      );
     } finally {
       setSavingDorm(false);
     }
   };
 
-  /* ── Save financial ── */
+  /* ── Save financial (bank display info + PromptPay) ── */
   const handleSaveFinancial = async () => {
     setSavingFinancial(true);
     try {
@@ -214,35 +193,20 @@ export default function SettingsPage() {
         bank_name: bankName,
         bank_account: bankAccount,
         bank_account_name: bankAccountName,
+        promptpay_type: promptpayType,
+        promptpay_id: promptpayId,
       });
       toast.success(
-        language === "th" ? "บันทึกข้อมูลธนาคารแล้ว" : "Bank info saved",
+        language === "th" ? "บันทึกข้อมูลการเงินแล้ว" : "Financial info saved",
       );
-    } catch {
-      toast.error(language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred");
+    } catch (err: any) {
+      const code = err?.response?.data?.message;
+      toast.error(
+        (code ? t(code) : null) ??
+          (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
+      );
     } finally {
       setSavingFinancial(false);
-    }
-  };
-
-  /* ── Save notifications ── */
-  const handleSaveNotif = async () => {
-    setSavingNotif(true);
-    try {
-      await settingsAPI.update({
-        notify_payment: notifyPayment ? "1" : "0",
-        notify_maintenance: notifyMaintenance ? "1" : "0",
-        notify_overdue: notifyOverdue ? "1" : "0",
-      });
-      toast.success(
-        language === "th"
-          ? "บันทึกการแจ้งเตือนแล้ว"
-          : "Notification settings saved",
-      );
-    } catch {
-      toast.error(language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred");
-    } finally {
-      setSavingNotif(false);
     }
   };
 
@@ -267,7 +231,6 @@ export default function SettingsPage() {
           water_flat_rate: waterFlatRate,
         }),
       ];
-      // ถ้าคิดตามหน่วย ให้บันทึก water rate ด้วย
       if (waterBillingType === "unit" && waterRate) {
         promises.push(
           utilityRateAPI.create({
@@ -291,85 +254,6 @@ export default function SettingsPage() {
     }
   };
 
-  /* ── Telegram generate link ── */
-  const handleGenerateLink = async () => {
-    setTgLinkLoading(true);
-    try {
-      const res = await telegramAPI.generateLink();
-      const link = res.data?.data?.deepLink;
-      setTgDeepLink(link);
-      setTgPolling(true);
-      let attempts = 0;
-      pollingRef.current = setInterval(async () => {
-        attempts++;
-        try {
-          const r = await telegramAPI.getStatus();
-          if (r.data?.data?.linked) {
-            setTgLinked(true);
-            setTgChatId(r.data?.data?.chat_id);
-            setTgDeepLink(null);
-            setTgPolling(false);
-            clearInterval(pollingRef.current!);
-            toast.success(
-              language === "th"
-                ? "เชื่อมต่อ Telegram สำเร็จ! 🎉"
-                : "Telegram connected! 🎉",
-            );
-          }
-        } catch {}
-        if (attempts >= 200) {
-          clearInterval(pollingRef.current!);
-          setTgPolling(false);
-        }
-      }, 3000);
-    } catch {
-      toast.error(language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred");
-    } finally {
-      setTgLinkLoading(false);
-    }
-  };
-
-  const handleUnlink = async () => {
-    setTgUnlinkLoading(true);
-    try {
-      await telegramAPI.unlink();
-      setTgLinked(false);
-      setTgChatId(null);
-      setTgDeepLink(null);
-      if (pollingRef.current) clearInterval(pollingRef.current);
-      toast.success(
-        language === "th" ? "ยกเลิกการเชื่อมต่อแล้ว" : "Disconnected",
-      );
-    } catch {
-      toast.error(language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred");
-    } finally {
-      setTgUnlinkLoading(false);
-    }
-  };
-
-  const handleBroadcast = async () => {
-    if (!broadcastMsg.trim()) return;
-    setBroadcasting(true);
-    try {
-      const res = await telegramAPI.broadcast(broadcastMsg);
-      const count = res.data?.data?.sent ?? 0;
-      toast.success(
-        language === "th" ? `ส่งแล้ว ${count} คน` : `Sent to ${count} tenants`,
-      );
-      setBroadcastMsg("");
-    } catch {
-      toast.error(language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred");
-    } finally {
-      setBroadcasting(false);
-    }
-  };
-
-  const copyBotLink = () => {
-    navigator.clipboard.writeText(`https://t.me/${botUsername}`);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
-  };
-
   if (pageLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -377,6 +261,8 @@ export default function SettingsPage() {
       </div>
     );
   }
+
+  const isPromptpayConfigured = !!promptpayId?.trim();
 
   return (
     <div className="space-y-6">
@@ -424,16 +310,12 @@ export default function SettingsPage() {
               <SelectItem value="utilities">
                 ⚡ {language === "th" ? "สาธารณูปโภค" : "Utilities"}
               </SelectItem>
-              <SelectItem value="notifications">
-                🔔 {t("settings.tabNotifications")}
-              </SelectItem>
-              <SelectItem value="telegram">✈️ Telegram</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        {/* Desktop: Tabs */}
-        <TabsList className="hidden sm:grid w-full grid-cols-5">
+        {/* Desktop: Tabs — เหลือ 3 แท็บ (ตัด notifications, telegram ออก) */}
+        <TabsList className="hidden sm:grid w-full grid-cols-3">
           <TabsTrigger value="dorm">
             <Building2 className="h-3.5 w-3.5 mr-1.5" />
             {language === "th" ? "หอพัก" : "Dorm"}
@@ -445,11 +327,6 @@ export default function SettingsPage() {
             <Zap className="h-3.5 w-3.5 mr-1.5" />
             {language === "th" ? "สาธารณูปโภค" : "Utilities"}
           </TabsTrigger>
-          <TabsTrigger value="notifications">
-            <Bell className="h-3.5 w-3.5 mr-1.5" />
-            {t("settings.tabNotifications")}
-          </TabsTrigger>
-          <TabsTrigger value="telegram">Telegram</TabsTrigger>
         </TabsList>
 
         {/* ── Dorm Info ── */}
@@ -549,11 +426,115 @@ export default function SettingsPage() {
         </TabsContent>
 
         {/* ── Financial ── */}
-        <TabsContent value="financial">
+        <TabsContent value="financial" className="space-y-4">
+          {/* PromptPay — ใช้สร้าง Dynamic QR Code จริง */}
+          <Card
+            className={
+              isPromptpayConfigured
+                ? "border-primary/30"
+                : "border-destructive/40"
+            }
+          >
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <CardTitle className="flex items-center gap-2">
+                  <QrCode className="h-5 w-5 text-primary" />
+                  {language === "th"
+                    ? "ข้อมูลสำหรับสร้าง QR Code (PromptPay)"
+                    : "PromptPay (for QR Code generation)"}
+                </CardTitle>
+
+                {isPromptpayConfigured ? (
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-green-600 dark:text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {language === "th" ? "ตั้งค่าแล้ว" : "Configured"}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-destructive bg-destructive/10 px-2.5 py-1 rounded-full">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    {language === "th" ? "ยังไม่ได้ตั้งค่า" : "Not configured"}
+                  </span>
+                )}
+              </div>
+
+              <CardDescription className="flex items-start gap-1.5">
+                <ShieldAlert className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-500" />
+                {language === "th"
+                  ? "ข้อมูลนี้ใช้สร้าง QR Code ที่ผู้เช่าสแกนจ่ายจริง กรุณาตรวจสอบให้ถูกต้องก่อนบันทึกทุกครั้ง"
+                  : "This is used to generate the actual payment QR code. Please double-check before saving."}
+              </CardDescription>
+
+              {!isPromptpayConfigured && (
+                <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-md p-2.5 mt-1">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <span>
+                    {language === "th"
+                      ? "ยังไม่ได้ตั้งค่า PromptPay — บิลใหม่ที่สร้างจะไม่มี QR Code ให้ผู้เช่าสแกนจ่าย จนกว่าจะกรอกและบันทึกข้อมูลด้านล่างนี้"
+                      : "PromptPay not set — new bills will be created without a QR code until you fill in and save the details below."}
+                  </span>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">
+                  {language === "th" ? "ประเภท PromptPay" : "PromptPay Type"}
+                </label>
+                <Select
+                  value={promptpayType}
+                  onValueChange={(v) =>
+                    setPromptpayType(v as "phone" | "citizen_id")
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="phone">
+                      {language === "th" ? "เบอร์โทรศัพท์" : "Phone Number"}
+                    </SelectItem>
+                    <SelectItem value="citizen_id">
+                      {language === "th"
+                        ? "เลขบัตรประชาชน / นิติบุคคล"
+                        : "Citizen / Corporate ID"}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">
+                  {language === "th" ? "หมายเลข PromptPay" : "PromptPay ID"}
+                </label>
+                <Input
+                  value={promptpayId}
+                  onChange={(e) => setPromptpayId(e.target.value)}
+                  placeholder={
+                    promptpayType === "phone" ? "0812345678" : "1234567890123"
+                  }
+                  maxLength={promptpayType === "phone" ? 10 : 13}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {promptpayType === "phone"
+                    ? language === "th"
+                      ? "ตัวเลข 10 หลัก ขึ้นต้นด้วย 0"
+                      : "10 digits, starting with 0"
+                    : language === "th"
+                      ? "ตัวเลข 13 หลัก"
+                      : "13 digits"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ข้อมูลธนาคาร — แสดงผลในใบแจ้งหนี้เท่านั้น ไม่ใช้สร้าง QR */}
           <Card>
             <CardHeader>
               <CardTitle>{t("settings.financialTitle")}</CardTitle>
-              <CardDescription>{t("settings.financialDesc")}</CardDescription>
+              <CardDescription>
+                {language === "th"
+                  ? "แสดงในใบแจ้งหนี้ สำหรับผู้เช่าที่โอนผ่านแอปธนาคารแทนการสแกน QR"
+                  : "Shown on invoices, for tenants who prefer bank transfer over QR scan"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1">
@@ -573,7 +554,7 @@ export default function SettingsPage() {
                 <Input
                   value={bankAccount}
                   onChange={(e) => setBankAccount(e.target.value)}
-                  placeholder="xxx-x-xxxxx-x"
+                  placeholder="xxxxxxxxxx"
                 />
               </div>
               <div className="space-y-1">
@@ -592,7 +573,9 @@ export default function SettingsPage() {
                 ) : (
                   <Save className="mr-2 h-4 w-4" />
                 )}
-                {language === "th" ? "บันทึก" : "Save"}
+                {language === "th"
+                  ? "บันทึกข้อมูลการเงิน"
+                  : "Save Financial Info"}
               </Button>
             </CardContent>
           </Card>
@@ -600,7 +583,6 @@ export default function SettingsPage() {
 
         {/* ── Utilities ── */}
         <TabsContent value="utilities" className="space-y-4">
-          {/* Current rates */}
           <div className="grid grid-cols-2 gap-4">
             <Card className="border-yellow-500/30 bg-yellow-500/5">
               <CardContent className="p-4">
@@ -640,7 +622,6 @@ export default function SettingsPage() {
             </Card>
           </div>
 
-          {/* Set new rates */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
@@ -675,7 +656,6 @@ export default function SettingsPage() {
                     <Droplets className="h-3.5 w-3.5 text-blue-500" />
                     {language === "th" ? "ค่าน้ำ" : "Water"}
                   </label>
-                  {/* Toggle unit / flat */}
                   <div className="flex rounded-md border border-border overflow-hidden text-xs font-medium w-fit">
                     <button
                       onClick={() => setWaterBillingType("unit")}
@@ -735,274 +715,6 @@ export default function SettingsPage() {
                   <Save className="mr-2 h-4 w-4" />
                 )}
                 {language === "th" ? "บันทึกอัตราใหม่" : "Save New Rates"}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ── Notifications ── */}
-        <TabsContent value="notifications">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("settings.tabNotifications")}</CardTitle>
-              <CardDescription>
-                {language === "th"
-                  ? "เลือกประเภทการแจ้งเตือนที่ต้องการ"
-                  : "Choose notification types"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {[
-                {
-                  label:
-                    language === "th"
-                      ? "แจ้งเตือนเมื่อผู้เช่าชำระเงิน"
-                      : "Notify on tenant payment",
-                  value: notifyPayment,
-                  set: setNotifyPayment,
-                },
-                {
-                  label:
-                    language === "th"
-                      ? "แจ้งเตือนเมื่อมีคำขอแจ้งซ่อม"
-                      : "Notify on maintenance request",
-                  value: notifyMaintenance,
-                  set: setNotifyMaintenance,
-                },
-                {
-                  label:
-                    language === "th"
-                      ? "แจ้งเตือนเมื่อบิลเกินกำหนด"
-                      : "Notify on overdue bills",
-                  value: notifyOverdue,
-                  set: setNotifyOverdue,
-                },
-              ].map(({ label, value, set }) => (
-                <div key={label} className="flex items-center justify-between">
-                  <label className="text-sm font-medium">{label}</label>
-                  <Switch checked={value} onCheckedChange={set} />
-                </div>
-              ))}
-              <Button onClick={handleSaveNotif} disabled={savingNotif}>
-                {savingNotif ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="mr-2 h-4 w-4" />
-                )}
-                {language === "th" ? "บันทึก" : "Save"}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ── Telegram ── */}
-        <TabsContent value="telegram" className="space-y-4">
-          {/* Link admin account */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                {language === "th"
-                  ? "เชื่อมบัญชี Telegram ของ Admin"
-                  : "Link Admin Telegram Account"}
-              </CardTitle>
-              <CardDescription>
-                {language === "th"
-                  ? "รับแจ้งเตือนการชำระเงินและคำขอแจ้งซ่อม"
-                  : "Receive payment and maintenance notifications"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {tgLinked ? (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
-                    <div className="flex-1">
-                      <p className="font-medium text-green-600 dark:text-green-400">
-                        {language === "th" ? "เชื่อมต่อแล้ว" : "Connected"}
-                      </p>
-                      {tgChatId && (
-                        <p className="text-xs text-muted-foreground">
-                          Chat ID: {tgChatId}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleUnlink}
-                    disabled={tgUnlinkLoading}
-                    className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                  >
-                    {tgUnlinkLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {language === "th"
-                          ? "กำลังยกเลิก..."
-                          : "Disconnecting..."}
-                      </>
-                    ) : (
-                      <>
-                        <Unlink className="mr-2 h-4 w-4" />
-                        {language === "th"
-                          ? "ยกเลิกการเชื่อมต่อ"
-                          : "Disconnect"}
-                      </>
-                    )}
-                  </Button>
-                </div>
-              ) : tgDeepLink ? (
-                <div className="space-y-4">
-                  <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 space-y-2">
-                    <p className="text-sm font-medium">
-                      {language === "th" ? "วิธีเชื่อมต่อ:" : "How to connect:"}
-                    </p>
-                    <ol className="text-sm text-muted-foreground space-y-1 list-none">
-                      {(language === "th"
-                        ? [
-                            "กดปุ่ม 'เปิด Telegram' ด้านล่าง",
-                            "กด Start ใน Telegram",
-                            "กลับมาหน้านี้ — จะเชื่อมต่ออัตโนมัติ",
-                          ]
-                        : [
-                            "Tap 'Open Telegram' below",
-                            "Tap Start in Telegram",
-                            "Return here — will connect automatically",
-                          ]
-                      ).map((step, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="bg-primary/20 text-primary rounded-full w-5 h-5 flex items-center justify-center text-xs shrink-0 mt-0.5">
-                            {i + 1}
-                          </span>
-                          {step}
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                  <div className="flex gap-3">
-                    <Button
-                      asChild
-                      className="flex-1 bg-[#2AABEE] hover:bg-[#2AABEE]/90"
-                    >
-                      <a
-                        href={tgDeepLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        {language === "th" ? "เปิด Telegram" : "Open Telegram"}
-                      </a>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handleGenerateLink}
-                      disabled={tgLinkLoading}
-                      title={language === "th" ? "สร้างลิงก์ใหม่" : "New link"}
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {tgPolling && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      {language === "th"
-                        ? "รอการเชื่อมต่อ... (ลิงก์หมดอายุใน 10 นาที)"
-                        : "Waiting for connection... (expires in 10 min)"}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <Button
-                  onClick={handleGenerateLink}
-                  disabled={tgLinkLoading}
-                  className="bg-[#2AABEE] hover:bg-[#2AABEE]/90"
-                >
-                  {tgLinkLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {language === "th"
-                        ? "กำลังสร้างลิงก์..."
-                        : "Creating link..."}
-                    </>
-                  ) : (
-                    <>
-                      <LinkIcon className="mr-2 h-4 w-4" />
-                      {language === "th"
-                        ? "เชื่อมต่อ Telegram"
-                        : "Connect Telegram"}
-                    </>
-                  )}
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Bot info */}
-          {botUsername && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  {language === "th" ? "ข้อมูล Bot" : "Bot Info"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground">Bot:</span>
-                <span className="font-mono bg-muted px-2 py-0.5 rounded text-sm">
-                  @{botUsername}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={copyBotLink}
-                >
-                  {isCopied ? (
-                    <Check className="h-3 w-3 text-green-500" />
-                  ) : (
-                    <Copy className="h-3 w-3" />
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Broadcast */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Send className="h-4 w-4" />
-                {language === "th"
-                  ? "ส่งข้อความถึงผู้เช่าทุกคน"
-                  : "Broadcast to All Tenants"}
-              </CardTitle>
-              <CardDescription>
-                {language === "th"
-                  ? "ส่งข้อความผ่าน Telegram ไปยังผู้เช่าทุกคนที่เชื่อมต่อแล้ว"
-                  : "Send Telegram message to all connected tenants"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Textarea
-                value={broadcastMsg}
-                onChange={(e) => setBroadcastMsg(e.target.value)}
-                placeholder={
-                  language === "th"
-                    ? "พิมพ์ข้อความที่จะส่ง..."
-                    : "Type your message..."
-                }
-                rows={4}
-              />
-              <Button
-                onClick={handleBroadcast}
-                disabled={broadcasting || !broadcastMsg.trim()}
-              >
-                {broadcasting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="mr-2 h-4 w-4" />
-                )}
-                {language === "th" ? "ส่งข้อความ" : "Send Message"}
               </Button>
             </CardContent>
           </Card>

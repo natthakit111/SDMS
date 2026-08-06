@@ -31,19 +31,21 @@ import {
 
 type Status = "idle" | "loading" | "success" | "error";
 
-  const getStrength = (pw: string) => {
-    if (!pw) return 0;
-    let score = 0;
-    if (pw.length >= 6) score++;
-    if (pw.length >= 10) score++;
-    if (/[A-Z]/.test(pw)) score++;
-    if (/[0-9]/.test(pw)) score++;
-    if (/[^A-Za-z0-9]/.test(pw)) score++;
-    return score;
-  };
+const MIN_PASSWORD_LENGTH = 6;
+
+const getStrength = (pw: string) => {
+  if (!pw) return 0;
+  let score = 0;
+  if (pw.length >= 6) score++;
+  if (pw.length >= 10) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  return score;
+};
 
 function ResetPasswordForm() {
-  const { t } = useLanguage(); // ← เพิ่มตรงนี้
+  const { t } = useLanguage();
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get("token");
@@ -56,23 +58,31 @@ function ResetPasswordForm() {
   const [message, setMessage] = useState("");
 
   const strength = getStrength(newPassword);
-  const strengthLabel = [
-    "",
-    t("password.veryWeak"),
-    t("password.weak"),
-    t("password.medium"),
-    t("password.strong"),
-    t("password.veryStrong"),
-  ][strength];
 
-  const strengthColor = [
-    "",
-    "bg-red-500",
-    "bg-orange-400",
-    "bg-yellow-400",
-    "bg-blue-500",
-    "bg-green-500",
-  ][strength];
+  // ⚠️ FIX: เดิม index 0 ของ label array เป็น "" ทำให้พิมพ์รหัสผ่านสั้นๆ
+  // (เช่น "a" ที่ยังไม่ผ่านเงื่อนไขไหนเลยใน getStrength) แล้วแถบไม่ติดสัก
+  // ช่อง ข้อความ "ระดับความปลอดภัย:" โชว์ว่างเปล่า ดูเหมือนบั๊ก UI
+  // แก้โดยให้ score 0 (มีตัวอักษรแล้วแต่ยังไม่เข้าเงื่อนไขใดๆ) ก็ยังขึ้น
+  // label "อ่อนมาก" ได้ ไม่ใช่ค่าว่าง
+  const strengthLabels = [
+    t("password.veryWeak"), // score 0 — เดิมเป็น ""
+    t("password.veryWeak"), // score 1
+    t("password.weak"), // score 2
+    t("password.medium"), // score 3
+    t("password.strong"), // score 4
+    t("password.veryStrong"), // score 5
+  ];
+  const strengthLabel = strengthLabels[strength];
+
+  const strengthColors = [
+    "bg-red-500", // score 0 — เดิมเป็น ""
+    "bg-red-500", // score 1
+    "bg-orange-400", // score 2
+    "bg-yellow-400", // score 3
+    "bg-blue-500", // score 4
+    "bg-green-500", // score 5
+  ];
+  const strengthColor = strengthColors[strength];
 
   if (!token) {
     return (
@@ -100,7 +110,7 @@ function ResetPasswordForm() {
       return;
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
       setStatus("error");
       setMessage(t("password.minLength"));
       return;
@@ -144,6 +154,13 @@ function ResetPasswordForm() {
       </div>
     );
   }
+
+  // ⚠️ FIX: เดิมปุ่ม submit ไม่เช็คความยาวขั้นต่ำ — พิมพ์รหัสผ่านสั้นๆ
+  // (เช่น "123") ที่ตรงกันทั้ง 2 ช่องแล้วปุ่มกดได้ ต้องรอ error กลับมา
+  // จาก handleSubmit ทีหลัง เสีย round-trip ไปเปล่าๆ เพิ่มเช็ค length
+  // เข้าไปใน disabled ด้วยเลย ปุ่มจะ disable ทันทีตั้งแต่ยังพิมพ์ไม่ครบ
+  const isTooShort =
+    newPassword.length > 0 && newPassword.length < MIN_PASSWORD_LENGTH;
 
   return (
     <form onSubmit={handleSubmit}>
@@ -200,6 +217,11 @@ function ResetPasswordForm() {
                   {strengthLabel}
                 </span>
               </p>
+              {isTooShort && (
+                <p className="text-xs text-destructive">
+                  {t("password.minLength")}
+                </p>
+              )}
             </div>
           )}
         </Field>
@@ -266,7 +288,8 @@ function ResetPasswordForm() {
             status === "loading" ||
             !newPassword ||
             !confirmPassword ||
-            newPassword !== confirmPassword
+            newPassword !== confirmPassword ||
+            isTooShort
           }
         >
           {status === "loading" ? (
@@ -284,7 +307,7 @@ function ResetPasswordForm() {
 }
 
 export default function ResetPasswordPage() {
-  const { t } = useLanguage(); // ← เพิ่มตรงนี้
+  const { t } = useLanguage();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">

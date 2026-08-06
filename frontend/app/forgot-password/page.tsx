@@ -97,15 +97,21 @@ export default function ForgotPasswordPage() {
           ) : (
             <form onSubmit={handleSubmit}>
               <FieldGroup>
+                {/* ⚠️ FIX: เดิมใช้ t("forgotPassword.usernameLabel") /
+                    usernamePlaceholder ซึ่งน่าจะแปลไว้ว่า "Username" เฉยๆ
+                    ทำให้ผู้ใช้งง ทั้งที่ backend (findByIdentifier) รับได้
+                    ทั้งเบอร์โทรและอีเมลอยู่แล้ว — เปลี่ยนมาใช้ key เดียวกับ
+                    หน้า login ("เบอร์โทรศัพท์หรืออีเมล") เพื่อความชัดเจนที่
+                    ตรงกับพฤติกรรมจริงของ field นี้ และตรงกับหน้า login ด้วย */}
                 <Field>
                   <FieldLabel htmlFor="username">
-                    {t("forgotPassword.usernameLabel")}
+                    {t("login.phoneOrEmail")}
                   </FieldLabel>
                   <Input
                     id="username"
                     type="text"
                     autoComplete="email"
-                    placeholder={t("forgotPassword.usernamePlaceholder")}
+                    placeholder={t("login.phoneOrEmailPlaceholder")}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     required

@@ -342,12 +342,6 @@ export default function RoomsPage() {
                         <SelectItem value="available">
                           {t("status.available")}
                         </SelectItem>
-                        <SelectItem value="occupied">
-                          {t("status.occupied")}
-                        </SelectItem>
-                        <SelectItem value="maintenance">
-                          {t("status.maintenance")}
-                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>

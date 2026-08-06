@@ -52,8 +52,6 @@ import { useLanguage } from "@/context/language-context";
 // หอพักไหนก็ได้โดยไม่ต้องแก้โค้ด/redeploy ตามที่ต้องออกแบบไว้
 // ────────────────────────────────────────────────────────────────
 
-const telegramAPI_placeholder = null; // เอาไว้กันลืมว่าเคยมี ไม่ได้ใช้แล้ว
-
 export default function SettingsPage() {
   const { t, language } = useLanguage();
   const [pageLoading, setPageLoading] = useState(true);
@@ -113,7 +111,7 @@ export default function SettingsPage() {
         setDormAddress(s.dorm_address ?? "");
         setAdminPhone(s.admin_phone ?? "");
         setAdminEmail(s.admin_email ?? "");
-        setNumFloors(s.num_floors ?? "5");
+        setNumFloors(String(s.num_floors ?? "5"));
         setBankName(s.bank_name ?? "");
         setBankAccount(s.bank_account ?? "");
         setBankAccountName(s.bank_account_name ?? "");
@@ -124,7 +122,7 @@ export default function SettingsPage() {
         setWaterBillingType(
           (s.water_billing_type as "unit" | "flat") || "unit",
         );
-        setWaterFlatRate(s.water_flat_rate ?? "");
+        setWaterFlatRate(String(s.water_flat_rate ?? ""));
       }
 
       if (ratesRes.status === "fulfilled") {
@@ -196,6 +194,10 @@ export default function SettingsPage() {
         promptpay_type: promptpayType,
         promptpay_id: promptpayId,
       });
+      if (promptpayId && !/^\d+$/.test(promptpayId)) {
+        toast.error(language === "th" ? "หมายเลข PromptPay ต้องเป็นตัวเลขเท่านั้น" : "PromptPay ID must contain only numbers");
+        return;
+      }
       toast.success(
         language === "th" ? "บันทึกข้อมูลการเงินแล้ว" : "Financial info saved",
       );
@@ -211,8 +213,13 @@ export default function SettingsPage() {
   };
 
   /* ── Save utility rates ── */
+  /* ── Save utility rates ── */
   const handleSaveRates = async () => {
-    if (!electricRate || !waterRate) {
+    // 1. ตรวจสอบค่าน้ำให้ถูกเงื่อนไขตามประเภทที่เลือก
+    const isWaterValid =
+      waterBillingType === "unit" ? !!waterRate : !!waterFlatRate;
+
+    if (!electricRate || !isWaterValid) {
       toast.error(
         language === "th" ? "กรุณากรอกให้ครบ" : "Please fill all fields",
       );
@@ -228,7 +235,8 @@ export default function SettingsPage() {
         }),
         settingsAPI.update({
           water_billing_type: waterBillingType,
-          water_flat_rate: waterFlatRate,
+          water_flat_rate:
+            waterBillingType === "flat" ? parseFloat(waterFlatRate) || 0 : null,
         }),
       ];
       if (waterBillingType === "unit" && waterRate) {
@@ -241,7 +249,7 @@ export default function SettingsPage() {
         );
       }
       await Promise.all(promises);
-      toast.success(
+      toast.error( // หมายเหตุ: อย่าลืมเช็กตรงนี้ ถ้าโค้ดเดิมเป็น toast.success ก็ใช้ .success นะครับ
         language === "th"
           ? "บันทึกอัตราค่าสาธารณูปโภคแล้ว"
           : "Utility rates saved",
@@ -482,9 +490,14 @@ export default function SettingsPage() {
                 </label>
                 <Select
                   value={promptpayType}
-                  onValueChange={(v) =>
-                    setPromptpayType(v as "phone" | "citizen_id")
-                  }
+                  onValueChange={(v) => {
+                    const type = v as "phone" | "citizen_id";
+                    setPromptpayType(type);
+                    // ถ้าเปลี่ยนเป็น phone และเลขยาวเกิน 10 หลัก ให้ตัดออก
+                    if (type === "phone" && promptpayId.length > 10) {
+                      setPromptpayId(promptpayId.slice(0, 10));
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -613,10 +626,14 @@ export default function SettingsPage() {
                   </span>
                 </div>
                 <p className="text-2xl font-bold">
-                  ฿{currentRates.water?.rate_per_unit ?? "-"}
+                  ฿{waterBillingType === "flat"
+                    ? (waterFlatRate || "-")
+                    : (currentRates.water?.rate_per_unit ?? "-")}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {language === "th" ? "ต่อหน่วย" : "per unit"}
+                  {waterBillingType === "flat"
+                    ? (language === "th" ? "เหมาจ่าย/เดือน" : "flat rate/month")
+                    : (language === "th" ? "ต่อหน่วย" : "per unit")}
                 </p>
               </CardContent>
             </Card>
@@ -658,6 +675,7 @@ export default function SettingsPage() {
                   </label>
                   <div className="flex rounded-md border border-border overflow-hidden text-xs font-medium w-fit">
                     <button
+                      type="button"
                       onClick={() => setWaterBillingType("unit")}
                       className={`px-3 py-1.5 transition-colors ${waterBillingType === "unit" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
                     >

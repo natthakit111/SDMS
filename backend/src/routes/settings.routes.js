@@ -80,6 +80,7 @@ router.put('/', authenticate, authorizeRoles('admin'), updateValidation, async (
 
     const allowed = [
       'dorm_name', 'dorm_address', 'admin_email', 'admin_phone',
+      'num_floors',
       'currency', 'tax_rate',
       'bank_name', 'bank_account', 'bank_account_name',
       'promptpay_type', 'promptpay_id',

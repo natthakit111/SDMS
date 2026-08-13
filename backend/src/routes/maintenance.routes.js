@@ -16,6 +16,13 @@ const createValidation = [
   body('priority').optional().isIn(['low', 'medium', 'high']),
 ];
 
+const updateStatusValidation = [
+  body('status').isIn(['pending', 'in_progress', 'resolved', 'cancelled'])
+    .withMessage('Status must be one of: pending, in_progress, resolved, cancelled'),
+  body('admin_note').optional().trim().isLength({ max: 1000 }),
+  body('assigned_to').optional().trim().isLength({ max: 100 }),
+];
+
 // ── Specific paths FIRST ──────────────────────────────────────
 router.get('/my',
   authenticate, authorizeRoles('tenant'),
@@ -43,6 +50,7 @@ router.get('/:id',
 );
 router.put('/:id/status',
   authenticate, authorizeRoles('admin'),
+  updateStatusValidation,
   ctrl.updateStatus
 );
 router.put('/:id/cancel',

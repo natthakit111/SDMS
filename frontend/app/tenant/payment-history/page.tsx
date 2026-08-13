@@ -164,7 +164,7 @@ export default function TenantPaymentHistoryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">{t("payments.history")}</h1>
+        <h1 className="text-2xl font-bold">{t("payments.history")}</h1>
         <p className="text-muted-foreground mt-2">
           {t("paymentHistory.subtitle")}
         </p>
@@ -189,49 +189,55 @@ export default function TenantPaymentHistoryPage() {
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardHeader className="pb-2 px-3 sm:px-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
                   {t("status.verified")}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-500">
+              <CardContent className="px-3 sm:px-6">
+                <div className="text-lg sm:text-2xl font-bold text-green-500 truncate">
                   {fmt(totalPaid)}
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-                  <TrendingUp className="w-4 h-4" />
-                  {t("common.total")}
+              <CardHeader className="pb-2 px-3 sm:px-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1 truncate">
+                  <TrendingUp className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{t("common.total")}</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{fmt(totalAll)}</div>
+              <CardContent className="px-3 sm:px-6">
+                <div className="text-lg sm:text-2xl font-bold truncate">
+                  {fmt(totalAll)}
+                </div>
                 <p className="text-xs text-muted-foreground mt-2">
                   {includeRejected
-                    ? t("paymentHistory.totalIncludesRejected") ?? "รวมรายการทั้งหมด"
-                    : t("paymentHistory.totalExcludesRejected") ?? "ไม่รวมรายการที่ถูกปฏิเสธ"}
+                    ? (t("paymentHistory.totalIncludesRejected") ??
+                      "รวมรายการทั้งหมด")
+                    : (t("paymentHistory.totalExcludesRejected") ??
+                      "ไม่รวมรายการที่ถูกปฏิเสธ")}
                 </p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardHeader className="pb-2 px-3 sm:px-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
                   {t("common.all")}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{countAll}</div>
+              <CardContent className="px-3 sm:px-6">
+                <div className="text-lg sm:text-2xl font-bold">{countAll}</div>
                 <p className="text-xs text-muted-foreground mt-2">
                   {includeRejected
-                    ? t("paymentHistory.countIncludesRejected") ?? "รวมทุกสถานะ"
-                    : t("paymentHistory.countExcludesRejected") ?? "ไม่รวมรายการที่ถูกปฏิเสธ"}
+                    ? (t("paymentHistory.countIncludesRejected") ??
+                      "รวมทุกสถานะ")
+                    : (t("paymentHistory.countExcludesRejected") ??
+                      "ไม่รวมรายการที่ถูกปฏิเสธ")}
                 </p>
               </CardContent>
             </Card>
@@ -274,7 +280,8 @@ export default function TenantPaymentHistoryPage() {
                       className="h-4 w-4"
                     />
                     <span className="text-sm">
-                      {t("paymentHistory.includeRejected") ?? "รวมรายการที่ถูกปฏิเสธ"}
+                      {t("paymentHistory.includeRejected") ??
+                        "รวมรายการที่ถูกปฏิเสธ"}
                     </span>
                   </label>
                 </div>
@@ -294,29 +301,34 @@ export default function TenantPaymentHistoryPage() {
               </Card>
             ) : (
               filtered
-                .filter((p) => (includeRejected ? true : p.status !== "rejected"))
+                .filter((p) =>
+                  includeRejected ? true : p.status !== "rejected",
+                )
                 .map((p) => {
-                  const s = statusConfig[p.status] ?? statusConfig.pending_verify;
+                  const s =
+                    statusConfig[p.status] ?? statusConfig.pending_verify;
                   return (
                     <Card key={p.payment_id}>
                       <CardContent className="pt-6">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex gap-4 flex-1">
                             <div
-                              className={`p-3 rounded-lg h-fit ${p.status === "verified"
+                              className={`p-3 rounded-lg h-fit ${
+                                p.status === "verified"
                                   ? "bg-green-500/10"
                                   : p.status === "rejected"
                                     ? "bg-red-500/10"
                                     : "bg-muted"
-                                }`}
+                              }`}
                             >
                               <FileText
-                                className={`w-6 h-6 ${p.status === "verified"
+                                className={`w-6 h-6 ${
+                                  p.status === "verified"
                                     ? "text-green-500"
                                     : p.status === "rejected"
                                       ? "text-red-600"
                                       : "text-muted-foreground"
-                                  }`}
+                                }`}
                               />
                             </div>
                             <div>
@@ -339,10 +351,14 @@ export default function TenantPaymentHistoryPage() {
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <p className={`text-2xl font-bold ${s.amountColor}`}>
+                            <p
+                              className={`text-2xl font-bold ${s.amountColor}`}
+                            >
                               {fmt(Number(p.amount_paid))}
                             </p>
-                            <span className={`text-xs px-2 py-0.5 rounded ${s.badgeColor}`}>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded ${s.badgeColor}`}
+                            >
                               {s.label}
                             </span>
                           </div>

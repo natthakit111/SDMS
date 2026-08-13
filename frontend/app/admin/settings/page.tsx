@@ -38,15 +38,9 @@ import { settingsAPI } from "@/lib/api/settings.api";
 import { utilityRateAPI } from "@/lib/api/utilityRate.api";
 import { reportAPI } from "@/lib/api/report.api";
 import { useLanguage } from "@/context/language-context";
+import { DatePickerField } from "@/components/common/date-picker-field";
 
 // ── NOTE ─────────────────────────────────────────────────────────
-// เดิมหน้านี้มี 5 แท็บ (หอพัก, การเงิน, สาธารณูปโภค, การแจ้งเตือน, Telegram)
-// ตัดแท็บ "การแจ้งเตือน" และ "Telegram" ออก เพราะตรวจสอบแล้วว่าไม่เชื่อมกับ
-// backend จริงเลย (toggle ไม่มีจุดไหนถูกอ่านใน telegram.service.js,
-// การเชื่อมบัญชี Telegram ของ admin ไม่มีผลเพราะระบบส่งแจ้งเตือนแอดมินผ่าน
-// ADMIN_TELEGRAM_CHAT_ID ใน .env ตัวเดียวเสมอ ไม่ได้ query จาก user ที่เชื่อม)
-// เก็บ UI ที่ใช้งานไม่ได้จริงไว้จะหลอกผู้ใช้ว่าคุมได้ทั้งที่ไม่มีผล
-//
 // เพิ่มฟิลด์ PromptPay (promptpay_type, promptpay_id) เข้าไปในแท็บการเงิน
 // แทนที่การอ่านจาก process.env.PROMPTPAY_ID เดิม — เพื่อให้ระบบใช้ได้กับ
 // หอพักไหนก็ได้โดยไม่ต้องแก้โค้ด/redeploy ตามที่ต้องออกแบบไว้
@@ -213,7 +207,6 @@ export default function SettingsPage() {
   };
 
   /* ── Save utility rates ── */
-  /* ── Save utility rates ── */
   const handleSaveRates = async () => {
     // 1. ตรวจสอบค่าน้ำให้ถูกเงื่อนไขตามประเภทที่เลือก
     const isWaterValid =
@@ -276,7 +269,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold">
+          <h1 className="text-2xl sm:text-2xl font-bold">
             {t("settings.title")}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -626,14 +619,19 @@ export default function SettingsPage() {
                   </span>
                 </div>
                 <p className="text-2xl font-bold">
-                  ฿{waterBillingType === "flat"
-                    ? (waterFlatRate || "-")
+                  ฿
+                  {waterBillingType === "flat"
+                    ? waterFlatRate || "-"
                     : (currentRates.water?.rate_per_unit ?? "-")}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {waterBillingType === "flat"
-                    ? (language === "th" ? "เหมาจ่าย/เดือน" : "flat rate/month")
-                    : (language === "th" ? "ต่อหน่วย" : "per unit")}
+                    ? language === "th"
+                      ? "เหมาจ่าย/เดือน"
+                      : "flat rate/month"
+                    : language === "th"
+                      ? "ต่อหน่วย"
+                      : "per unit"}
                 </p>
               </CardContent>
             </Card>
@@ -719,10 +717,11 @@ export default function SettingsPage() {
                   <label className="text-sm font-medium">
                     {language === "th" ? "มีผลตั้งแต่" : "Effective From"}
                   </label>
-                  <Input
+                  {/* เปลี่ยนจาก Input type="date" มาใช้ DatePickerField */}
+                  <DatePickerField
                     value={effectiveFrom}
-                    onChange={(e) => setEffectiveFrom(e.target.value)}
-                    type="date"
+                    onChange={(v) => setEffectiveFrom(v)}
+                    language={language}
                   />
                 </div>
               </div>

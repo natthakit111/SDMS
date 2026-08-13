@@ -98,7 +98,7 @@ export function TenantSidebar() {
   ];
 
   return (
-    // ✅ เพิ่ม collapsible="offcanvas" → บนมือถือ sidebar จะ slide in/out แทนที่จะทับ content
+    // ✅ collapsible="offcanvas" → บนมือถือ sidebar จะ slide in/out แทนที่จะทับ content
     <Sidebar collapsible="offcanvas">
       <SidebarHeader className="border-b border-sidebar-border">
         <Link href="/tenant" className="flex items-center gap-3 px-4 py-3">
@@ -166,11 +166,16 @@ export function TenantSidebar() {
               <span className="text-sm text-muted-foreground flex-1">
                 {t("common.language")}
               </span>
+              {/* ✅ FIX: py-1 → py-2 เพิ่ม touch target ให้ใกล้ 44px มากขึ้น
+                  ✅ FIX: เพิ่ม aria-label ให้ screen reader อ่านความหมายได้ชัดเจน
+                     (เดิมอ่านได้แค่ "TH"/"EN" เฉยๆ ไม่รู้ว่าเป็นปุ่มเปลี่ยนภาษา) */}
               <div className="flex rounded-md border border-border overflow-hidden text-xs font-medium">
                 <button
                   onClick={() => setLanguage("th")}
+                  aria-label="เปลี่ยนเป็นภาษาไทย / Switch to Thai"
+                  aria-pressed={language === "th"}
                   className={cn(
-                    "px-2.5 py-1 transition-colors",
+                    "px-3 py-2 transition-colors",
                     language === "th"
                       ? "bg-primary text-primary-foreground"
                       : "hover:bg-muted text-muted-foreground",
@@ -180,8 +185,10 @@ export function TenantSidebar() {
                 </button>
                 <button
                   onClick={() => setLanguage("en")}
+                  aria-label="Switch to English / เปลี่ยนเป็นภาษาอังกฤษ"
+                  aria-pressed={language === "en"}
                   className={cn(
-                    "px-2.5 py-1 transition-colors border-l border-border",
+                    "px-3 py-2 transition-colors border-l border-border",
                     language === "en"
                       ? "bg-primary text-primary-foreground"
                       : "hover:bg-muted text-muted-foreground",

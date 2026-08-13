@@ -5,7 +5,7 @@
 
 const { pool } = require('../config/db');
 
-const findAll = async ({ tenant_id, bill_id, status } = {}) => {
+const findAll = async ({ tenant_id, bill_id, status, payment_method, } = {}) => {
   let sql = `
     SELECT p.*,
            b.bill_month, b.bill_year, b.total_amount AS bill_total,
@@ -23,6 +23,7 @@ const findAll = async ({ tenant_id, bill_id, status } = {}) => {
   if (tenant_id) { sql += ' AND p.tenant_id = ?'; params.push(tenant_id); }
   if (bill_id)   { sql += ' AND p.bill_id = ?';   params.push(bill_id); }
   if (status)    { sql += ' AND p.status = ?';    params.push(status); }
+  if (payment_method) { sql += ' AND p.payment_method = ?'; params.push(payment_method); }
   sql += ' ORDER BY p.paid_at DESC';
   const [rows] = await pool.query(sql, params);
   return rows;

@@ -1,7 +1,7 @@
 /**
  * services/invoiceTemplate.js
  *
- * สร้าง HTML string สำหรับใบแจ้งหนี้ (โทนขาว-ฟ้า)
+ * สร้าง HTML string สำหรับใบแจ้งหนี้ (ดีไซน์แบบเอกสารภาษีดั้งเดิม โทนขาว-ดำ เส้นบาง)
  * ใช้กับ services/pdf.service.js (Puppeteer) เพื่อแปลงเป็น PDF
  *
  * ฟอนต์ Sarabun ถูกอ่านจากไฟล์แล้วฝังเป็น base64 (data URI) ใน <style>
@@ -24,7 +24,13 @@ const THAI_MONTHS_FULL = ['', 'มกราคม', 'กุมภาพันธ
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
 const BILL_STATUS_TH = { pending: 'รอชำระ', paid: 'ชำระแล้ว', overdue: 'เกินกำหนด', cancelled: 'ยกเลิก' };
-const STATUS_CLASS = { pending: 'badge-pending', paid: 'badge-paid', overdue: 'badge-overdue', cancelled: 'badge-cancelled' };
+
+// ประเภทเอกสาร: ใบแจ้งหนี้ (Invoice) หรือ ใบวางบิล (Billing Note) — ใช้ template เดียวกัน
+// สลับได้ผ่าน params.docType เวลาเรียก renderInvoiceHtml
+const DOC_TYPE_CONFIG = {
+  invoice: { th: 'ใบแจ้งหนี้', en: 'Invoice', numberPrefix: 'INV' },
+  billingNote: { th: 'ใบวางบิล', en: 'Billing Note', numberPrefix: 'BN' },
+};
 
 // ── Safe helpers: ป้องกัน template พังจากข้อมูลที่ขาด/ผิดปกติ ──────────────
 const safeNum = (v) => {
@@ -53,60 +59,80 @@ const escOr = (v, fallback = '-') => esc(v === null || v === undefined || v === 
  * @param {object} params
  * @param {object} params.bill - ข้อมูลบิล (จาก BillModel.findByIdWithMeters)
  * @param {string|null} params.qrDataUrl - QR PromptPay เป็น data:image/png;base64,... (จาก qrcode.toDataURL)
- * @param {object} params.company - ข้อมูลบริษัท { name, sub, address, taxId, phone, bankAccountName, promptpayId }
+ * @param {object} params.company - ข้อมูลบริษัท { name, sub, address, taxId, phone, email, bankName, bankBranch, bankAccountName, bankAccountNumber, promptpayId }
+ * @param {'invoice'|'billingNote'} [params.docType='invoice'] - ประเภทเอกสาร ใบแจ้งหนี้ หรือ ใบวางบิล
  * @returns {string} HTML เต็มหน้า พร้อมส่งเข้า Puppeteer
  */
-function renderInvoiceHtml({ bill, qrDataUrl, company }) {
+function renderInvoiceHtml({ bill, qrDataUrl, company, docType }) {
   const b = bill || {};
+  const c = company || {};
+  const doc = DOC_TYPE_CONFIG[docType] || DOC_TYPE_CONFIG.invoice;
   const status = b.status || 'pending';
   const statusLabel = BILL_STATUS_TH[status] || status;
-  const statusClass = STATUS_CLASS[status] || 'badge-pending';
 
   const rent = safeNum(b.rent_amount);
   const electric = safeNum(b.electric_amount);
   const water = safeNum(b.water_amount);
   const other = safeNum(b.other_amount);
-  const total = safeNum(b.total_amount) || (rent + electric + water + other);
+  const discount = safeNum(b.discount_amount);
+  const total = safeNum(b.total_amount) || (rent + electric + water + other - discount);
   const subtotal = rent + electric + water + other;
 
   const items = [
-    { name: 'ค่าเช่าห้องพัก', sub: 'อัตราเหมาจ่ายรายเดือน', units: '-', rate: '-', amount: rent },
+    { name: 'ค่าเช่าห้องพัก', qty: 1, unit: 'เดือน', rate: rent, amount: rent },
     {
       name: 'ค่าไฟฟ้า',
-      sub: b.elec_rate != null ? `หน่วยละ ${fmtMoney(b.elec_rate)} บาท` : null,
-      units: b.elec_units != null ? fmtMoney(b.elec_units) : '-',
-      rate: b.elec_rate != null ? fmtMoney(b.elec_rate) : '-',
+      qty: b.elec_units != null ? fmtMoney(b.elec_units) : '-',
+      unit: 'หน่วย',
+      rate: b.elec_rate != null ? safeNum(b.elec_rate) : '-',
       amount: electric,
     },
     {
       name: 'ค่าน้ำประปา',
-      sub: b.water_rate != null ? `หน่วยละ ${fmtMoney(b.water_rate)} บาท` : null,
-      units: b.water_units != null ? fmtMoney(b.water_units) : '-',
-      rate: b.water_rate != null ? fmtMoney(b.water_rate) : '-',
+      qty: b.water_units != null ? fmtMoney(b.water_units) : '-',
+      unit: 'หน่วย',
+      rate: b.water_rate != null ? safeNum(b.water_rate) : '-',
       amount: water,
     },
   ];
   if (other > 0) {
-    items.push({ name: 'ค่าใช้จ่ายอื่น ๆ', sub: null, units: '-', rate: '-', amount: other });
+    items.push({ name: 'ค่าใช้จ่ายอื่น ๆ', qty: '-', unit: '-', rate: '-', amount: other });
   }
+  // เติมแถวว่างให้ตารางดูสมส่วนเมื่อรายการน้อย (อย่างน้อย 5 แถว)
+  const MIN_ROWS = 5;
+  while (items.length < MIN_ROWS) items.push({ blank: true });
 
-  const itemsRowsHtml = items.map((item) => `
-    <tr>
-      <td class="col-name">
-        <div class="item-name">${esc(item.name)}</div>
-        ${item.sub ? `<div class="item-sub">${esc(item.sub)}</div>` : ''}
-      </td>
-      <td class="col-units">${esc(item.units)}</td>
-      <td class="col-rate">${esc(item.rate)}</td>
-      <td class="col-amount">${fmtMoney(item.amount)}</td>
-    </tr>
-  `).join('');
+  const itemsRowsHtml = items.map((item, i) => {
+    if (item.blank) {
+      return `
+      <tr>
+        <td class="col-no">&nbsp;</td>
+        <td class="col-name">&nbsp;</td>
+        <td class="col-qty">&nbsp;</td>
+        <td class="col-unit">&nbsp;</td>
+        <td class="col-rate">&nbsp;</td>
+        <td class="col-discount">&nbsp;</td>
+        <td class="col-amount">&nbsp;</td>
+      </tr>`;
+    }
+    return `
+      <tr>
+        <td class="col-no">${i + 1}</td>
+        <td class="col-name">${esc(item.name)}</td>
+        <td class="col-qty">${item.qty}</td>
+        <td class="col-unit">${esc(item.unit)}</td>
+        <td class="col-rate">${item.rate === '-' ? '-' : fmtMoney(item.rate)}</td>
+        <td class="col-discount">0.00</td>
+        <td class="col-amount">${fmtMoney(item.amount)}</td>
+      </tr>`;
+  }).join('');
 
   const needsPayment = status === 'pending' || status === 'overdue';
   const dueDateStr = safeDateStr(b.due_date);
   const issuedDateStr = new Date().toLocaleDateString('th-TH');
   const issuedAtStr = new Date().toLocaleString('th-TH');
-  const billIdStr = b.bill_id != null ? String(b.bill_id).padStart(6, '0') : '------';
+  const billIdStr = b.bill_id != null ? String(b.bill_id).padStart(8, '0') : '--------';
+  const docCopyLabel = status === 'cancelled' ? 'ยกเลิก' : 'ต้นฉบับ';
 
   return `<!DOCTYPE html>
 <html lang="th">
@@ -126,186 +152,167 @@ function renderInvoiceHtml({ bill, qrDataUrl, company }) {
   @page { size: A4; margin: 0; }
   * { box-sizing: border-box; }
   body {
-    margin: 0; font-family: 'Sarabun', sans-serif; color: #17293d; background: #ffffff;
-    font-variant-numeric: tabular-nums; /* ตัวเลขกว้างเท่ากันทุกหลัก ป้องกันจำนวนเงินเยื้องแนว */
+    margin: 0; font-family: 'Sarabun', sans-serif; color: #1a1a1a; background: #ffffff;
+    font-variant-numeric: tabular-nums;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
-
-  .page { width: 210mm; min-height: 297mm; padding: 40px; }
+  .page { width: 210mm; padding: 26px 34px 22px; position: relative; }
 
   /* ── Header ── */
   .header { display: flex; justify-content: space-between; align-items: flex-start; }
-  .brand { display: flex; gap: 12px; }
-  .logo {
-    width: 40px; height: 40px; border-radius: 8px; background: #e3f0ff;
-    color: #17293d; font-weight: 700; font-size: 14px;
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  .seller-name { font-weight: 700; font-size: 12.5px; }
+  .seller-line { font-size: 8.5px; color: #333333; margin-top: 3px; line-height: 1.55; }
+  .seller-line b { color: #1a1a1a; }
+  .doc-meta { text-align: right; flex-shrink: 0; }
+  .doc-title { font-weight: 700; font-size: 17px; color: #1d4ed8; }
+  .doc-title-en { font-size: 8.5px; color: #6b7f96; letter-spacing: 1px; margin-top: 1px; }
+  .doc-copy {
+    display: inline-block; margin-top: 8px; padding: 2px 10px; border: 1px solid #1a1a1a;
+    border-radius: 3px; font-size: 8px; font-weight: 700;
   }
-  .brand-name { font-weight: 700; font-size: 14px; }
-  .brand-sub { color: #1d4ed8; font-size: 8px; margin-top: 3px; }
-  .brand-address { color: #47617a; font-size: 8px; margin-top: 3px; max-width: 260px; }
+  .doc-numbers { margin-top: 9px; font-size: 8.5px; line-height: 1.7; }
+  .doc-numbers .lbl { color: #555555; }
+  .doc-numbers b { color: #1a1a1a; }
 
-  .invoice-meta { text-align: right; }
-  .invoice-title { font-weight: 700; font-size: 18px; }
-  .invoice-label { color: #47617a; font-size: 8px; letter-spacing: 1px; margin-top: 3px; }
-  .invoice-number { font-weight: 700; font-size: 11px; margin-top: 5px; }
-  .badge {
-    display: inline-block; margin-top: 8px; padding: 4px 14px; border-radius: 9px;
-    font-size: 8px; font-weight: 700;
-  }
-  .badge-paid { background: #dcfce7; color: #15803d; }
-  .badge-pending { background: #fef3c7; color: #b45309; }
-  .badge-overdue { background: #fee2e2; color: #b91c1c; }
-  .badge-cancelled { background: #e5e7eb; color: #4b5563; }
+  .hr { height: 1px; background: #1a1a1a; margin-top: 14px; }
+  .hr.light { background: #cfd8e3; }
 
-  .divider { height: 1px; background: #dbe7f5; margin: 20px 0; }
+  /* ── Buyer box ── */
+  .buyer { margin-top: 12px; }
+  .buyer-label { font-size: 8px; color: #555555; font-weight: 700; }
+  .buyer-name { font-weight: 700; font-size: 11px; margin-top: 3px; }
+  .buyer-line { font-size: 8.5px; color: #333333; margin-top: 3px; line-height: 1.55; }
+  .buyer-line b { color: #1a1a1a; }
 
-  /* ── Info cards ── */
-  .info-cards { display: flex; gap: 16px; margin-bottom: 24px; }
-  .card { flex: 1; background: #f0f7ff; border-radius: 8px; padding: 14px; }
-  .card-label { color: #47617a; font-size: 8px; }
-  .tenant-name { font-weight: 700; font-size: 12px; margin-top: 6px; }
-  .info-line { color: #33475a; font-size: 9px; margin-top: 6px; }
-  .info-row { display: flex; justify-content: space-between; font-size: 9px; padding: 5px 0; }
-  .info-row .label { color: #47617a; }
-  .info-row .value { font-weight: 700; }
-  .info-hr { height: 1px; background: #dbe7f5; }
-
-  /* ── Items table (fixed layout — คอลัมน์ตรงเสมอ ไม่ขยับตามความยาวข้อความ) ── */
-  table.items { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 8px; }
-  col.col-name   { width: 46%; }
-  col.col-units  { width: 16%; }
-  col.col-rate   { width: 16%; }
-  col.col-amount { width: 22%; }
+  /* ── Items table ── */
+  table.items { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 16px; }
+  col.col-no       { width: 6%; }
+  col.col-name     { width: 32%; }
+  col.col-qty      { width: 12%; }
+  col.col-unit     { width: 10%; }
+  col.col-rate     { width: 14%; }
+  col.col-discount { width: 12%; }
+  col.col-amount   { width: 14%; }
 
   table.items thead th {
-    color: #47617a; font-size: 8px; font-weight: 400;
-    padding: 0 0 8px 0; border-bottom: 1px solid #dbe7f5;
+    border-top: 1px solid #1a1a1a; border-bottom: 1px solid #1a1a1a;
+    font-size: 8px; font-weight: 700; padding: 6px 6px;
   }
-  /* จัด alignment ทีละคอลัมน์ ใช้ selector เดียวกันทั้ง th และ td
-     เพื่อไม่ให้ specificity ชนกับกฎ "thead th" ด้านบน (ห้ามตั้ง text-align ซ้ำที่นั่น) */
-  th.col-name, td.col-name { text-align: left; }
-  th.col-units, td.col-units { text-align: center; }
-  th.col-rate, td.col-rate { text-align: center; }
-  th.col-amount, td.col-amount { text-align: right; padding-right: 0; }
+  th.col-no, td.col-no { text-align: center; }
+  th.col-name, td.col-name { text-align: left; padding-left: 8px; }
+  th.col-qty, td.col-qty { text-align: center; }
+  th.col-unit, td.col-unit { text-align: center; }
+  th.col-rate, td.col-rate { text-align: right; padding-right: 8px; }
+  th.col-discount, td.col-discount { text-align: right; padding-right: 8px; }
+  th.col-amount, td.col-amount { text-align: right; padding-right: 8px; }
   table.items td {
-    padding: 10px 0; border-bottom: 1px solid #dbe7f5; vertical-align: top; font-size: 9px;
-    overflow-wrap: break-word;
+    padding: 6px 6px; font-size: 9px; height: 22px; vertical-align: top;
+    border-bottom: 1px solid #e6e6e6;
   }
-  .item-name { font-weight: 700; font-size: 10px; }
-  .item-sub { color: #47617a; font-size: 8px; margin-top: 2px; }
-  td.col-amount { font-weight: 700; font-size: 10px; white-space: nowrap; }
+  table.items tbody tr:last-child td { border-bottom: 1px solid #1a1a1a; }
 
-  /* ── Totals (ชิดขอบขวาเดียวกับคอลัมน์จำนวนเงินในตาราง) ── */
-  .totals { margin-top: 16px; }
-  .subtotal-row {
-    display: flex; justify-content: space-between; font-size: 9px; color: #47617a; padding: 4px 0;
+  /* ── Totals ── */
+  .totals-wrap { display: flex; justify-content: flex-end; margin-top: 4px; }
+  .totals { width: 44%; }
+  .totals-row {
+    display: flex; justify-content: space-between; font-size: 9px; padding: 5px 0;
+    border-bottom: 1px solid #e6e6e6;
   }
-  .subtotal-row .amt { color: #17293d; font-weight: 700; white-space: nowrap; }
-  .total-box {
-    display: flex; justify-content: space-between; align-items: center;
-    background: #e8f1ff; border-radius: 6px; padding: 12px 16px; margin-top: 8px; font-weight: 700;
+  .totals-row .lbl { color: #333333; }
+  .totals-row .amt { font-weight: 700; }
+  .totals-row.grand {
+    border-bottom: none; border-top: 1px solid #1a1a1a; margin-top: 2px; padding-top: 7px;
   }
-  .total-label { font-size: 12px; }
-  .total-amount { color: #1d4ed8; font-size: 14px; white-space: nowrap; }
+  .totals-row.grand .lbl { font-weight: 700; font-size: 10px; }
+  .totals-row.grand .amt { font-weight: 700; font-size: 12px; color: #1d4ed8; }
 
-  /* ── Payment box ── */
-  .pay-box {
-    display: flex; gap: 20px; background: #f0f7ff; border-radius: 8px; padding: 16px; margin-top: 24px;
+  .status-badge {
+    display: inline-block; margin-top: 10px; padding: 3px 11px; border-radius: 3px;
+    font-size: 8px; font-weight: 700;
   }
-  .qr-wrap { width: 110px; text-align: center; flex-shrink: 0; }
-  .qr-img { width: 98px; height: 98px; }
-  .qr-caption { color: #1d4ed8; font-size: 7.5px; margin-top: 6px; }
-  .pay-info { flex: 1; min-width: 0; }
-  .pay-title { font-weight: 700; font-size: 10px; margin-bottom: 10px; }
-  .pay-row { display: flex; font-size: 9px; margin-bottom: 6px; }
-  .pay-row .label { color: #47617a; width: 80px; flex-shrink: 0; }
+  .status-pending   { background: #eff5ff; color: #1d4ed8; border: 1px solid #cfe0ff; }
+  .status-overdue   { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+  .status-paid      { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+  .status-cancelled { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+
+  /* ── Note ── */
+  .note { margin-top: 14px; font-size: 7.5px; color: #6b7f96; line-height: 1.6; }
+
+  /* ── Signature line ── */
+  .signature { margin-top: 22px; font-size: 8.5px; }
+  .signature .lbl { color: #333333; }
+
+  /* ── Payment section ── */
+  .pay-section { display: flex; gap: 20px; margin-top: 22px; }
+  .pay-col {
+    flex: 1; border: 1px solid #1a1a1a; border-radius: 4px; padding: 12px 14px;
+  }
+  .pay-col-title { font-size: 9px; font-weight: 700; margin-bottom: 9px; }
+  .pay-row { display: flex; font-size: 8.5px; margin-top: 6px; }
+  .pay-row .label { color: #555555; width: 78px; flex-shrink: 0; }
   .pay-row .value { font-weight: 700; word-break: break-word; }
-  .pay-note { color: #47617a; font-size: 7.5px; margin-top: 8px; line-height: 1.5; }
+  .pay-note { font-size: 7.5px; color: #6b7f96; margin-top: 9px; line-height: 1.55; }
 
-  /* ── Status note (แสดงแทนกล่อง QR เมื่อบิลไม่ต้องชำระแล้ว) ── */
-  .status-note {
-    display: flex; align-items: flex-start; gap: 12px;
-    border-radius: 8px; padding: 16px; margin-top: 24px;
+  .qr-col {
+    width: 168px; flex-shrink: 0; border: 1px solid #1a1a1a; border-radius: 4px;
+    padding: 12px 14px; text-align: center;
   }
-  .status-note-icon {
-    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 700;
-  }
-  .status-note-title { font-weight: 700; font-size: 10px; }
-  .status-note-sub { font-size: 8px; margin-top: 4px; line-height: 1.5; }
-  .status-note-paid { background: #f0fdf4; }
-  .status-note-paid .status-note-icon { background: #dcfce7; color: #15803d; }
-  .status-note-paid .status-note-title { color: #15803d; }
-  .status-note-paid .status-note-sub { color: #47617a; }
-  .status-note-cancelled { background: #f8fafc; }
-  .status-note-cancelled .status-note-icon { background: #e5e7eb; color: #4b5563; }
-  .status-note-cancelled .status-note-title { color: #4b5563; }
-  .status-note-cancelled .status-note-sub { color: #47617a; }
+  .qr-img { width: 118px; height: 118px; display: block; margin: 6px auto 0; }
+  .qr-id { font-size: 8px; color: #555555; margin-top: 6px; }
 
   /* ── Footer ── */
-  .footer { margin-top: 24px; padding-top: 14px; border-top: 1px solid #dbe7f5; text-align: center; }
-  .footer-main { color: #47617a; font-size: 8px; }
-  .footer-sub { color: #47617a; font-size: 7px; margin-top: 6px; }
+  .footer { margin-top: 26px; padding-top: 10px; border-top: 1px solid #cfd8e3; text-align: center; }
+  .footer-main { color: #6b7f96; font-size: 7.5px; }
+  .footer-sub { color: #97a7bb; font-size: 7px; margin-top: 4px; }
 </style>
 </head>
 <body>
   <div class="page">
 
+    <!-- Header -->
     <div class="header">
-      <div class="brand">
-        <div class="logo">SD</div>
-        <div>
-          <div class="brand-name">${escOr(company.name, 'Smart Dormitory')}</div>
-          <div class="brand-sub">${escOr(company.sub, '')}</div>
-          <div class="brand-address">${escOr(company.address, '')}</div>
-        </div>
+      <div>
+        <div class="seller-name">${escOr(c.name, 'บริษัท ผู้ขายตัวอย่าง จำกัด (สำนักงานใหญ่)')}</div>
+        <div class="seller-line">${escOr(c.address)}</div>
+        <div class="seller-line"><b>เลขประจำตัวผู้เสียภาษี</b> ${escOr(c.taxId)}</div>
+        <div class="seller-line"><b>โทร.</b> ${escOr(c.phone)}${c.email ? ` &nbsp;·&nbsp; <b>อีเมล</b> ${esc(c.email)}` : ''}</div>
       </div>
-      <div class="invoice-meta">
-        <div class="invoice-title">ใบแจ้งหนี้</div>
-        <div class="invoice-label">INVOICE</div>
-        <div class="invoice-number">INV-${billIdStr}</div>
-        <div class="badge ${statusClass}">${esc(statusLabel)}</div>
-      </div>
-    </div>
-
-    <div class="divider"></div>
-
-    <div class="info-cards">
-      <div class="card">
-        <div class="card-label">เรียกเก็บจาก</div>
-        <div class="tenant-name">${escOr(b.tenant_name)}</div>
-        <div class="info-line">ห้องพัก ${escOr(b.room_number)} (ชั้น ${escOr(b.floor)})</div>
-        <div class="info-line">${escOr(b.tenant_phone)}</div>
-      </div>
-      <div class="card">
-        <div class="info-row">
-          <span class="label">งวดประจำเดือน</span>
-          <span class="value">${safeMonthYear(b.bill_month, b.bill_year)}</span>
-        </div>
-        <div class="info-hr"></div>
-        <div class="info-row">
-          <span class="label">วันที่ออกเอกสาร</span>
-          <span class="value">${issuedDateStr}</span>
-        </div>
-        <div class="info-hr"></div>
-        <div class="info-row">
-          <span class="label">กำหนดชำระ</span>
-          <span class="value">${dueDateStr}</span>
+      <div class="doc-meta">
+        <div class="doc-title">${doc.th}</div>
+        <div class="doc-title-en">${doc.en.toUpperCase()}</div>
+        <div class="doc-copy">${docCopyLabel}</div>
+        <div class="doc-numbers">
+          <div><span class="lbl">เลขที่</span> <b>${doc.numberPrefix}${billIdStr}</b></div>
+          <div><span class="lbl">วันที่</span> <b>${issuedDateStr}</b></div>
         </div>
       </div>
     </div>
 
+    <div class="hr"></div>
+
+    <!-- Buyer -->
+    <div class="buyer">
+      <div class="buyer-label">ลูกค้า</div>
+      <div class="buyer-name">${escOr(b.tenant_name)}</div>
+      <div class="buyer-line">ห้องพัก ${escOr(b.room_number)} · ชั้น ${escOr(b.floor)}</div>
+      <div class="buyer-line"><b>โทร.</b> ${escOr(b.tenant_phone)} &nbsp;·&nbsp; <b>งวดประจำเดือน</b> ${safeMonthYear(b.bill_month, b.bill_year)} &nbsp;·&nbsp; <b>กำหนดชำระ</b> ${dueDateStr}</div>
+    </div>
+
+    <!-- Items -->
     <table class="items">
       <colgroup>
-        <col class="col-name" /><col class="col-units" /><col class="col-rate" /><col class="col-amount" />
+        <col class="col-no" /><col class="col-name" /><col class="col-qty" /><col class="col-unit" />
+        <col class="col-rate" /><col class="col-discount" /><col class="col-amount" />
       </colgroup>
       <thead>
         <tr>
+          <th class="col-no">ลำดับ</th>
           <th class="col-name">รายการ</th>
-          <th class="col-units">หน่วยที่ใช้</th>
-          <th class="col-rate">อัตรา/หน่วย</th>
-          <th class="col-amount">จำนวนเงิน (บาท)</th>
+          <th class="col-qty">จำนวน</th>
+          <th class="col-unit">หน่วย</th>
+          <th class="col-rate">ราคา/หน่วย</th>
+          <th class="col-discount">ส่วนลด</th>
+          <th class="col-amount">จำนวนเงิน</th>
         </tr>
       </thead>
       <tbody>
@@ -313,53 +320,58 @@ function renderInvoiceHtml({ bill, qrDataUrl, company }) {
       </tbody>
     </table>
 
-    <div class="totals">
-      <div class="subtotal-row">
-        <span>ยอดรวมย่อย</span>
-        <span class="amt">${fmtMoney(subtotal)}</span>
+    <!-- Totals -->
+    <div class="totals-wrap">
+      <div class="totals">
+        <div class="totals-row">
+          <span class="lbl">ยอดรวมย่อย</span>
+          <span class="amt">${fmtMoney(subtotal)} บาท</span>
+        </div>
+        <div class="totals-row">
+          <span class="lbl">ส่วนลด</span>
+          <span class="amt">${fmtMoney(discount)} บาท</span>
+        </div>
+        <div class="totals-row grand">
+          <span class="lbl">รวมเป็นเงิน</span>
+          <span class="amt">${fmtMoney(total)} บาท</span>
+        </div>
       </div>
-      <div class="total-box">
-        <span class="total-label">ยอดชำระทั้งสิ้น</span>
-        <span class="total-amount">${fmtMoney(total)} บาท</span>
-      </div>
+    </div>
+
+    <div style="text-align:right;">
+      <span class="status-badge status-${status}">${esc(statusLabel)}</span>
+    </div>
+
+    <div class="note">
+      เอกสารนี้ได้จัดทำขึ้นด้วยระบบอิเล็กทรอนิกส์โดย ${escOr(c.name, 'บริษัท ผู้ขายตัวอย่าง จำกัด')} · ออกเอกสารเมื่อ ${issuedAtStr}
+    </div>
+
+    <div class="signature">
+      <span class="lbl">ผู้จัดทำ</span> ${escOr(c.name, 'บริษัท ผู้ขายตัวอย่าง จำกัด')}
     </div>
 
     ${needsPayment ? `
-    <div class="pay-box">
+    <div class="pay-section">
+      <div class="pay-col">
+        <div class="pay-col-title">ช่องทางการชำระเงิน</div>
+        <div class="pay-row"><span class="label">ธนาคาร</span><span class="value">${escOr(c.bankName)} ${c.bankBranch ? `สาขา ${esc(c.bankBranch)}` : ''}</span></div>
+        <div class="pay-row"><span class="label">ชื่อบัญชี</span><span class="value">${escOr(c.bankAccountName)}</span></div>
+        <div class="pay-row"><span class="label">เลขบัญชี</span><span class="value">${escOr(c.bankAccountNumber)}</span></div>
+        <div class="pay-note">กรุณาชำระภายในวันที่กำหนด และเก็บหลักฐานการโอนไว้เพื่อยืนยันการชำระเงิน · ระบบจะอัปเดตสถานะเป็น "ชำระแล้ว" หลังตรวจสอบยอดโอน${c.email ? ` หรือแจ้งที่ ${esc(c.email)}` : ''}</div>
+      </div>
       ${qrDataUrl ? `
-      <div class="qr-wrap">
+      <div class="qr-col">
+        <div class="pay-col-title">พร้อมเพย์ QR</div>
         <img class="qr-img" src="${qrDataUrl}" />
-        <div class="qr-caption">สแกนเพื่อชำระผ่าน PromptPay</div>
+        <div class="qr-id">เลขที่ ${escOr(c.promptpayId)}</div>
       </div>` : ''}
-      <div class="pay-info">
-        <div class="pay-title">รายละเอียดการชำระเงิน</div>
-        <div class="pay-row"><span class="label">พร้อมเพย์</span><span class="value">${escOr(company.promptpayId)}</span></div>
-        <div class="pay-row"><span class="label">ชื่อบัญชี</span><span class="value">${escOr(company.bankAccountName)}</span></div>
-        <div class="pay-row"><span class="label">ยอดชำระ</span><span class="value">${fmtMoney(total)} บาท</span></div>
-        <div class="pay-note">กรุณาชำระภายในวันที่กำหนด และเก็บหลักฐานการโอนไว้เพื่อยืนยันการชำระเงิน</div>
-      </div>
-    </div>
-    ` : status === 'paid' ? `
-    <div class="status-note status-note-paid">
-      <span class="status-note-icon">✓</span>
-      <div>
-        <div class="status-note-title">ชำระเงินเรียบร้อยแล้ว</div>
-        <div class="status-note-sub">ขอบคุณที่ชำระเงินตรงเวลา — ต้องการใบเสร็จรับเงินสามารถขอออกใบเสร็จแยกได้จากระบบ</div>
-      </div>
-    </div>
-    ` : status === 'cancelled' ? `
-    <div class="status-note status-note-cancelled">
-      <span class="status-note-icon">✕</span>
-      <div>
-        <div class="status-note-title">ใบแจ้งหนี้นี้ถูกยกเลิก</div>
-        <div class="status-note-sub">เอกสารนี้ไม่มีผลผูกพันการชำระเงิน กรุณาติดต่อผู้ดูแลระบบหากมีข้อสงสัย</div>
-      </div>
     </div>
     ` : ''}
 
+    <!-- Footer -->
     <div class="footer">
-      <div class="footer-main">ขอบคุณที่ใช้บริการหอพักของเรา · เอกสารนี้ออกโดยระบบอัตโนมัติ</div>
-      <div class="footer-sub">เลขประจำตัวผู้เสียภาษี ${escOr(company.taxId)} · โทร. ${escOr(company.phone)} · ออกเอกสารเมื่อ ${issuedAtStr}</div>
+      <div class="footer-main">เอกสารนี้ออกโดยระบบอัตโนมัติ · ${escOr(c.name, 'Smart Dormitory')}</div>
+      <div class="footer-sub">เลขประจำตัวผู้เสียภาษี ${escOr(c.taxId)} · โทร. ${escOr(c.phone)}</div>
     </div>
 
   </div>

@@ -12,8 +12,8 @@ export const moveOutAPI = {
   // data: { move_out_date, reason }
 
   // admin only — พรีวิวยอดคืนเงินประกันก่อนอนุมัติ
-  getDepositPreview: (id) =>
-    api.get(`/move-out/${id}/deposit-preview`).then((r) => r.data),
+  getDepositPreview: (id, checkoutDate) =>
+  api.get(`/move-out/${id}/deposit-preview`, { params: checkoutDate ? { checkout_date: checkoutDate } : {} }).then((r) => r.data),
 
   // admin only
   approve: (id, payload) =>

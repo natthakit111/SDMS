@@ -182,8 +182,6 @@ const COMPANY = {
   address: process.env.COMPANY_ADDRESS || '123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110',
   taxId: process.env.COMPANY_TAX_ID || '0-1055-12345-67-8',
   phone: process.env.COMPANY_PHONE || '02-123-4567',
-  bankAccountName: process.env.BANK_ACCOUNT_NAME || 'Smart Dormitory Management',
-  promptpayId: process.env.PROMPTPAY_ID || null,
 };
 
 // ── Export single bill as PDF invoice (HTML/CSS → Puppeteer, โทนขาว-ฟ้า) ──
@@ -204,20 +202,27 @@ const exportBillInvoice = async (req, res, next) => {
       } catch (_) { /* ข้าม QR ถ้าสร้างรูปไม่สำเร็จ */ }
     }
 
-    const html = renderInvoiceHtml({ bill, qrDataUrl, company: COMPANY });
-    const pdfBuffer = await htmlToPdfBuffer(html);
+    const financialInfo = await SettingsModel.getByKeys([
+      'bank_name', 'bank_account', 'bank_account_name', 'promptpay_id',
+    ]);
 
-    // ⚠️ สำคัญ: ต้องบังคับแปลงเป็น Buffer จริง ๆ ก่อนส่ง
-    // เพราะ Express res.send() จะเรียก res.json() ให้อัตโนมัติถ้า argument
-    // เป็น object แต่ไม่ใช่ Buffer แท้ (Buffer.isBuffer() === false)
-    // ซึ่งบางเวอร์ชันของ Puppeteer คืนค่า page.pdf() เป็น Uint8Array ธรรมดา
-    // ไม่ใช่ Node Buffer ทำให้ Express stringify เป็น JSON แทนที่จะส่งไบต์ตรงๆ
+    const html = renderInvoiceHtml({
+      bill,
+      qrDataUrl,
+      company: {
+        ...COMPANY,
+        bankName: financialInfo.bank_name || null,
+        bankAccountNumber: financialInfo.bank_account || null,
+        bankAccountName: financialInfo.bank_account_name || null,
+        promptpayId: financialInfo.promptpay_id || null,
+      },
+    });
+    const pdfBuffer = await htmlToPdfBuffer(html);
     const buffer = Buffer.from(pdfBuffer);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=invoice_${bill.bill_id}.pdf`);
     res.setHeader('Content-Length', buffer.length);
-    // ใช้ res.end() แทน res.send() เพื่อส่ง binary ตรงๆ โดยไม่ผ่านการเดา type ของ Express
     return res.end(buffer);
   } catch (err) { next(err); }
 };

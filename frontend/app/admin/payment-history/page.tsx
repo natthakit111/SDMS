@@ -1,4 +1,4 @@
-//payment-history/page.tsx
+//admin/payment-history/page.tsx
 
 "use client";
 
@@ -32,21 +32,8 @@ import { paymentAPI } from "@/lib/api/payment.api";
 import { reportAPI } from "@/lib/api/report.api";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
+import { Payment } from "@/types/index";
 
-interface Payment {
-  payment_id: number;
-  bill_id: number;
-  tenant_name: string;
-  room_number: string;
-  amount_paid: number;
-  payment_method: string;
-  slip_image: string | null;
-  status: string;
-  remark: string | null;
-  verified_by_name: string | null;
-  verified_at: string | null;
-  created_at: string;
-}
 
 const formatDate = (dateStr: string | null) => {
   if (!dateStr) return "-";
@@ -152,7 +139,7 @@ export default function PaymentHistoryPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">{t("paymentHistory.title")}</h1>
+          <h1 className="text-2xl font-bold">{t("paymentHistory.title")}</h1>
           <p className="text-muted-foreground mt-2">
             {t("paymentHistory.subtitle")}
           </p>

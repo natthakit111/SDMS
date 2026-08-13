@@ -1,3 +1,5 @@
+//components/layout/tenant-bottom-nav.tsx
+
 "use client";
 
 import Link from "next/link";
@@ -12,11 +14,17 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNotification } from "@/context/notification-context";
+import { NotifType } from "@/lib/notifications";
 
 export function TenantBottomNav() {
   const pathname = usePathname();
   const { t } = useLanguage();
-  const { hasUnread } = useNotification();
+  const { unreadTypes } = useNotification();
+
+  const dotForTab: Record<string, NotifType[]> = {
+    "/tenant/bills": ["bill"],
+    "/tenant/maintenance": ["maintenance"],
+  };
 
   const items = [
     { href: "/tenant", icon: LayoutDashboard, label: t("menu.dashboard") },
@@ -48,7 +56,11 @@ export function TenantBottomNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors",
+                // ✅ FIX: เพิ่ม "relative" — ไม่งั้น <span> active indicator
+                // ด้านล่าง (ที่เป็น absolute) จะไป position เทียบกับ <nav>
+                // (ซึ่งเป็น fixed) แทนที่จะเทียบกับ Link ของแต่ละ tab เอง
+                // ทำให้แถบขีดไม่ได้อยู่ใต้ icon ของ tab ที่ active จริง
+                "relative flex-1 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors min-h-[44px]",
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground",
@@ -62,17 +74,17 @@ export function TenantBottomNav() {
                   )}
                 />
                 {/* Dot badge สำหรับ bills และ payment */}
-                {hasUnread &&
-                  (item.href === "/tenant/bills" ||
-                    item.href === "/tenant/payment") && (
-                    <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive" />
-                  )}
+                {dotForTab[item.href]?.some((type) =>
+                  unreadTypes.has(type),
+                ) && (
+                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive" />
+                )}
               </div>
-              <span className="truncate max-w-[56px] text-center leading-tight">
+              <span className="truncate max-w-[60px] text-center leading-tight">
                 {item.label}
               </span>
               {isActive && (
-                <span className="absolute bottom-0 w-8 h-0.5 rounded-full bg-primary" />
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary" />
               )}
             </Link>
           );

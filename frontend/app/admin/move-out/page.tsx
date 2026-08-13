@@ -46,27 +46,16 @@ import {
   Loader2,
   Search,
   Wallet,
+  ChevronRight,
+  CalendarClock,
+  CalendarCheck,
 } from "lucide-react";
 import { moveOutAPI } from "@/lib/api/moveOut.api";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface MoveOutRequest {
-  request_id: number;
-  tenant_id: number;
-  first_name: string;
-  last_name: string;
-  room_number: string;
-  move_out_date: string;
-  reason: string;
-  status: "pending" | "approved" | "rejected";
-  admin_note: string | null;
-  created_at: string;
-  reviewed_at: string | null;
-  deposit_amount?: number;
-}
+import { todayDateString } from "@/lib/utils";
+import { DatePickerField } from "@/components/common/date-picker-field";
+import { MoveOutRequest } from "@/types/index";
 
 interface DepositPreview {
   deposit_amount: number;
@@ -74,6 +63,8 @@ interface DepositPreview {
   fine_amount: number;
   fine_reason: string | null;
   net_refund: number;
+  checkout_date_used?: string; // ⚠️ ใหม่
+  tenant_requested_date?: string; // ⚠️ ใหม่
 }
 
 const fmtDate = (d: string, lang: string) =>
@@ -132,6 +123,10 @@ export default function AdminMoveOutPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [deductionExtra, setDeductionExtra] = useState("0");
   const [deductionExtraNote, setDeductionExtraNote] = useState("");
+  // ⚠️ ใหม่: วันที่ย้ายออกจริงที่แอดมินยืนยัน — แยกจาก move_out_date ที่
+  // tenant เสนอ ใช้คำนวณค่าปรับ/เงินคืนแทน (ดู backend moveOutController.js)
+  const [actualCheckoutDate, setActualCheckoutDate] =
+    useState(todayDateString());
 
   // ── Fetch Move-out Requests ───────────────────────────────────────────────
   const fetchRequests = useCallback(async () => {
@@ -186,6 +181,7 @@ export default function AdminMoveOutPage() {
     try {
       await moveOutAPI.approve(viewingRequest.request_id, {
         admin_note: adminNote,
+        actual_checkout_date: actualCheckoutDate, // ⚠️ ใหม่
         deduction_extra: extraNum,
         deduction_extra_note: deductionExtraNote || undefined,
       });
@@ -225,12 +221,14 @@ export default function AdminMoveOutPage() {
     setDeductionExtra("0");
     setDeductionExtraNote("");
     setDepositPreview(null);
+    // ⚠️ ใหม่: reset เป็นวันนี้ทุกครั้งที่เปิด dialog ใหม่
+    const today = new Date().toISOString().split("T")[0];
+    setActualCheckoutDate(today);
 
-    // เฉพาะคำร้องที่ pending เท่านั้นที่ต้องพรีวิวยอดเงินประกัน
     if (r.status === "pending") {
       setPreviewLoading(true);
       try {
-        const res = await moveOutAPI.getDepositPreview(r.request_id);
+        const res = await moveOutAPI.getDepositPreview(r.request_id, today);
         setDepositPreview(res.data ?? null);
       } catch (err: any) {
         toast.error(
@@ -242,12 +240,33 @@ export default function AdminMoveOutPage() {
     }
   };
 
+  // ⚠️ ใหม่: เรียก preview ใหม่ทุกครั้งที่ admin แก้วันที่ย้ายออกจริง
+  const handleCheckoutDateChange = async (newDate: string) => {
+    setActualCheckoutDate(newDate);
+    if (!viewingRequest) return;
+    setPreviewLoading(true);
+    try {
+      const res = await moveOutAPI.getDepositPreview(
+        viewingRequest.request_id,
+        newDate,
+      );
+      setDepositPreview(res.data ?? null);
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message ?? t("moveout.depositPreviewError"),
+      );
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   const closeDialog = () => {
     setViewingRequest(null);
     setAdminNote("");
     setDepositPreview(null);
     setDeductionExtra("0");
     setDeductionExtraNote("");
+    setActualCheckoutDate(todayDateString()); // ⚠️ ใหม่
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -255,15 +274,17 @@ export default function AdminMoveOutPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <LogOut className="h-6 w-6" />
+        <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+          <LogOut className="h-5 w-5 sm:h-6 sm:w-6 shrink-0" />
           {t("moveout.title")}
         </h1>
-        <p className="text-muted-foreground">{t("moveout.subtitle")}</p>
+        <p className="text-sm sm:text-base text-muted-foreground">
+          {t("moveout.subtitle")}
+        </p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
         {[
           {
             labelKey: "moveout.statusPending",
@@ -282,13 +303,15 @@ export default function AdminMoveOutPage() {
           },
         ].map(({ labelKey, value, color }) => (
           <Card key={labelKey}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardHeader className="pb-1 sm:pb-2 p-3 sm:p-6 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground leading-tight">
                 {t(labelKey)}
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${color}`}>{value}</div>
+            <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+              <div className={`text-xl sm:text-2xl font-bold ${color}`}>
+                {value}
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -328,7 +351,7 @@ export default function AdminMoveOutPage() {
         </CardContent>
       </Card>
 
-      {/* Table */}
+      {/* List */}
       <Card>
         <CardHeader>
           <CardTitle>{t("moveout.listTitle")}</CardTitle>
@@ -341,70 +364,127 @@ export default function AdminMoveOutPage() {
             <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" /> {t("common.loading")}
             </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {t("moveout.notFound")}
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("common.tenant")}</TableHead>
-                  <TableHead>{t("contracts.room")}</TableHead>
-                  <TableHead>{t("moveout.colMoveOutDate")}</TableHead>
-                  <TableHead>{t("moveout.colSubmittedAt")}</TableHead>
-                  <TableHead>{t("common.status")}</TableHead>
-                  <TableHead className="text-right">
-                    {t("common.actions")}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* ── Mobile: card list (แตะเพื่อดูรายละเอียด) ── */}
+              <div className="flex flex-col gap-3 sm:hidden">
                 {filtered.map((r) => {
                   const s = statusConfig[r.status];
                   const Icon = s.icon;
                   return (
-                    <TableRow key={r.request_id}>
-                      <TableCell className="font-medium">
-                        {r.first_name} {r.last_name}
-                      </TableCell>
-                      <TableCell>{r.room_number}</TableCell>
-                      <TableCell>
-                        {fmtDate(r.move_out_date, language)}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {fmtDate(r.created_at, language)}
-                      </TableCell>
-                      <TableCell>
+                    <button
+                      key={r.request_id}
+                      type="button"
+                      onClick={() => openDialog(r)}
+                      className="w-full text-left rounded-lg border bg-card p-4 transition-colors active:bg-muted"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">
+                            {r.first_name} {r.last_name}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {t("contracts.room")} {r.room_number}
+                          </p>
+                        </div>
                         <div
-                          className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full ${s.bg} ${s.color}`}
+                          className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full shrink-0 ${s.bg} ${s.color}`}
                         >
                           <Icon className="h-3 w-3" />
                           {t(s.labelKey)}
                         </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openDialog(r)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                      </div>
+
+                      <div className="mt-3 flex flex-col gap-1.5 text-sm">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+                          <span className="text-foreground/70">
+                            {t("moveout.colMoveOutDate")}:
+                          </span>
+                          <span className="font-medium text-foreground">
+                            {fmtDate(r.move_out_date, language)}
+                          </span>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <CalendarCheck className="h-3.5 w-3.5 shrink-0" />
+                          <span className="text-foreground/70">
+                            {t("moveout.colSubmittedAt")}:
+                          </span>
+                          <span>{fmtDate(r.created_at, language)}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-end text-xs font-medium text-primary">
+                        <Eye className="h-3.5 w-3.5 mr-1" />
+                        {t("common.actions")}
+                        <ChevronRight className="h-4 w-4" />
+                      </div>
+                    </button>
                   );
                 })}
-                {filtered.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      className="text-center py-8 text-muted-foreground"
-                    >
-                      {t("moveout.notFound")}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+              </div>
+
+              {/* ── Desktop: table ── */}
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("common.tenant")}</TableHead>
+                      <TableHead>{t("contracts.room")}</TableHead>
+                      <TableHead>{t("moveout.colMoveOutDate")}</TableHead>
+                      <TableHead>{t("moveout.colSubmittedAt")}</TableHead>
+                      <TableHead>{t("common.status")}</TableHead>
+                      <TableHead className="text-right">
+                        {t("common.actions")}
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((r) => {
+                      const s = statusConfig[r.status];
+                      const Icon = s.icon;
+                      return (
+                        <TableRow key={r.request_id}>
+                          <TableCell className="font-medium">
+                            {r.first_name} {r.last_name}
+                          </TableCell>
+                          <TableCell>{r.room_number}</TableCell>
+                          <TableCell>
+                            {fmtDate(r.move_out_date, language)}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {fmtDate(r.created_at, language)}
+                          </TableCell>
+                          <TableCell>
+                            <div
+                              className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full ${s.bg} ${s.color}`}
+                            >
+                              <Icon className="h-3 w-3" />
+                              {t(s.labelKey)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openDialog(r)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -416,7 +496,7 @@ export default function AdminMoveOutPage() {
           if (!open) closeDialog();
         }}
       >
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto rounded-lg">
           <DialogHeader>
             <DialogTitle>{t("moveout.detailTitle")}</DialogTitle>
             <DialogDescription>{t("moveout.detailDesc")}</DialogDescription>
@@ -470,6 +550,26 @@ export default function AdminMoveOutPage() {
                     <Wallet className="h-4 w-4 text-primary" />
                     {t("moveout.depositTitle")}
                   </div>
+
+                  {/* ⚠️ ใหม่: วันที่ย้ายออกจริง — แยกจาก move_out_date ที่ tenant เสนอ
+                      (แสดงไว้ด้านบนใน Info grid แล้วเป็น read-only) แอดมินยืนยันวันจริง
+                      ตรงนี้ ใช้คำนวณค่าปรับแทน แก้แล้วคำนวณใหม่ทันที */}
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel htmlFor="actualCheckoutDate">
+                        {t("moveout.actualCheckoutDateLabel")}
+                      </FieldLabel>
+                      <DatePickerField
+                        id="actualCheckoutDate"
+                        value={actualCheckoutDate}
+                        onChange={handleCheckoutDateChange}
+                        language={language}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {t("moveout.actualCheckoutDateHint")}
+                      </p>
+                    </Field>
+                  </FieldGroup>
 
                   {previewLoading ? (
                     <div className="flex items-center justify-center py-4 text-muted-foreground gap-2">
@@ -596,11 +696,12 @@ export default function AdminMoveOutPage() {
 
               {/* Actions */}
               {viewingRequest.status === "pending" && (
-                <DialogFooter className="gap-2">
+                <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
                   <Button
                     variant="outline"
                     onClick={closeDialog}
                     disabled={processing}
+                    className="w-full sm:w-auto"
                   >
                     {t("common.close")}
                   </Button>
@@ -608,6 +709,7 @@ export default function AdminMoveOutPage() {
                     variant="destructive"
                     onClick={handleReject}
                     disabled={processing}
+                    className="w-full sm:w-auto"
                   >
                     {processing && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -618,6 +720,7 @@ export default function AdminMoveOutPage() {
                   <Button
                     onClick={handleApprove}
                     disabled={processing || extraExceeds || previewLoading}
+                    className="w-full sm:w-auto"
                   >
                     {processing && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -630,7 +733,11 @@ export default function AdminMoveOutPage() {
 
               {viewingRequest.status !== "pending" && (
                 <DialogFooter>
-                  <Button variant="outline" onClick={closeDialog}>
+                  <Button
+                    variant="outline"
+                    onClick={closeDialog}
+                    className="w-full sm:w-auto"
+                  >
                     {t("common.close")}
                   </Button>
                 </DialogFooter>

@@ -34,18 +34,17 @@ const getRoomStats = async (req, res, next) => {
 const getRoomById = async (req, res, next) => {
   try {
     const room = await RoomModel.findById(req.params.id);
-    if (!room) return sendNotFound(res, 'Room not found');
+    if (!room) return sendNotFound(res, 'ไม่พบห้องพัก');
     const activeContract = await ContractModel.findActiveByRoom(room.room_id);
     return sendSuccess(res, { ...room, active_contract: activeContract || null });
   } catch (err) { next(err); }
 };
 
 // POST /api/rooms
-// POST /api/rooms
 const createRoom = async (req, res, next) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
     const { room_number, floor, room_type, area_sqm, base_rent, status, description } = req.body;
 
@@ -55,7 +54,7 @@ const createRoom = async (req, res, next) => {
 
     const roomId  = await RoomModel.create({ room_number, floor, room_type, area_sqm, base_rent, status, description });
     const newRoom = await RoomModel.findById(roomId);
-    return sendCreated(res, newRoom, 'Room created successfully');
+    return sendCreated(res, newRoom, 'สร้างห้องพักสำเร็จ');
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       return sendBadRequest(res, 'ROOM_DUPLICATE');
@@ -68,26 +67,26 @@ const createRoom = async (req, res, next) => {
 const updateRoom = async (req, res, next) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
     const room = await RoomModel.findById(req.params.id);
-    if (!room) return sendNotFound(res, 'Room not found');
+    if (!room) return sendNotFound(res, 'ไม่พบห้องพัก');
 
     if (req.body.room_number && req.body.room_number !== room.room_number) {
       const dup = await RoomModel.findByRoomNumber(req.body.room_number);
-      if (dup) return sendBadRequest(res, `Room number '${req.body.room_number}' already exists`);
+      if (dup) return sendBadRequest(res, 'ROOM_DUPLICATE');
     }
 
     if (req.body.status === 'available') {
       const activeContract = await ContractModel.findActiveByRoom(room.room_id);
       if (activeContract) {
-        return sendBadRequest(res, 'Cannot set to available while there is an active contract');
+        return sendBadRequest(res, 'ไม่สามารถเปลี่ยนสถานะเป็นว่างได้ เนื่องจากห้องนี้มีสัญญาเช่าที่ใช้งานอยู่');
       }
     }
 
     await RoomModel.update(req.params.id, req.body);
     const updated = await RoomModel.findById(req.params.id);
-    return sendSuccess(res, updated, 'Room updated successfully');
+    return sendSuccess(res, updated, 'แก้ไขห้องพักสำเร็จ');
   } catch (err) { next(err); }
 };
 
@@ -95,15 +94,15 @@ const updateRoom = async (req, res, next) => {
 const deleteRoom = async (req, res, next) => {
   try {
     const room = await RoomModel.findById(req.params.id);
-    if (!room) return sendNotFound(res, 'Room not found');
+    if (!room) return sendNotFound(res, 'ไม่พบห้องพัก');
 
     const activeContract = await ContractModel.findActiveByRoom(room.room_id);
     if (activeContract) {
-      return sendBadRequest(res, 'Cannot delete a room with an active contract');
+      return sendBadRequest(res, 'ไม่สามารถลบห้องพักได้ เนื่องจากห้องนี้มีสัญญาเช่าที่ใช้งานอยู่');
     }
 
     await RoomModel.remove(req.params.id);
-    return sendSuccess(res, null, 'Room deleted successfully');
+    return sendSuccess(res, null, 'ลบห้องพักสำเร็จ');
   } catch (err) { next(err); }
 };
 

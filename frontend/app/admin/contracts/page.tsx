@@ -1,4 +1,4 @@
-//contracts/page.tsx
+//app/admin/contracts/page.tsx
 
 "use client";
 
@@ -33,9 +33,6 @@ import {
   RefreshCw,
   LogOut,
   CreditCard,
-  Calendar as CalendarIcon,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Upload,
   Paperclip,
@@ -45,30 +42,9 @@ import { tenantAPI } from "@/lib/api/tenant.api";
 import { roomAPI } from "@/lib/api/room.api";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface Contract {
-  contract_id: number;
-  tenant_id: number;
-  room_id: number;
-  tenant_name: string;
-  tenant_id_card?: string;
-  room_number: string;
-  start_date: string;
-  end_date: string;
-  rent_amount: number;
-  deposit_amount: number;
-  status: "active" | "expired" | "terminated";
-  note: string | null;
-  contract_file: string | null;
-  // ── เงินประกัน (join จาก deposits table, null ถ้ายังไม่มี record) ─────
-  deposit_status: "holding" | "refunded" | null;
-  deposit_refund_amount: number | null;
-  deposit_deduction: number | null;
-  deposit_deduction_note: string | null;
-  deposit_refund_date: string | null;
-}
+import { DatePickerField } from "@/components/common/date-picker-field";
+import { toISODate, formatDate, formatCurrency } from "@/lib/utils";
+import { Contract } from "@/types/index";
 
 interface FormData {
   tenant_id: string;
@@ -119,232 +95,17 @@ const statusColors: Record<string, string> = {
 const CONTRACT_FILE_ACCEPT = ".pdf,.doc,.docx";
 const CONTRACT_FILE_MAX_MB = 10;
 
-// ── Custom bilingual date picker ────────────────────────────────────────────
-// Native <input type="date"> follows the OS/browser language and ignores the
-// app's `language` state entirely — that's why the calendar could never be
-// forced into Thai or English. This component renders its own calendar UI so
-// month/day names and the year (พ.ศ. vs ค.ศ.) always match `language`.
-
-const MONTHS_TH = [
-  "มกราคม",
-  "กุมภาพันธ์",
-  "มีนาคม",
-  "เมษายน",
-  "พฤษภาคม",
-  "มิถุนายน",
-  "กรกฎาคม",
-  "สิงหาคม",
-  "กันยายน",
-  "ตุลาคม",
-  "พฤศจิกายน",
-  "ธันวาคม",
-];
-const MONTHS_EN = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-const DAYS_TH = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
-const DAYS_EN = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-
-function toISODate(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate(),
-  ).padStart(2, "0")}`;
-}
-
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-
-function DatePickerField({
-  id,
-  value,
-  onChange,
-  language,
-  required,
-  placeholder,
-}: {
-  id?: string;
-  value: string;
-  onChange: (v: string) => void;
-  language: string;
-  required?: boolean;
-  placeholder?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [viewDate, setViewDate] = useState<Date>(
-    value ? new Date(value + "T00:00:00") : new Date(),
-  );
-
-  useEffect(() => {
-    if (value) setViewDate(new Date(value + "T00:00:00"));
-  }, [value]);
-
-  const months = language === "th" ? MONTHS_TH : MONTHS_EN;
-  const days = language === "th" ? DAYS_TH : DAYS_EN;
-
-  const year = viewDate.getFullYear();
-  const month = viewDate.getMonth();
-  const displayYear = language === "th" ? year + 543 : year;
-  const firstDayOfMonth = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const selected = value ? new Date(value + "T00:00:00") : null;
-
-  const cells: (number | null)[] = [
-    ...Array(firstDayOfMonth).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-
-  const isSelected = (day: number) =>
-    !!selected &&
-    selected.getFullYear() === year &&
-    selected.getMonth() === month &&
-    selected.getDate() === day;
-
-  const isToday = (day: number) => {
-    const now = new Date();
-    return (
-      now.getFullYear() === year &&
-      now.getMonth() === month &&
-      now.getDate() === day
-    );
-  };
-
-  const label = value
-    ? new Date(value + "T00:00:00").toLocaleDateString(
-      language === "th" ? "th-TH" : "en-US",
-      { year: "numeric", month: "short", day: "numeric" },
-    )
-    : (placeholder ?? (language === "th" ? "เลือกวันที่" : "Select date"));
-
-  return (
-    <Popover open={open} onOpenChange={setOpen} modal={true}>
-      <PopoverTrigger asChild>
-        <button
-          id={id}
-          type="button"
-          className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus:ring-2 focus:ring-ring/50"
-        >
-          <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className={value ? "" : "text-muted-foreground"}>{label}</span>
-        </button>
-      </PopoverTrigger>
-
-      {required && (
-        <input
-          tabIndex={-1}
-          value={value}
-          required
-          onChange={() => { }}
-          className="sr-only"
-        />
-      )}
-
-      <PopoverContent className="w-64 p-3" align="start">
-        <div className="flex items-center justify-between mb-2">
-          <button
-            type="button"
-            className="p-1 rounded hover:bg-muted"
-            onClick={() => setViewDate(new Date(year, month - 1, 1))}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="text-sm font-medium">
-            {months[month]} {displayYear}
-          </span>
-          <button
-            type="button"
-            className="p-1 rounded hover:bg-muted"
-            onClick={() => setViewDate(new Date(year, month + 1, 1))}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-7 gap-1 mb-1 text-center text-xs text-muted-foreground">
-          {days.map((d) => (
-            <div key={d}>{d}</div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-7 gap-1">
-          {cells.map((day, idx) =>
-            day === null ? (
-              <div key={idx} />
-            ) : (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => {
-                  onChange(toISODate(new Date(year, month, day)));
-                  setOpen(false);
-                }}
-                className={`h-8 w-8 rounded-md text-sm hover:bg-muted transition-colors ${isSelected(day)
-                    ? "bg-primary text-primary-foreground hover:bg-primary"
-                    : isToday(day)
-                      ? "border border-primary"
-                      : ""
-                  }`}
-              >
-                {day}
-              </button>
-            ),
-          )}
-        </div>
-
-        <div className="mt-2 flex justify-end">
-          <button
-            type="button"
-            className="text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              const today = new Date();
-              setViewDate(today);
-              onChange(toISODate(today));
-              setOpen(false);
-            }}
-          >
-            {language === "th" ? "วันนี้" : "Today"}
-          </button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function ContractsPage() {
   const { t, language } = useLanguage();
 
-  const formatDate = (d: string) => {
-    if (!d) return "-";
-    return new Date(d).toLocaleDateString(
-      language === "th" ? "th-TH" : "en-US",
-      {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      },
-    );
+  const displayDate = (d: string | null | undefined) => {
+    return d ? formatDate(d, language) : "-";
   };
 
-  const formatCurrency = (n: number) =>
-    n.toLocaleString("th-TH") + " " + t("contracts.baht");
-
   const depositStatusBadge = (c: Contract, language: string) => {
-    if (Number(c.deposit_amount) <= 0) return null; // ไม่มีเงินประกันเลย ไม่ต้องโชว์
+    if (Number(c.deposit_amount) <= 0) return null;
 
     if (c.deposit_status === "refunded") {
       const deduction = Number(c.deposit_deduction || 0);
@@ -366,7 +127,6 @@ export default function ContractsPage() {
       };
     }
 
-    // status = 'holding' หรือ null (ยังไม่มี record — สัญญาเก่าก่อนแก้บั๊ก)
     return {
       label: language === "th" ? "ถือเงินประกันไว้" : "Deposit held",
       className: "bg-yellow-500/10 text-yellow-600",
@@ -384,28 +144,24 @@ export default function ContractsPage() {
   const [viewingContract, setViewingContract] = useState<Contract | null>(null);
   const [formData, setFormData] = useState<FormData>(emptyForm);
 
-  // ── Contract file (upload ตอนสร้าง / ดาวน์โหลด / แทนที่ทีหลัง) ───────────
   const [newContractFile, setNewContractFile] = useState<File | null>(null);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [replaceFile, setReplaceFile] = useState<File | null>(null);
   const [uploadingReplace, setUploadingReplace] = useState(false);
   const replaceFileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Renew contract ──────────────────────────────────────────────────────
   const [renewingContract, setRenewingContract] = useState<Contract | null>(
     null,
   );
   const [renewForm, setRenewForm] = useState<RenewFormData>(emptyRenewForm);
   const [renewSubmitting, setRenewSubmitting] = useState(false);
 
-  // ── Checkout / ทำเรื่องย้ายออก ───────────────────────
   const [checkingOutContract, setCheckingOutContract] =
     useState<Contract | null>(null);
   const [checkoutForm, setCheckoutForm] =
     useState<CheckoutFormData>(emptyCheckoutForm);
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
 
-  // ── Fetch contracts ───────────────────────────────────────────────────────
   const fetchContracts = useCallback(async () => {
     try {
       setLoading(true);
@@ -420,7 +176,6 @@ export default function ContractsPage() {
     }
   }, [filterStatus]);
 
-  // ── Fetch tenants + available rooms for form ──────────────────────────────
   const fetchFormOptions = async () => {
     try {
       const [tRes, rRes] = await Promise.all([
@@ -441,7 +196,18 @@ export default function ContractsPage() {
     fetchFormOptions();
   }, []);
 
-  // ── Filter client-side ────────────────────────────────────────────────────
+  // ✅ FIX: เลขบัตรขึ้น "-" เพราะ contract จาก API ไม่มี field tenant_id_card
+  // (ฝั่ง tenant ใช้ id_card_number แต่ contract คาดหวัง tenant_id_card — backend
+  // ยังไม่ได้ join/alias มาให้) ระหว่างรอแก้ backend ทำ fallback ฝั่ง frontend:
+  // ค้นหา tenant จาก tenant_id ของสัญญาในลิสต์ tenants ที่โหลดมาแล้ว
+  const resolveIdCard = (c: Contract): string => {
+    if (c?.tenant_id_card) return c.tenant_id_card;
+    const tenant = tenants.find(
+      (tn) => String(tn.tenant_id) === String((c as any)?.tenant_id),
+    );
+    return tenant?.id_card_number || "";
+  };
+
   const filteredContracts = contracts.filter((c) => {
     const q = searchTerm.toLowerCase();
     return (
@@ -451,18 +217,14 @@ export default function ContractsPage() {
     );
   });
 
-  // ── Stats ─────────────────────────────────────────────────────────────────
-  // เดิม
   const totalDeposit = contracts
     .filter((c) => c.status === "active")
     .reduce((sum, c) => sum + Number(c.deposit_amount), 0);
 
-  // เพิ่มอีกตัวสำหรับยอดที่คืนไปแล้วทั้งหมด (ใช้ track ได้ว่าคืนไปเท่าไหร่)
   const totalRefunded = contracts
     .filter((c) => c.deposit_status === "refunded")
     .reduce((sum, c) => sum + Number(c.deposit_refund_amount || 0), 0);
 
-  // ── Validate a selected contract file (ใช้ทั้งตอนสร้างและตอนแทนที่) ──────
   const validateContractFile = (file: File): boolean => {
     const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
     if (!CONTRACT_FILE_ACCEPT.split(",").includes(ext)) {
@@ -484,7 +246,6 @@ export default function ContractsPage() {
     return true;
   };
 
-  // ── Create contract (+ อัปโหลดไฟล์ผูกกับ contract ที่สร้างใหม่ ถ้ามีการแนบ) ──
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -510,6 +271,44 @@ export default function ContractsPage() {
       return;
     }
 
+    // ✅ FIX: บังคับกรอกวันเริ่ม/สิ้นสุด และเช็คว่าวันสิ้นสุดต้องหลังวันเริ่ม
+    // (เดิม form ใส่ noValidate + ปุ่ม submit ไม่ได้เช็ควันที่ ทำให้ส่ง "" ไป backend ได้)
+    if (!formData.start_date || !formData.end_date) {
+      toast.error(
+        language === "th"
+          ? "กรุณาเลือกวันเริ่มสัญญาและวันสิ้นสุดสัญญา"
+          : "Please select both the start date and the end date",
+      );
+      setSubmitting(false);
+      return;
+    }
+    if (new Date(formData.end_date) <= new Date(formData.start_date)) {
+      toast.error(
+        language === "th"
+          ? "วันสิ้นสุดสัญญาต้องอยู่หลังวันเริ่มสัญญา"
+          : "The end date must be after the start date",
+      );
+      setSubmitting(false);
+      return;
+    }
+
+    // ✅ FIX: กันค่าเช่า/เงินประกันติดลบ
+    const rentValue = formData.rent_amount
+      ? parseFloat(formData.rent_amount)
+      : 0;
+    const depositValue = formData.deposit_amount
+      ? parseFloat(formData.deposit_amount)
+      : 0;
+    if (rentValue < 0 || depositValue < 0) {
+      toast.error(
+        language === "th"
+          ? "ค่าเช่าและเงินประกันต้องไม่ติดลบ"
+          : "Rent and deposit amounts cannot be negative",
+      );
+      setSubmitting(false);
+      return;
+    }
+
     try {
       const created = await contractAPI.create({
         tenant_id: parseInt(formData.tenant_id),
@@ -528,21 +327,26 @@ export default function ContractsPage() {
 
       const newContractId = created?.data?.contract_id;
 
-      // ถ้า admin แนบไฟล์สัญญามาด้วย → อัปโหลดผูกกับ contract ที่เพิ่งสร้างทันที
+      // ✅ FIX: ถ้าแนบ���ฟล์ล้มเหลว ให้ขึ้น toast แจ้งเตือนอันเดียว
+      // (เดิมขึ้นทั้ง error + success พร้อมกัน ทำให้ผู้ใช้สับสน)
+      let fileUploadFailed = false;
       if (newContractId && newContractFile) {
         try {
           await contractAPI.uploadFile(newContractId, newContractFile);
         } catch (uploadErr: any) {
-          // สัญญาสร้างสำเร็จแล้ว แต่แนบไฟล์ไม่สำเร็จ — แจ้งเตือนแยก ไม่ rollback สัญญา
-          toast.error(
-            language === "th"
-              ? "สร้างสัญญาสำเร็จ แต่แนบไฟล์ไม่สำเร็จ กรุณาอัปโหลดไฟล์อีกครั้งภายหลัง"
-              : "Contract created, but the file upload failed. Please upload it again later.",
-          );
+          fileUploadFailed = true;
         }
       }
 
-      toast.success(t("contracts.createSuccess"));
+      if (fileUploadFailed) {
+        toast.warning(
+          language === "th"
+            ? "สร้างสัญญาสำเร็จ แต่แนบไฟล์ไม่สำเร็จ กรุณาอัปโหลดไฟล์อีกครั้งภายหลัง"
+            : "Contract created, but the file upload failed. Please upload it again later.",
+        );
+      } else {
+        toast.success(t("contracts.createSuccess"));
+      }
       resetForm();
       fetchContracts();
       fetchFormOptions();
@@ -553,7 +357,6 @@ export default function ContractsPage() {
     }
   };
 
-  // ── ดาวน์โหลด/ดูไฟล์สัญญา (ใช้ได้กับทุกสัญญาที่มีไฟล์แนบ) ─────────────────
   const handleDownloadFile = async (contract: Contract) => {
     if (!contract.contract_file) return;
     setDownloadingId(contract.contract_id);
@@ -578,7 +381,6 @@ export default function ContractsPage() {
     }
   };
 
-  // ── อัปโหลด/แทนที่ไฟล์สัญญา จากใน view dialog (เผื่อลืมแนบตอนสร้าง หรืออยากเปลี่ยนไฟล์) ──
   const handleReplaceFileUpload = async () => {
     if (!viewingContract || !replaceFile) return;
     if (!validateContractFile(replaceFile)) return;
@@ -608,7 +410,6 @@ export default function ContractsPage() {
     }
   };
 
-  // ── Terminate contract ────────────────────────────────────────────────────
   const handleTerminate = async (contract: Contract) => {
     if (
       !confirm(
@@ -629,7 +430,6 @@ export default function ContractsPage() {
     }
   };
 
-  // ── Renew contract ────────────────────────────────────────────────────────
   const openRenewDialog = (contract: Contract) => {
     setRenewForm({
       end_date: "",
@@ -662,10 +462,9 @@ export default function ContractsPage() {
     }
   };
 
-  // ── Checkout ────────────────────────────────────────────────────────────
   const openCheckoutDialog = (contract: Contract) => {
     setCheckoutForm({
-      checkout_date: toISODate(new Date()), 
+      checkout_date: toISODate(new Date()),
     });
     setCheckingOutContract(contract);
   };
@@ -707,7 +506,7 @@ export default function ContractsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{t("contracts.title")}</h1>
+          <h1 className="text-2xl font-bold">{t("contracts.title")}</h1>
           <p className="text-muted-foreground mt-2">
             {t("contracts.subtitle")}
           </p>
@@ -727,10 +526,7 @@ export default function ContractsPage() {
             </Button>
           </DialogTrigger>
 
-          {/* FIX #1: max-h + overflow-y-auto so a tall form never gets
-             clipped by the viewport (this was the "หน้าจอล้น" bug) */}
-          {/* เปลี่ยนเป็น max-w-2xl เพื่อให้กว้างขึ้นอีกระดับ */}
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[calc(100%-2rem)] max-w-2xl max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{t("contracts.newTitle")}</DialogTitle>
               <DialogDescription>{t("contracts.newDesc")}</DialogDescription>
@@ -738,7 +534,6 @@ export default function ContractsPage() {
 
             <form onSubmit={handleSubmit} noValidate>
               <FieldGroup>
-                {/* ผู้เช่า */}
                 <Field>
                   <FieldLabel>{t("contracts.tenant")}</FieldLabel>
                   <Select
@@ -750,10 +545,6 @@ export default function ContractsPage() {
                       setFormData((p) => ({
                         ...p,
                         tenant_id: v,
-                        // FIX #4: backend column is `id_card_number`
-                        // (see TenantModel.findAll SQL: `t.*` → t.id_card_number)
-                        // the old code looked for `id_card` / `national_id`,
-                        // which don't exist on the row, so it was always "".
                         tenant_id_card: selectedTenant?.id_card_number || "",
                       }));
                     }}
@@ -774,7 +565,6 @@ export default function ContractsPage() {
                   </Select>
                 </Field>
 
-                {/* เลขประจำตัวประชาชน / พาสปอร์ต */}
                 <Field>
                   <FieldLabel>
                     {language === "th"
@@ -796,10 +586,7 @@ export default function ContractsPage() {
                   </div>
                 </Field>
 
-                {/* ห้อง */}
                 <Field>
-                  {/* FIX #2: removed the duplicated <FieldLabel> that was
-                     rendered twice in a row */}
                   <FieldLabel>{t("contracts.availableRoom")}</FieldLabel>
                   <Select
                     value={formData.room_id}
@@ -832,9 +619,6 @@ export default function ContractsPage() {
                   </Select>
                 </Field>
 
-                {/* วันที่ — FIX #3: custom bilingual DatePickerField instead
-                   of native <input type="date">, which always followed the
-                   OS/browser language and could never be forced to TH/EN */}
                 <div className="grid grid-cols-2 gap-4">
                   <Field>
                     <FieldLabel htmlFor="start_date">
@@ -866,7 +650,6 @@ export default function ContractsPage() {
                   </Field>
                 </div>
 
-                {/* ค่าเช่า / เงินประกัน */}
                 <div className="grid grid-cols-2 gap-4">
                   <Field>
                     <FieldLabel htmlFor="rent_amount">
@@ -875,6 +658,9 @@ export default function ContractsPage() {
                     <Input
                       id="rent_amount"
                       type="number"
+                      min="0"
+                      step="1"
+                      inputMode="numeric"
                       value={formData.rent_amount}
                       onChange={set("rent_amount")}
                       placeholder={t("contracts.useRoomRent")}
@@ -887,6 +673,9 @@ export default function ContractsPage() {
                     <Input
                       id="deposit_amount"
                       type="number"
+                      min="0"
+                      step="1"
+                      inputMode="numeric"
                       value={formData.deposit_amount}
                       onChange={set("deposit_amount")}
                       placeholder="0"
@@ -904,7 +693,6 @@ export default function ContractsPage() {
                   />
                 </Field>
 
-                {/* แนบไฟล์สัญญาเช่าตัวจริง (PDF/Word) — optional ตอนสร้าง */}
                 <Field>
                   <FieldLabel htmlFor="contract_file">
                     {language === "th"
@@ -971,7 +759,11 @@ export default function ContractsPage() {
                 <Button
                   type="submit"
                   disabled={
-                    submitting || !formData.tenant_id || !formData.room_id
+                    submitting ||
+                    !formData.tenant_id ||
+                    !formData.room_id ||
+                    !formData.start_date ||
+                    !formData.end_date
                   }
                 >
                   {submitting && (
@@ -1033,7 +825,10 @@ export default function ContractsPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        {/* ✅ FIX: col-span-2 บนมือถือ กันไม่ให้การ์ดสุดท้ายอยู่โดดเดี่ยวแถวเดียว
+            (ของเดิม grid 2 คอลัมน์ x 5 การ์ด = 2-2-1 การ์ดสุดท้ายลอยแถวเดียว
+            ตามที่เห็นในสกรีนช็อต) */}
+        <Card className="col-span-2 md:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               {t("contracts.statsTotalRefunded")}
@@ -1096,79 +891,89 @@ export default function ContractsPage() {
             return (
               <Card key={contract.contract_id}>
                 <CardContent className="pt-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex gap-4 flex-1">
-                      <div className="bg-primary/10 p-3 rounded-lg h-fit">
+                  {/* ✅ FIX (layout บนมือถือ): เดิมยัด ไอคอน + ชื่อ + สถานะ +
+                      pills + ปุ่ม action ไว้ในแถวแนวนอนเดียวกันหมด แถม pills
+                      ยังแชร์แถวกับ badge สถานะ บนจอแคบคอลัมน์เนื้อหาเลยเหลือ
+                      กว้างแค่ ~40% → pills ตกบรรทัดเป็นคอลัมน์ผอม ชิดซ้าย
+                      ส่วนขวาว่างเปล่า
+                      แก้เป็น responsive:
+                      - มือถือ: เรียงแนวตั้ง (หัวการ์ด → pills เต็มแถว → ปุ่ม)
+                      - จอ sm+: ปุ่ม action กลับไปอยู่ขวาเหมือนเดิม
+                      + ดึง pills ออกมาเป็นบล็อกของตัวเองใต้ชื่อ/สถานะ ให้กิน
+                      ความกว้างเต็มคอลัมน์ ไม่ต้องแย่งที่กับ badge สถานะ */}
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex gap-4 flex-1 min-w-0">
+                      <div className="bg-primary/10 p-3 rounded-lg h-fit shrink-0">
                         <FileText className="w-6 h-6 text-primary" />
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <h3 className="font-bold text-lg">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-lg truncate">
                               {contract.tenant_name}
                             </h3>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-sm text-muted-foreground truncate">
                               {t("contracts.room")} {contract.room_number} • CNT
                               {String(contract.contract_id).padStart(3, "0")}
                             </p>
-                            <div className="flex gap-2 mt-3 flex-wrap">
-                              <span className="text-xs bg-muted px-2 py-1 rounded">
-                                {t("contracts.rentLabel")}{" "}
-                                {Number(contract.rent_amount).toLocaleString(
-                                  "th-TH",
-                                )}{" "}
-                                {t("contracts.baht")}
-                              </span>
-                              <span className="text-xs bg-muted px-2 py-1 rounded">
-                                {t("contracts.depositLabel")}{" "}
-                                {Number(contract.deposit_amount).toLocaleString(
-                                  "th-TH",
-                                )}{" "}
-                                {t("contracts.baht")}
-                              </span>
-                              {(() => {
-                                const badge = depositStatusBadge(
-                                  contract,
-                                  language,
-                                );
-                                return badge ? (
-                                  <span
-                                    className={`text-xs px-2 py-1 rounded ${badge.className}`}
-                                  >
-                                    {badge.label}
-                                  </span>
-                                ) : null;
-                              })()}
-                              <span className="text-xs bg-muted px-2 py-1 rounded">
-                                {formatDate(contract.start_date)} —{" "}
-                                {formatDate(contract.end_date)}
-                              </span>
-                              {contract.contract_file ? (
-                                <span className="text-xs bg-green-500/10 text-green-600 px-2 py-1 rounded flex items-center gap-1">
-                                  <Paperclip className="h-3 w-3" />
-                                  {language === "th"
-                                    ? "มีไฟล์แนบ"
-                                    : "File attached"}
-                                </span>
-                              ) : (
-                                <span className="text-xs bg-yellow-500/10 text-yellow-600 px-2 py-1 rounded">
-                                  {language === "th"
-                                    ? "ยังไม่มีไฟล์แนบ"
-                                    : "No file yet"}
-                                </span>
-                              )}
-                            </div>
                           </div>
                           <span
-                            className={`text-xs font-medium px-2 py-1 rounded ${statusColor}`}
+                            className={`text-xs font-medium px-2 py-1 rounded shrink-0 ${statusColor}`}
                           >
                             {t(statusKey)}
                           </span>
                         </div>
+                        <div className="flex gap-2 mt-3 flex-wrap">
+                          <span className="text-xs bg-muted px-2 py-1 rounded">
+                            {t("contracts.rentLabel")}{" "}
+                            {Number(contract.rent_amount).toLocaleString(
+                              "th-TH",
+                            )}{" "}
+                            {t("contracts.baht")}
+                          </span>
+                          <span className="text-xs bg-muted px-2 py-1 rounded">
+                            {t("contracts.depositLabel")}{" "}
+                            {Number(contract.deposit_amount).toLocaleString(
+                              "th-TH",
+                            )}{" "}
+                            {t("contracts.baht")}
+                          </span>
+                          {(() => {
+                            const badge = depositStatusBadge(
+                              contract,
+                              language,
+                            );
+                            return badge ? (
+                              <span
+                                className={`text-xs px-2 py-1 rounded ${badge.className}`}
+                              >
+                                {badge.label}
+                              </span>
+                            ) : null;
+                          })()}
+                          <span className="text-xs bg-muted px-2 py-1 rounded">
+                            {formatDate(contract.start_date)} —{" "}
+                            {formatDate(contract.end_date)}
+                          </span>
+                          {contract.contract_file ? (
+                            <span className="text-xs bg-green-500/10 text-green-600 px-2 py-1 rounded flex items-center gap-1">
+                              <Paperclip className="h-3 w-3" />
+                              {language === "th"
+                                ? "มีไฟล์แนบ"
+                                : "File attached"}
+                            </span>
+                          ) : (
+                            <span className="text-xs bg-yellow-500/10 text-yellow-600 px-2 py-1 rounded">
+                              {language === "th"
+                                ? "ยังไม่มีไฟล์แนบ"
+                                : "No file yet"}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex gap-2 flex-shrink-0">
+                    <div className="flex gap-2 flex-wrap sm:flex-shrink-0">
                       {contract.contract_file && (
                         <Button
                           variant="outline"
@@ -1176,6 +981,11 @@ export default function ContractsPage() {
                           className="gap-1"
                           disabled={downloadingId === contract.contract_id}
                           onClick={() => handleDownloadFile(contract)}
+                          aria-label={
+                            language === "th"
+                              ? "ดาวน์โหลดไฟล์สัญญา"
+                              : "Download contract file"
+                          }
                         >
                           {downloadingId === contract.contract_id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -1192,6 +1002,7 @@ export default function ContractsPage() {
                         size="sm"
                         className="gap-1"
                         onClick={() => setViewingContract(contract)}
+                        aria-label={t("common.view")}
                       >
                         <Eye className="w-4 h-4" />
                         <span className="hidden sm:inline">
@@ -1204,6 +1015,7 @@ export default function ContractsPage() {
                           size="sm"
                           className="gap-1 text-destructive hover:text-destructive"
                           onClick={() => handleTerminate(contract)}
+                          aria-label={t("contracts.terminateAction")}
                         >
                           <XCircle className="w-4 h-4" />
                           <span className="hidden sm:inline">
@@ -1241,9 +1053,16 @@ export default function ContractsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("contracts.detailTitle")}</DialogTitle>
+            {/* ✅ FIX: เพิ่ม DialogDescription กัน Radix warn เรื่อง a11y
+                และให้ screen reader อ่านบริบทของ dialog */}
+            <DialogDescription>
+              {viewingContract
+                ? `${viewingContract.tenant_name} • ${t("contracts.room")} ${viewingContract.room_number}`
+                : ""}
+            </DialogDescription>
           </DialogHeader>
           {viewingContract && (
             <div className="space-y-4">
@@ -1259,7 +1078,7 @@ export default function ContractsPage() {
                     {language === "th" ? "เลขประจำตัวประชาชน" : "ID Card"}
                   </p>
                   <p className="font-medium">
-                    {viewingContract.tenant_id_card || "-"}
+                    {resolveIdCard(viewingContract) || "-"}
                   </p>
                 </div>
                 <div>
@@ -1324,7 +1143,6 @@ export default function ContractsPage() {
                 </div>
               )}
 
-              {/* ── ไฟล์สัญญาเช่า (ดู/ดาวน์โหลด/อัปโหลด-แทนที่) ─────────────── */}
               <div className="pt-4 border-t space-y-2">
                 <p className="text-sm font-medium">
                   {language === "th" ? "ไฟล์สัญญาเช่า" : "Contract file"}
@@ -1363,7 +1181,6 @@ export default function ContractsPage() {
                   </p>
                 )}
 
-                {/* อัปโหลด / แทนที่ไฟล์ */}
                 <div className="flex items-center gap-2">
                   <label
                     htmlFor="replace_contract_file"
@@ -1456,7 +1273,7 @@ export default function ContractsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-md overflow-visible">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md overflow-visible">
           <DialogHeader>
             <DialogTitle>{t("contracts.renewTitle")}</DialogTitle>
             <DialogDescription>
@@ -1486,6 +1303,9 @@ export default function ContractsPage() {
                 <Input
                   id="renew_rent_amount"
                   type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
                   value={renewForm.rent_amount}
                   onChange={(e) =>
                     setRenewForm((p) => ({
@@ -1534,7 +1354,7 @@ export default function ContractsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-md overflow-visible">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md overflow-visible">
           <DialogHeader>
             <DialogTitle>{t("contracts.moveOutTitle")}</DialogTitle>
             <DialogDescription>

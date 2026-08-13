@@ -2,7 +2,6 @@
  * models/settings.model.js
  * Raw SQL query functions for `dorm_settings` + `settings_audit_log`.
  */
-
 const { pool } = require('../config/db');
 
 const getAll = async () => {

@@ -18,11 +18,7 @@ import {
 } from "@/components/common/status-badge";
 import {
   DoorOpen,
-  Receipt,
-  CreditCard,
-  Wrench,
   Bell,
-  Calendar,
   ArrowRight,
   AlertTriangle,
   Loader2,
@@ -146,43 +142,12 @@ export default function TenantDashboard() {
         <h1 className="text-2xl font-bold">
           {t("tenant.welcome")}, {user?.username || t("common.tenant")}
         </h1>
-        <p className="text-muted-foreground">{t("rooms.subtitle")}</p>
+        <p className="text-muted-foreground mt-2">{t("rooms.subtitle")}</p>
       </div>
 
-      {/* Room Info Card */}
-      {contract && (
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-4 rounded-xl bg-primary/20">
-                  <DoorOpen className="h-8 w-8 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    {t("tenant.myRoom")}
-                  </p>
-                  <p className="text-3xl font-bold">{contract.room_number}</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {t("contracts.endDate")}{" "}
-                    {formatDate(contract.end_date, language)}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">
-                  {t("tenant.rentPerMonth")}
-                </p>
-                <p className="text-2xl font-bold text-primary">
-                  {formatCurrency(Number(contract.rent_amount))}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Pending Bill Alert */}
+      {/* Pending Bill Alert — moved to top: this is the most actionable item
+          a tenant needs to see, so it should not be buried below static
+          room info. */}
       {pendingBill && (
         <Card
           className={
@@ -192,10 +157,10 @@ export default function TenantDashboard() {
           }
         >
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start sm:items-center gap-3 min-w-0">
                 <div
-                  className={`p-2 rounded-lg ${
+                  className={`p-2 rounded-lg shrink-0 ${
                     pendingBill.status === "overdue"
                       ? "bg-destructive/20"
                       : "bg-yellow-500/20"
@@ -209,7 +174,7 @@ export default function TenantDashboard() {
                     }`}
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3
                     className={`font-semibold ${
                       pendingBill.status === "overdue" ? "text-destructive" : ""
@@ -226,11 +191,12 @@ export default function TenantDashboard() {
                   </p>
                 </div>
               </div>
-              <Link href="/tenant/payment">
+              <Link href="/tenant/payment" className="w-full sm:w-auto">
                 <Button
                   variant={
                     pendingBill.status === "overdue" ? "destructive" : "default"
                   }
+                  className="w-full sm:w-auto"
                 >
                   {t("tenant.payNow")}
                 </Button>
@@ -240,42 +206,73 @@ export default function TenantDashboard() {
         </Card>
       )}
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          {
-            href: "/tenant/bills",
-            icon: Receipt,
-            label: t("tenant.bills.title"),
-          },
-          {
-            href: "/tenant/payment",
-            icon: CreditCard,
-            label: t("tenant.payment.title"),
-          },
-          {
-            href: "/tenant/maintenance",
-            icon: Wrench,
-            label: t("menu.maintenance"),
-          },
-          {
-            href: "/tenant/contract",
-            icon: Calendar,
-            label: t("tenant.contract.title"),
-          },
-        ].map(({ href, icon: Icon, label }) => (
-          <Link key={href} href={href}>
-            <Card className="hover:border-primary/50 transition-colors cursor-pointer">
-              <CardContent className="p-4 text-center">
-                <Icon className="h-8 w-8 mx-auto mb-2 text-primary" />
-                <p className="font-medium">{label}</p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      {/* Room + Contract summary — merged into a single card so tenants
+          don't have to scroll past duplicate info (room, rent, dates)
+          that used to appear twice on this page. */}
+      {contract && (
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="p-4 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="p-3 sm:p-4 rounded-xl bg-primary/20 shrink-0">
+                  <DoorOpen className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm text-muted-foreground">
+                    {t("tenant.myRoom")}
+                  </p>
+                  <p className="text-2xl sm:text-3xl font-bold truncate">
+                    {contract.room_number}
+                  </p>
+                </div>
+              </div>
+              <div className="text-left sm:text-right">
+                <p className="text-sm text-muted-foreground">
+                  {t("tenant.rentPerMonth")}
+                </p>
+                <p className="text-xl sm:text-2xl font-bold text-primary">
+                  {formatCurrency(Number(contract.rent_amount))}
+                </p>
+              </div>
+            </div>
 
-      {/* Bills + Maintenance */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm pt-4 border-t border-primary/10">
+              <div>
+                <p className="text-muted-foreground">
+                  {t("contracts.startDate")}
+                </p>
+                <p className="font-medium">
+                  {formatDate(contract.start_date, language)}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">
+                  {t("contracts.endDate")}
+                </p>
+                <p className="font-medium">
+                  {formatDate(contract.end_date, language)}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">
+                  {t("contracts.deposit")}
+                </p>
+                <p className="font-medium">
+                  {formatCurrency(Number(contract.deposit_amount))}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Note: the Quick Actions grid (Bills / Payment / Maintenance / Contract)
+          was removed here — it duplicated the bottom navigation bar 1:1 and
+          added an extra scroll-length of buttons with no new information. */}
+
+      {/* Bills + Maintenance — trimmed to 2 items each; this is a dashboard
+          summary, not the full list page (which is one tap away via
+          "View all"). */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Bills */}
         <Card>
@@ -292,7 +289,7 @@ export default function TenantDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {bills.slice(0, 3).map((bill) => (
+              {bills.slice(0, 2).map((bill) => (
                 <div
                   key={bill.bill_id}
                   className="flex items-center justify-between py-2 border-b last:border-0"
@@ -337,7 +334,7 @@ export default function TenantDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {maintenance.slice(0, 3).map((req) => (
+              {maintenance.slice(0, 2).map((req) => (
                 <div
                   key={req.request_id}
                   className="flex items-center justify-between py-2 border-b last:border-0"
@@ -391,53 +388,6 @@ export default function TenantDashboard() {
                   <p className="text-sm text-muted-foreground">{ann.content}</p>
                 </div>
               ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Contract Info */}
-      {contract && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">
-              {t("tenant.contract.title")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">
-                  {t("contracts.startDate")}
-                </p>
-                <p className="font-medium">
-                  {formatDate(contract.start_date, language)}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">
-                  {t("contracts.endDate")}
-                </p>
-                <p className="font-medium">
-                  {formatDate(contract.end_date, language)}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">
-                  {t("tenant.rentPerMonth")}
-                </p>
-                <p className="font-medium">
-                  {formatCurrency(Number(contract.rent_amount))}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">
-                  {t("contracts.deposit")}
-                </p>
-                <p className="font-medium">
-                  {formatCurrency(Number(contract.deposit_amount))}
-                </p>
-              </div>
             </div>
           </CardContent>
         </Card>

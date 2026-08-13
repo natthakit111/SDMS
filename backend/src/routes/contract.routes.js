@@ -5,13 +5,11 @@
  */
 const express = require('express');
 const { body } = require('express-validator');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const router = express.Router();
 const ctrl = require('../controllers/contractController');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
+const { uploadContractFile: uploadContractMiddleware } = require('../middlewares/upload.middleware');
 
 const createContractValidation = [
   body('tenant_id').isInt({ min: 1 }),
@@ -33,26 +31,9 @@ const renewValidation = [
 ];
 
 // ── Upload config for contract files (PDF / Word) ─────────────
-const contractsDir = path.join(__dirname, '../../uploads/contracts');
-if (!fs.existsSync(contractsDir)) fs.mkdirSync(contractsDir, { recursive: true });
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, contractsDir),
-  filename: (req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    cb(null, `${unique}${path.extname(file.originalname)}`);
-  },
-});
 
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  fileFilter: (req, file, cb) => {
-    const allowed = ['.pdf', '.doc', '.docx'];
-    if (allowed.includes(path.extname(file.originalname).toLowerCase())) cb(null, true);
-    else cb(new Error('รองรับเฉพาะไฟล์ PDF หรือ Word เท่านั้น'));
-  },
-});
+
 
 router.use(authenticate);
 
@@ -72,7 +53,7 @@ router.put('/:id/renew',        authorizeRoles('admin'), renewValidation, ctrl.r
 router.put('/:id/terminate',    authorizeRoles('admin', 'tenant'), ctrl.terminateContract);
 
 // ── Contract file upload/download ──────────────────────────────
-router.post('/:id/upload', authorizeRoles('admin'), upload.single('file'), ctrl.uploadContractFile);
+router.post('/:id/upload', authorizeRoles('admin'), uploadContractMiddleware, ctrl.uploadContractFile);
 router.get('/:id/file',    ctrl.downloadContractFile); // สิทธิ์เจ้าของเช็คในตัว controller
 
 module.exports = router;

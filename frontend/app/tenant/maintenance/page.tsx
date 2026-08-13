@@ -1,6 +1,8 @@
+//app/tenant/maintenance/page.tsx
+
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,7 +27,15 @@ import {
   MaintenanceStatusBadge,
   PriorityBadge,
 } from "@/components/common/status-badge";
-import { Plus, CheckCircle, Loader2, Wrench, Camera, X } from "lucide-react";
+import {
+  Plus,
+  CheckCircle,
+  Loader2,
+  Wrench,
+  Camera,
+  X,
+  ChevronRight,
+} from "lucide-react";
 import { maintenanceAPI } from "@/lib/api/maintenance.api";
 import { useLanguage } from "@/context/language-context";
 import { toast } from "sonner";
@@ -47,6 +57,11 @@ interface Request {
 }
 
 const DESCRIPTION_MIN_LENGTH = 10;
+
+// Matches the backend enum exactly (see maintenance_requests.status /
+// getStatusSummary()) — "pending" is the default status a new request is
+// created with, before an admin picks it up and moves it to "in_progress".
+type StatusFilter = "all" | "pending" | "in_progress" | "resolved";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -71,6 +86,9 @@ export default function TenantMaintenancePage() {
     priority: "medium",
   });
 
+  // ── Filter (driven by tapping a stat card) ──
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
   // ── รูปแนบ ──
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -89,7 +107,16 @@ export default function TenantMaintenancePage() {
   const fetchRequests = () => {
     maintenanceAPI
       .getMyRequests()
-      .then((r) => setRequests(r.data ?? []))
+      .then((r) => {
+        // Newest first — tenants come here mainly to check progress on
+        // their most recent request, so it should never be buried below
+        // older, already-resolved ones just because of API ordering.
+        const sorted = [...(r.data ?? [])].sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        );
+        setRequests(sorted);
+      })
       .catch((err) => {
         // 404 = ยังไม่มีรายการ (user ใหม่) — ไม่ต้อง toast
         if (err?.response?.status !== 404) {
@@ -149,7 +176,6 @@ export default function TenantMaintenancePage() {
         fetchRequests();
       }, 1500);
     } catch (err: any) {
-      // ✅ ดึงข้อความ error จริงจาก express-validator มาโชว์ แทน "Validation failed" เฉยๆ
       const validationErrors = err?.response?.data?.errors;
       if (Array.isArray(validationErrors) && validationErrors.length > 0) {
         toast.error(validationErrors[0].msg);
@@ -174,13 +200,61 @@ export default function TenantMaintenancePage() {
     { value: "อื่นๆ", label: language === "th" ? "อื่นๆ" : "Other" },
   ];
 
+  // ✅ FIX: category ที่บันทึกลง DB เป็นค่า raw ภาษาไทย (categoryOptions[].value)
+  // เสมอ ไม่ว่า tenant จะสร้างคำขอตอนใช้ UI ภาษาไหนก็ตาม — เดิมตอนแสดงผล
+  // list/detail ใช้ r.category ตรงๆ เลยติดภาษาไทยค้างแม้สลับเป็น English
+  // แล้ว ต้อง lookup ย้อนกลับผ่าน categoryOptions ทุกครั้งที่โชว์ ไม่ใช่แค่
+  // ตอนสร้างฟอร์มเท่านั้น — fallback เป็นค่าดิบถ้าไม่เจอ (เผื่อ category เก่า/
+  // custom ที่ไม่อยู่ใน list ปัจจุบัน)
+  const getCategoryLabel = (value: string) =>
+    categoryOptions.find((o) => o.value === value)?.label ?? value;
+
   const descLength = formData.description.trim().length;
+
+  // ── Stat cards — mirrors the backend's getStatusSummary() exactly, so a
+  //    newly-submitted request (status defaults to "pending") is always
+  //    reflected in one of these counts, not just in "all". ──
+  const statusCounts = useMemo(
+    () => ({
+      all: requests.length,
+      pending: requests.filter((r) => r.status === "pending").length,
+      in_progress: requests.filter((r) => r.status === "in_progress").length,
+      resolved: requests.filter((r) => r.status === "resolved").length,
+    }),
+    [requests],
+  );
+
+  const statCards: { key: StatusFilter; label: string; color: string }[] = [
+    { key: "all", label: t("common.all"), color: "" },
+    {
+      key: "pending",
+      label: t("status.pending"),
+      color: "text-orange-500",
+    },
+    {
+      key: "in_progress",
+      label: t("status.in_progress"),
+      color: "text-blue-500",
+    },
+    {
+      key: "resolved",
+      label: t("status.resolved"),
+      color: "text-green-500",
+    },
+  ];
+
+  const filteredRequests =
+    statusFilter === "all"
+      ? requests
+      : requests.filter((r) => r.status === statusFilter);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* ✅ FIX: flex-col sm:flex-row ให้ title กับปุ่มแยกคนละแถวบนมือถือ
+          ให้ตรงกับ pattern ของหน้า bills/contract ในระบบเดียวกัน */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">
+          <h1 className="text-2xl font-bold">
             {t("tenant.maintenance.title")}
           </h1>
           <p className="text-muted-foreground mt-2">
@@ -199,7 +273,8 @@ export default function TenantMaintenancePage() {
           }}
         >
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            {/* ✅ FIX: w-full บนมือถือ ให้กดง่ายและตรงกับ CTA pattern อื่นๆ */}
+            <Button className="gap-2 w-full sm:w-auto">
               <Plus className="w-4 h-4" />
               {t("tenant.maintenance.new")}
             </Button>
@@ -304,14 +379,16 @@ export default function TenantMaintenancePage() {
                         alt={language === "th" ? "รูปประกอบ" : "Attached photo"}
                         className="w-full h-32 object-cover rounded-lg"
                       />
+                      {/* ✅ FIX: h-6 w-6 (24px) → h-8 w-8 (32px) ให้ใกล้
+                          touch target มาตรฐานมากขึ้น */}
                       <Button
                         type="button"
                         variant="destructive"
                         size="icon"
-                        className="absolute top-1 right-1 h-6 w-6"
+                        className="absolute top-1.5 right-1.5 h-8 w-8"
                         onClick={clearImage}
                       >
-                        <X className="h-3 w-3" />
+                        <X className="h-4 w-4" />
                       </Button>
                     </div>
                   ) : (
@@ -319,7 +396,7 @@ export default function TenantMaintenancePage() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="w-full gap-2"
+                      className="w-full gap-2 min-h-[40px]"
                       onClick={() => fileInputRef.current?.click()}
                     >
                       <Camera className="h-4 w-4" />
@@ -331,15 +408,21 @@ export default function TenantMaintenancePage() {
             )}
 
             {!done && (
-              <DialogFooter>
+              // ✅ FIX: บังคับ w-full ให้ปุ่มทั้งคู่บนมือถือเพื่อความชัวร์
+              <DialogFooter className="flex-col sm:flex-row gap-2">
                 <Button
                   variant="outline"
                   onClick={() => setDialogOpen(false)}
                   disabled={submitting}
+                  className="w-full sm:w-auto"
                 >
                   {t("common.cancel")}
                 </Button>
-                <Button onClick={handleSubmit} disabled={submitting}>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="w-full sm:w-auto"
+                >
                   {submitting && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
@@ -351,31 +434,33 @@ export default function TenantMaintenancePage() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: t("common.all"), value: requests.length, color: "" },
-          {
-            label: t("status.in_progress"),
-            value: requests.filter((r) => r.status === "in_progress").length,
-            color: "text-blue-500",
-          },
-          {
-            label: t("status.resolved"),
-            value: requests.filter((r) => r.status === "resolved").length,
-            color: "text-green-500",
-          },
-        ].map(({ label, value, color }) => (
-          <Card key={label}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+      {/* Stat filters — pill strip instead of a 2x2 card grid. Cards ate
+          two full rows of vertical space just to show a label + one
+          number; a horizontal strip shows the same info (and scrolls if
+          more statuses get added later) in a single ~40px-tall row. */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+        {statCards.map(({ key, label, color }) => {
+          const isActive = statusFilter === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setStatusFilter(isActive ? "all" : key)}
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full border text-sm transition-colors ${
+                isActive
+                  ? "border-primary bg-primary/10"
+                  : "border-border hover:bg-muted/50"
+              }`}
+            >
+              <span className="text-muted-foreground whitespace-nowrap">
                 {label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${color}`}>{value}</div>
-            </CardContent>
-          </Card>
-        ))}
+              </span>
+              <span className={`font-bold ${color || "text-foreground"}`}>
+                {statusCounts[key]}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <Card>
@@ -398,22 +483,45 @@ export default function TenantMaintenancePage() {
                 {t("empty.noMaintenanceDesc")}
               </p>
             </div>
+          ) : filteredRequests.length === 0 ? (
+            // Filter applied but nothing matches — different from the
+            // "no requests at all" empty state above, so the tenant
+            // understands it's the filter, not a broken list.
+            <div className="text-center py-12">
+              <p className="font-medium text-muted-foreground">
+                {t("empty.noMaintenance")}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2"
+                onClick={() => setStatusFilter("all")}
+              >
+                {t("common.viewAll")}
+              </Button>
+            </div>
           ) : (
             <div className="space-y-3">
-              {requests.map((r) => (
+              {filteredRequests.map((r) => (
                 <div
                   key={r.request_id}
                   onClick={() => setViewingRequest(r)}
-                  className="flex items-start gap-4 p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                  className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-medium">{r.category}</p>
+                      {/* ✅ FIX: เพิ่ม min-w-0 ให้ div ลูกนี้ด้วย ไม่งั้น
+                          flexbox จะไม่ยอมหดตัวต่ำกว่า content width ตาม
+                          ธรรมชาติ ทำให้ description ดันบีบ badge ทางขวา
+                          แทนที่จะ wrap/truncate ตัวเองอย่างที่ตั้งใจ */}
+                      <div className="min-w-0">
+                        <p className="font-medium">
+                          {getCategoryLabel(r.category)}
+                        </p>
                         <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                           {r.description}
                         </p>
-                        <div className="flex gap-2 mt-2">
+                        <div className="flex gap-2 mt-2 flex-wrap">
                           <PriorityBadge priority={r.priority} />
                           <span className="text-xs text-muted-foreground">
                             {fmtDate(r.created_at)}
@@ -423,6 +531,10 @@ export default function TenantMaintenancePage() {
                       <MaintenanceStatusBadge status={r.status} />
                     </div>
                   </div>
+                  {/* ✅ FIX: chevron ให้เห็นชัดว่าแถวนี้กดดูรายละเอียดได้ —
+                      บนมือถือไม่มี hover state ให้พึ่ง ต้องมี affordance
+                      แบบเห็นได้ตลอดเวลา */}
+                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                 </div>
               ))}
             </div>
@@ -454,7 +566,9 @@ export default function TenantMaintenancePage() {
                   <p className="text-muted-foreground">
                     {t("maintenance.colCategory")}
                   </p>
-                  <p className="font-medium">{viewingRequest.category}</p>
+                  <p className="font-medium">
+                    {getCategoryLabel(viewingRequest.category)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">
@@ -484,7 +598,7 @@ export default function TenantMaintenancePage() {
                   </p>
                   <img
                     src={imgUrl(viewingRequest.image_path) ?? ""}
-                    alt={viewingRequest.category}
+                    alt={getCategoryLabel(viewingRequest.category)}
                     className="w-full rounded-lg object-contain max-h-64 bg-muted"
                   />
                 </div>

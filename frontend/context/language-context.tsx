@@ -197,6 +197,17 @@ const translations: Record<string, { th: string; en: string }> = {
   "status.active.label": { th: "ใช้งานอยู่", en: "Active" },
   "status.expired.label": { th: "หมดอายุ", en: "Expired" },
   "status.terminated.label": { th: "ยกเลิกแล้ว", en: "Terminated" },
+  // Tenant status (สำหรับ TenantStatusBadge)
+  "tenant.status.active": { th: "กำลังเช่า", en: "Active" },
+  "tenant.status.pending": { th: "รอเข้าพัก", en: "Pending" },
+  "tenant.status.moved_out": { th: "ย้ายออกแล้ว", en: "Moved Out" },
+
+  // Priority urgent (ที่ขาด)
+  "priority.urgent": { th: "เร่งด่วน", en: "Urgent" },
+
+  // Status partial (ที่ขาด)
+  "status.partial": { th: "ชำระบางส่วน", en: "Partial" },
+  "status.reserved": { th: "จอง", en: "Reserved" },
 
   // ── Priority ───────────────────────────────────────────────────────────────
   "priority.low": { th: "ไม่ด่วน", en: "Low" },
@@ -220,6 +231,7 @@ const translations: Record<string, { th: string; en: string }> = {
   "menu.group.rooms": { th: "จัดการห้องพัก", en: "Room Management" },
   "menu.group.finance": { th: "การเงิน", en: "Finance" },
   "menu.group.other": { th: "อื่นๆ", en: "Others" },
+  "menu.more": { th: "เพิ่มเติม", en: "More" },
 
   // ── Rooms ──────────────────────────────────────────────────────────────────
   "rooms.title": { th: "จัดการห้องพัก", en: "Room Management" },
@@ -582,6 +594,11 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "บิลนี้ไม่ใช่ของคุณ",
     en: "This bill does not belong to you",
   },
+  "payment.error.billNotFound": {
+    th: "ไม่พบบิลนี้",
+    en: "Bill not found",
+  },
+
   "payment.success.submitted": {
     th: "ส่งสลิปสำเร็จ รอแอดมินตรวจสอบ",
     en: "Slip submitted. Awaiting admin verification.",
@@ -663,13 +680,26 @@ const translations: Record<string, { th: string; en: string }> = {
   },
   "paymentHistory.statsAll": { th: "ทั้งหมดในระบบ", en: "Total in System" },
   "paymentHistory.notFound": { th: "ไม่พบรายการใน", en: "No records in" },
-  "paymentHistory.includeRejected": { "th": "รวมรายการที่ถูกปฏิเสธ", "en": "Include rejected" },
-  "paymentHistory.totalIncludesRejected": { "th": "รวมรายการทั้งหมด", "en": "Total (includes rejected)" },
-  "paymentHistory.totalExcludesRejected": { "th": "ไม่รวมรายการที่ถูกปฏิเสธ", "en": "Total (excludes rejected)" },
-  "paymentHistory.countIncludesRejected": { "th": "รวมทุกสถานะ", "en": "Count (includes rejected)" },
-  "paymentHistory.countExcludesRejected": { "th": "ไม่รวมรายการที่ถูกปฏิเสธ", "en": "Count (excludes rejected)" },
-
-
+  "paymentHistory.includeRejected": {
+    th: "รวมรายการที่ถูกปฏิเสธ",
+    en: "Include rejected",
+  },
+  "paymentHistory.totalIncludesRejected": {
+    th: "รวมรายการทั้งหมด",
+    en: "Total (includes rejected)",
+  },
+  "paymentHistory.totalExcludesRejected": {
+    th: "ไม่รวมรายการที่ถูกปฏิเสธ",
+    en: "Total (excludes rejected)",
+  },
+  "paymentHistory.countIncludesRejected": {
+    th: "รวมทุกสถานะ",
+    en: "Count (includes rejected)",
+  },
+  "paymentHistory.countExcludesRejected": {
+    th: "ไม่รวมรายการที่ถูกปฏิเสธ",
+    en: "Count (excludes rejected)",
+  },
 
   // ── Payment Verification ───────────────────────────────────────────────────
   "paymentVerify.title": {
@@ -809,6 +839,57 @@ const translations: Record<string, { th: string; en: string }> = {
   "announcements.deleted": {
     th: "ลบประกาศสำเร็จ",
     en: "Announcement deleted successfully",
+  },
+  "announcements.titlePlaceholder": {
+    th: "เช่น แจ้งซ่อมลิฟต์ชั่วคราว",
+    en: "e.g., Temporary elevator maintenance",
+  },
+  "announcements.contentPlaceholder": {
+    th: "รายละเอียดประกาศ...",
+    en: "Announcement details...",
+  },
+  "announcements.audienceSection": {
+    th: "กลุ่มเป้าหมายและการเข้าถึง",
+    en: "Target Audience & Reach",
+  },
+  "announcements.prioritySection": {
+    th: "ความสำคัญและระยะเวลา",
+    en: "Priority & Duration",
+  },
+  "announcements.pinTitle": { th: "ปักหมุดไว้บนสุด", en: "Pin to top" },
+  "announcements.pinDesc": {
+    th: 'แสดงในหัวข้อ "ประกาศสำคัญ" ของผู้เช่า',
+    en: 'Shows under the "Important Announcements" section for tenants',
+  },
+  "announcements.optional": { th: "(ไม่บังคับ)", en: "(Optional)" },
+  "announcements.formTab": { th: "ข้อมูลประกาศ", en: "Announcement Info" },
+  "announcements.telegramPreviewTab": {
+    th: "ตัวอย่าง Telegram",
+    en: "Telegram Preview",
+  },
+  "announcements.telegramPreviewDesc": {
+    th: "ตัวอย่างข้อความที่ผู้เช่าจะเห็นใน Telegram",
+    en: "Preview of the message tenants will see in Telegram",
+  },
+  "announcements.previewTitlePlaceholder": {
+    th: "หัวข้อประกาศจะแสดงตรงนี้",
+    en: "Announcement title will appear here",
+  },
+  "announcements.previewContentPlaceholder": {
+    th: "เนื้อหาประกาศจะแสดงตรงนี้",
+    en: "Announcement content will appear here",
+  },
+  "announcements.fromDorm": {
+    th: "ประกาศจากหอพัก",
+    en: "Dormitory Announcement",
+  },
+  "announcements.telegramMuteWarning": {
+    th: 'ผู้เช่าที่ปิดการแจ้งเตือน "ประกาศทั่วไป" ไว้จะไม่ได้รับข้อความนี้ ยกเว้นติ๊ก',
+    en: 'Tenants who muted "General Announcements" will not receive this message unless you check',
+  },
+  "announcements.telegramMuteWarningTail": {
+    th: "ซึ่งจะส่งถึงทุกคนเสมอ",
+    en: "which is always sent to everyone.",
   },
 
   // ── Meters ─────────────────────────────────────────────────────────────────
@@ -1010,8 +1091,14 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "อีเมลหรือเบอร์โทรศัพท์นี้ ถูกใช้สมัครสมาชิกไปแล้ว",
     en: "This email or phone number is already registered.",
   },
-  "register.errorInvalidPhone": { th: "รูปแบบเบอร์โทรไม่ถูกต้อง", en: "Invalid phone number format"},
-  "register.errorNameLength": { th: "กรุณากรอกชื่ออย่างน้อย 2 ตัวอักษร", en: "Name must be at least 2 characters" },
+  "register.errorInvalidPhone": {
+    th: "รูปแบบเบอร์โทรไม่ถูกต้อง",
+    en: "Invalid phone number format",
+  },
+  "register.errorNameLength": {
+    th: "กรุณากรอกชื่ออย่างน้อย 2 ตัวอักษร",
+    en: "Name must be at least 2 characters",
+  },
 
   PHONE_ALREADY_REGISTERED: {
     th: "เบอร์โทรศัพท์นี้มีผู้เช่าลงทะเบียนไว้แล้ว",
@@ -1458,6 +1545,14 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "ไม่พบคำร้องขอย้ายออก",
     en: "No move-out requests found",
   },
+  "moveout.actualCheckoutDateLabel": {
+    th: "วันที่ย้ายออกจริง",
+    en: "Actual Check-out Date",
+  },
+  "moveout.actualCheckoutDateHint": {
+    th: "ใช้วันที่นี้คำนวณค่าปรับและเงินคืนประกัน (ไม่ใช่วันที่ผู้เช่าแจ้งไว้)",
+    en: "Use this date to calculate penalties and deposit refunds (not the date requested by the tenant)",
+  },
 
   // ── Move-out Clearance & Deposit Refund ─────────────────────────────
   "moveout.clearanceButton": {
@@ -1587,8 +1682,16 @@ const translations: Record<string, { th: string; en: string }> = {
   },
   "moveout.moveOutDate": { th: "วันที่ต้องการย้ายออก", en: "Move-out Date" },
   "moveout.notice30": {
-    th: "ต้องแจ้งล่วงหน้า 30 วัน",
-    en: "Must give 30 days notice",
+    th: "กรุณาแจ้งล่วงหน้าอย่างน้อย 30 วันก่อนวันที่ต้องการย้ายออก เพื่อให้ผู้ดูแลหอพักเตรียมการได้ทัน",
+    en: "Please give at least 30 days advance notice before your intended move-out date so we can prepare.",
+  },
+  "moveout.infoFine": {
+    th: "หากย้ายออกขณะที่สัญญาเช่ายังเหลือมากกว่า 30 วัน จะมีค่าปรับผิดสัญญาเท่ากับค่าเช่า 1 เดือน หักจากเงินประกัน",
+    en: "If you move out with more than 30 days remaining on your contract, an early-termination fine equal to one month's rent will be deducted from your deposit.",
+  },
+  "moveout.infoRefund": {
+    th: "เงินประกันส่วนที่เหลือ (หลังหักค่าปรับ ถ้ามี) จะคืนให้หลังหักค่าน้ำ-ไฟงวดสุดท้ายและค่าเสียหาย (ถ้ามี) ซึ่งจะคำนวณจริงตอนตรวจสอบห้องวันย้ายออก",
+    en: "The remaining deposit (after any fine) is refunded after deducting the final utility bill and any damages, calculated at the move-out inspection.",
   },
   "moveout.fine": { th: "ค่าปรับ", en: "Fine" },
   "moveout.refund": { th: "ยอดคืนเงินประกัน", en: "Deposit Refund" },
@@ -1633,7 +1736,7 @@ const translations: Record<string, { th: string; en: string }> = {
 
   // ── Tenant Dashboard ───────────────────────────────────────────────────────
   "tenant.welcome": { th: "สวัสดี", en: "Hello" },
-  "tenant.myRoom": { th: "ห้องพักของคุณ", en: "Your Room" },
+  "tenant.myRoom": { th: "ห้องพัก", en: "Room" },
   "tenant.rentPerMonth": { th: "ค่าเช่ารายเดือน", en: "Monthly Rent" },
   "tenant.pendingBill": {
     th: "คุณมีบิลที่รอชำระ",
@@ -1692,9 +1795,19 @@ const translations: Record<string, { th: string; en: string }> = {
     en: "Failed to download the contract file. Please try again.",
   },
   "tenant.contract.noFileYet": {
-    th: "ยังไม่มีไฟล์สัญญาในระบบ ระบบจะสร้างสรุปข้อมูลให้แทน",
-    en: "No contract file uploaded yet — a summary will be downloaded instead.",
+    th: "ยังไม่มีไฟล์สัญญาในระบบ ",
+    en: "No contract file uploaded yet",
   },
+  "tenant.contract.download": { th: "ดาวน์โหลดสัญญา", en: "Download Contract" },
+  "tenant.contract.downloading": {
+    th: "กำลังดาวน์โหลด...",
+    en: "Downloading...",
+  },
+  "tenant.contract.noFileYetDesc": {
+    th: "ผู้ดูแลระบบยังไม่ได้อัปโหลดไฟล์สัญญา กรุณาติดต่อผู้ดูแลระบบ",
+    en: "The administrator has not uploaded the contract file yet. Please contact the administrator.",
+  },
+
   "tenant.moveout.title": { th: "ขอย้ายออก", en: "Move-out Request" },
   "tenant.moveout.subtitle": {
     th: "แจ้งความประสงค์ย้ายออกจากหอพัก",
@@ -1795,18 +1908,6 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "ประกาศจากหอพักจะแสดงที่นี่",
     en: "Dormitory announcements will appear here",
   },
-
-  // Tenant status (สำหรับ TenantStatusBadge)
-  "tenant.status.active": { th: "กำลังเช่า", en: "Active" },
-  "tenant.status.pending": { th: "รอเข้าพัก", en: "Pending" },
-  "tenant.status.moved_out": { th: "ย้ายออกแล้ว", en: "Moved Out" },
-
-  // Priority urgent (ที่ขาด)
-  "priority.urgent": { th: "เร่งด่วน", en: "Urgent" },
-
-  // Status partial (ที่ขาด)
-  "status.partial": { th: "ชำระบางส่วน", en: "Partial" },
-  "status.reserved": { th: "จอง", en: "Reserved" },
 
   // Stats card
   "common.fromLastMonth": { th: "จากเดือนที่แล้ว", en: "from last month" },

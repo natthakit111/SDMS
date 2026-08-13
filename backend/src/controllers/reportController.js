@@ -9,6 +9,7 @@
  *   GET /api/reports/payments?month=&year=&format=    — payment summary
  *   GET /api/reports/system-export                    — export ข้อมูลระบบทั้งหมด (Excel, multi-sheet)
  */
+const { excelSafe } = require('../utils/excelSafe');
 const path = require('path');
 const ExcelJS = require('exceljs')
 const PDFDocument = require('pdfkit')
@@ -168,11 +169,11 @@ const getRoomsReport = async (req, res, next) => {
 
     const statusMap = { available: 'ว่าง', occupied: 'มีผู้เช่า', maintenance: 'ซ่อมบำรุง' }
     rows.forEach(r => ws.addRow([
-      r.room_number, r.floor, r.room_type, fmt(r.base_rent),
+      excelSafe(r.room_number), r.floor, excelSafe(r.room_type), fmt(r.base_rent),
       statusMap[r.status] || r.status,
-      r.tenant_name || '-', r.tenant_phone || '-',
+      excelSafe(r.tenant_name) || '-', excelSafe(r.tenant_phone) || '-',
       r.start_date ? new Date(r.start_date).toLocaleDateString('th-TH') : '-',
-      r.end_date   ? new Date(r.end_date).toLocaleDateString('th-TH')   : '-',
+      r.end_date ? new Date(r.end_date).toLocaleDateString('th-TH') : '-',
       r.rent_amount ? fmt(r.rent_amount) : '-',
     ]))
 
@@ -225,11 +226,11 @@ const getPaymentsReport = async (req, res, next) => {
     rows.forEach(r => {
       if (r.status === 'verified') total += parseFloat(r.amount_paid || 0)
       ws.addRow([
-        r.room_number, r.tenant_name, fmt(r.amount_paid),
+        excelSafe(r.room_number), excelSafe(r.tenant_name), fmt(r.amount_paid),
         methodMap[r.payment_method] || r.payment_method,
         new Date(r.paid_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }),
         statusMap[r.status] || r.status,
-        r.verified_by || '-',
+        excelSafe(r.verified_by) || '-',
         r.payment_id,
       ])
     })

@@ -27,7 +27,7 @@ const getAllTenants = async (req, res, next) => {
 const getMyProfile = async (req, res, next) => {
   try {
     const tenant = await TenantModel.findByUserId(req.user.user_id);
-    if (!tenant) return sendNotFound(res, 'Tenant profile not found');
+    if (!tenant) return sendNotFound(res, 'ไม่พบข้อมูลโปรไฟล์ผู้เช่า');
     return sendSuccess(res, tenant);
   } catch (err) { next(err); }
 };
@@ -36,7 +36,7 @@ const getMyProfile = async (req, res, next) => {
 const getTenantById = async (req, res, next) => {
   try {
     const tenant = await TenantModel.findById(req.params.id);
-    if (!tenant) return sendNotFound(res, 'Tenant not found');
+    if (!tenant) return sendNotFound(res, 'ไม่พบผู้เช่า');
     return sendSuccess(res, tenant);
   } catch (err) { next(err); }
 };
@@ -47,7 +47,7 @@ const createTenant = async (req, res, next) => {
   const conn = await pool.getConnection();
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
     const {
       password, first_name, last_name,
@@ -73,6 +73,12 @@ const createTenant = async (req, res, next) => {
     } else if (matches.length === 1) {
       existingTenant = matches[0];
     }
+
+    // ⚠️ FIX: เปลี่ยนจาก \d{9} (fix ที่ 9 หลักพอดี) เป็น \d+ — เดิมถ้า userId
+    // โตเกิน 9 หลักในอนาคต placeholderIdCard จะยาวกว่า regex รองรับ ทำให้
+    // ระบบไม่รู้จักว่าเป็น placeholder แล้ว flow "upgrade" ใน createTenant
+    // จะเข้าใจผิดว่าเป็นบัญชีจริง
+    const PLACEHOLDER_ID_CARD_REGEX = /^(REG|OAUTH)\d+$/;
 
     // ── ขั้นที่ 2: ถ้าเจอ record เดิม เช็คว่าเป็น "สมัครเองแบบข้อมูลไม่ครบ" หรือของจริง ──
     if (existingTenant) {
@@ -112,7 +118,7 @@ const createTenant = async (req, res, next) => {
         username: existingTenant.username,
         full_name: `${first_name} ${last_name}`,
         upgraded_from_self_registration: true,
-      }, 'Existing self-registered account upgraded with full tenant info');
+      }, 'อัปเดตบัญชีที่สมัครด้วยตนเองเป็นข้อมูลผู้เช่าสำเร็จ');
     }
 
     // ── ขั้นที่ 3: ไม่มี record เดิมผูกกับเบอร์/อีเมลนี้เลย — สร้างใหม่ตามปกติ ──
@@ -141,7 +147,7 @@ const createTenant = async (req, res, next) => {
       user_id:   userId,
       username,
       full_name: `${first_name} ${last_name}`,
-    }, 'Tenant registered successfully');
+    }, 'ลงทะเบียนผู้เช่าสำเร็จ');
   } catch (err) {
     await conn.rollback();
     next(err);
@@ -152,45 +158,93 @@ const createTenant = async (req, res, next) => {
 
 // PUT /api/tenants/:id  — admin updates tenant info
 const updateTenant = async (req, res, next) => {
+  const conn = await pool.getConnection();
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
     const tenant = await TenantModel.findById(req.params.id);
-    if (!tenant) return sendNotFound(res, 'Tenant not found');
+    if (!tenant) return sendNotFound(res, 'ไม่พบผู้เช่า');
 
     if (req.user.role === 'tenant' && tenant.user_id !== req.user.user_id)
-      return sendForbidden(res, 'You can only edit your own profile');
+      return sendForbidden(res, 'คุณสามารถแก้ไขได้เฉพาะโปรไฟล์ของตนเอง');
 
-    await TenantModel.update(req.params.id, req.body);
+    const { phone, email } = req.body;
+
+    // ⚠️ FIX: เหตุผลเดียวกับ updateMyProfile — sync phone/email ไป users
+    // ด้วยเสมอ ไม่ใช่แค่ tenants เพราะ users.username ผูกกับ phone (login)
+    await conn.beginTransaction();
+
+    if (phone !== undefined || email !== undefined) {
+      await UserModel.updateProfileFields(tenant.user_id, { phone, email }, conn);
+    }
+
+    await TenantModel.update(req.params.id, req.body, conn);
+    await conn.commit();
+
     const updated = await TenantModel.findById(req.params.id);
-    return sendSuccess(res, updated, 'Tenant profile updated');
-  } catch (err) { next(err); }
+    return sendSuccess(res, updated, 'อัปเดตข้อมูลผู้เช่าสำเร็จ');
+  } catch (err) {
+    await conn.rollback();
+    if (err.code === 'ER_DUP_ENTRY') {
+      return sendBadRequest(res, 'PHONE_OR_EMAIL_ALREADY_IN_USE');
+    }
+    next(err);
+  } finally {
+    conn.release();
+  }
 };
 
 // PUT /api/tenants/me/profile  — tenant updates own profile (safe fields only)
 const updateMyProfile = async (req, res, next) => {
+  const conn = await pool.getConnection();
   try {
     const tenant = await TenantModel.findByUserId(req.user.user_id);
-    if (!tenant) return sendNotFound(res, 'Tenant profile not found');
+    if (!tenant) return sendNotFound(res, 'ไม่พบข้อมูลโปรไฟล์ผู้เช่า');
 
-    const allowedFields = ['phone', 'email', 'emergency_contact_name', 'emergency_contact_phone'];
-    const updates = {};
-    allowedFields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
+    const { phone, email, emergency_contact_name, emergency_contact_phone } = req.body;
 
-    await TenantModel.update(tenant.tenant_id, updates);
+    // ⚠️ FIX: เดิมอัปเดตแค่ tenants table ฝั่งเดียว — phone/email เพี้ยน
+    // ออกจาก users table (ที่ใช้เป็น username/login) ไปเรื่อยๆ ทุกครั้งที่
+    // tenant แก้โปรไฟล์ตัวเอง ตอนนี้ sync ทั้งสองตารางในธุรกรรมเดียวกัน
+    await conn.beginTransaction();
+
+    if (phone !== undefined || email !== undefined) {
+      await UserModel.updateProfileFields(req.user.user_id, { phone, email }, conn);
+    }
+
+    const tenantUpdates = {};
+    if (phone !== undefined) tenantUpdates.phone = phone;
+    if (email !== undefined) tenantUpdates.email = email;
+    if (emergency_contact_name !== undefined) tenantUpdates.emergency_contact_name = emergency_contact_name;
+    if (emergency_contact_phone !== undefined) tenantUpdates.emergency_contact_phone = emergency_contact_phone;
+
+    if (Object.keys(tenantUpdates).length) {
+      await TenantModel.update(tenant.tenant_id, tenantUpdates, conn);
+    }
+
+    await conn.commit();
+
     const updated = await TenantModel.findById(tenant.tenant_id);
-    return sendSuccess(res, updated, 'Profile updated successfully');
-  } catch (err) { next(err); }
+    return sendSuccess(res, updated, 'อัปเดตโปรไฟล์สำเร็จ');
+  } catch (err) {
+    await conn.rollback();
+    if (err.code === 'ER_DUP_ENTRY') {
+      return sendBadRequest(res, 'PHONE_OR_EMAIL_ALREADY_IN_USE');
+    }
+    next(err);
+  } finally {
+    conn.release();
+  }
 };
 
 // DELETE /api/tenants/:id  — admin soft-deactivates user account
 const deleteTenant = async (req, res, next) => {
   try {
     const tenant = await TenantModel.findById(req.params.id);
-    if (!tenant) return sendNotFound(res, 'Tenant not found');
+    if (!tenant) return sendNotFound(res, 'ไม่พบผู้เช่า');
     await UserModel.deactivateUser(tenant.user_id);
-    return sendSuccess(res, null, 'Tenant account deactivated');
+    return sendSuccess(res, null, 'ปิดใช้งานบัญชีผู้เช่าสำเร็จ');
   } catch (err) { next(err); }
 };
 

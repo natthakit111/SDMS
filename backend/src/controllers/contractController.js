@@ -3,13 +3,14 @@
  */
 const { validationResult } = require('express-validator')
 const path = require('path')
-const fs = require('fs')
 const { pool }       = require('../config/db')
 const ContractModel = require('../models/contract.model')
 const RoomModel     = require('../models/room.model')
 const TenantModel   = require('../models/tenant.model')
 const DepositModel  = require('../models/deposit.model')
 const { sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden } = require('../utils/response')
+const cloudinary = require('cloudinary').v2;
+const https = require('https');
 
 const getAllContracts = async (req, res, next) => {
   try {
@@ -23,6 +24,16 @@ const getContractById = async (req, res, next) => {
   try {
     const contract = await ContractModel.findById(req.params.id)
     if (!contract) return sendNotFound(res, 'ไม่พบสัญญาเช่านี้')
+
+    // ⚠️ FIX: เดิมไม่มี ownership check — tenant คนไหนก็ดูสัญญาของคนอื่นได้
+    // ถ้ารู้ contract_id (IDOR) รวมถึงเห็น id_card_number/phone ที่เป็น PII
+    if (req.user.role === 'tenant') {
+      const tenant = await TenantModel.findByUserId(req.user.user_id)
+      if (!tenant || tenant.tenant_id !== contract.tenant_id) {
+        return sendNotFound(res, 'ไม่พบสัญญาเช่านี้')
+      }
+    }
+
     return sendSuccess(res, contract)
   } catch (err) { next(err) }
 }
@@ -198,33 +209,38 @@ const terminateContract = async (req, res, next) => {
   } catch (err) { next(err) }
 }
 
-// ✅ NEW: Admin อัปโหลดไฟล์สัญญา (PDF/Word) แนบเข้ากับ contract ที่มีอยู่
+// Admin อัปโหลดไฟล์สัญญา (PDF) แนบเข้ากับ contract ที่มีอยู่
 const uploadContractFile = async (req, res, next) => {
   try {
     if (!req.file) return sendBadRequest(res, 'กรุณาแนบไฟล์สัญญา')
     const contract = await ContractModel.findById(req.params.id)
     if (!contract) return sendNotFound(res, 'ไม่พบสัญญาเช่านี้')
 
-    // ลบไฟล์เก่าถ้ามี ป้องกันไฟล์ค้างใน disk
+    // ⚠️ FIX: ไฟล์เก่าอยู่บน Cloudinary แล้ว ไม่ใช่ local disk อีกต่อไป
+    // ต้องลบผ่าน Cloudinary API แทน fs.unlink — contract_file เดิมเก็บ
+    // เป็น URL เต็ม ต้อง derive public_id กลับมาก่อนลบ
     if (contract.contract_file) {
-      const oldPath = path.join(__dirname, '../../uploads/contracts', path.basename(contract.contract_file))
-      fs.unlink(oldPath, () => {})
+      const oldPublicId = contract.contract_file
+        .split('/').slice(-2).join('/')   // 'dormflow/contracts/xxxxx'
+        .replace(/\.pdf$/, '')
+      cloudinary.uploader.destroy(oldPublicId, { resource_type: 'raw' }).catch(() => {})
     }
 
-    await ContractModel.update(req.params.id, { contract_file: req.file.filename })
+    // เก็บ URL เต็มจาก Cloudinary แทน filename เดิม
+    await ContractModel.update(req.params.id, { contract_file: req.file.path })
     const updated = await ContractModel.findById(req.params.id)
     return sendSuccess(res, updated, 'อัปโหลดไฟล์สัญญาสำเร็จ')
   } catch (err) { next(err) }
 }
 
-// ✅ NEW: ดาวน์โหลดไฟล์สัญญาจริง (admin ดูได้ทุกฉบับ / tenant ดูได้เฉพาะของตัวเอง)
+// ⚠️ ใช้ https module ที่มากับ Node เอง ไม่ต้องติดตั้ง dependency เพิ่ม
 const downloadContractFile = async (req, res, next) => {
   try {
     const contract = await ContractModel.findById(req.params.id)
     if (!contract) return sendNotFound(res, 'ไม่พบสัญญาเช่านี้')
     if (!contract.contract_file) return sendNotFound(res, 'ยังไม่มีไฟล์สัญญาสำหรับสัญญานี้')
 
-    // tenant ดูได้เฉพาะสัญญาของตัวเองเท่านั้น
+    // เช็ค ownership เหมือนเดิมทุกอย่าง — ไม่เปลี่ยน
     if (req.user.role === 'tenant') {
       const tenant = await TenantModel.findByUserId(req.user.user_id)
       if (!tenant || tenant.tenant_id !== contract.tenant_id) {
@@ -232,13 +248,24 @@ const downloadContractFile = async (req, res, next) => {
       }
     }
 
-    const filePath = path.join(__dirname, '../../uploads/contracts', path.basename(contract.contract_file))
-    if (!fs.existsSync(filePath)) return sendNotFound(res, 'ไม่พบไฟล์สัญญาในระบบ')
+    // ⚠️ FIX: แทนที่จะ redirect (เปิดเผย Cloudinary URL ให้ client เก็บไว้ใช้
+    // ซ้ำได้โดยไม่ผ่าน auth อีก) — proxy ไฟล์ผ่าน backend เอง client จะเห็น
+    // แค่ URL ของเราเสมอ (/api/contracts/:id/file) ต้องผ่าน ownership check
+    // ทุกครั้งที่ดาวน์โหลดจริง ไม่ใช่แค่ครั้งแรก
+    const filename = `contract_CNT${String(contract.contract_id).padStart(3, '0')}.pdf`
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
 
-    return res.download(
-      filePath,
-      `contract_CNT${String(contract.contract_id).padStart(3, '0')}${path.extname(filePath)}`
-    )
+    https.get(contract.contract_file, (cloudinaryRes) => {
+      if (cloudinaryRes.statusCode !== 200) {
+        // ไฟล์หายจาก Cloudinary (ถูกลบไปแล้ว หรือ URL ผิด) — ไม่ crash server
+        return sendNotFound(res, 'ไม่พบไฟล์สัญญาในระบบ (อาจถูกลบไปแล้ว)')
+      }
+      cloudinaryRes.pipe(res)
+    }).on('error', (err) => {
+      next(err) // network error ตอนดึงจาก Cloudinary
+    })
+
   } catch (err) { next(err) }
 }
 

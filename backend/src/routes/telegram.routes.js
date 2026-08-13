@@ -7,6 +7,7 @@ const express = require('express');
 const router  = express.Router();
 const crypto  = require('crypto');
 const { authenticate } = require('../middlewares/auth.middleware');
+const { authorizeRoles } = require('../middlewares/role.middleware');
 const { sendSuccess, sendBadRequest } = require('../utils/response');
 const UserModel = require('../models/user.model');
 const TenantModel = require('../models/tenant.model');
@@ -47,6 +48,17 @@ router.post('/generate-link', authenticate, async (req, res, next) => {
 // ─────────────────────────────────────────────
 router.post('/link', async (req, res, next) => {
   try {
+    // ⚠️ FIX: เดิมไม่มี auth เลย และเชื่อ chat_id จาก body ตรงๆ — ใครก็ตาม
+    // ที่รู้ token (อาจหลุดผ่าน deep link ที่แชร์กัน) ยิง POST พร้อม chat_id
+    // ของตัวเองมาแทนได้ ทำให้ได้รับการแจ้งเตือนของเหยื่อไป ตอนนี้เช็ค
+    // secret ที่ share กันระหว่าง backend กับ bot service (config/telegram.js)
+    // ก่อนยอมรับเสมอ ไม่ใช่ JWT เพราะ endpoint นี้ไม่ได้เรียกโดย user
+    // ที่ login อยู่ แต่เรียกโดย internal bot process เท่านั้น
+    const internalSecret = req.headers['x-internal-secret'];
+    if (!internalSecret || internalSecret !== process.env.BOT_INTERNAL_SECRET) {
+      return sendBadRequest(res, 'Unauthorized');
+    }
+
     const { token, chat_id, telegram_username } = req.body;
     if (!token || !chat_id) return sendBadRequest(res, 'token and chat_id are required');
 
@@ -70,11 +82,8 @@ router.delete('/unlink', authenticate, async (req, res, next) => {
 // ─────────────────────────────────────────────
 // POST /api/telegram/broadcast  — admin only
 // ─────────────────────────────────────────────
-router.post('/broadcast', authenticate, async (req, res, next) => {
+router.post('/broadcast', authenticate, authorizeRoles('admin'), async (req, res, next) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Admin only' });
-    }
     const { message } = req.body;
     if (!message?.trim()) return sendBadRequest(res, 'message is required');
 

@@ -141,14 +141,16 @@ export default function AdminDashboard() {
     );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">{t("menu.dashboard")}</h1>
-        <p className="text-muted-foreground">{t("rooms.subtitle")}</p>
+        <h1 className="text-xl font-bold sm:text-2xl">{t("menu.dashboard")}</h1>
+        <p className="text-sm text-muted-foreground sm:text-base">
+          {t("rooms.subtitle")}
+        </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats Cards — 2 คอลัมน์บนมือถือ, 4 คอลัมน์บนจอใหญ่ */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatsCard
           title={t("rooms.title")}
           value={`${roomStats.occupied}/${roomStats.total}`}
@@ -181,23 +183,23 @@ export default function AdminDashboard() {
 
       {/* Alerts */}
       {(overdueBills.length > 0 || pendingMaintenance.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
           {overdueBills.length > 0 && (
             <Card className="border-destructive/50 bg-destructive/5">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-destructive/20">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-center gap-3">
+                  <div className="shrink-0 rounded-lg bg-destructive/20 p-2">
                     <AlertTriangle className="h-5 w-5 text-destructive" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-destructive">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate font-semibold text-destructive">
                       {t("status.overdue")}
                     </h3>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="truncate text-sm text-muted-foreground">
                       {overdueBills.length} {t("bills.list")}
                     </p>
                   </div>
-                  <Link href="/admin/bills?status=overdue">
+                  <Link href="/admin/bills?status=overdue" className="shrink-0">
                     <Button variant="destructive" size="sm">
                       {t("common.view")}
                     </Button>
@@ -208,21 +210,24 @@ export default function AdminDashboard() {
           )}
           {pendingMaintenance.length > 0 && (
             <Card className="border-warning/50 bg-warning/5">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-warning/20">
-                    <Wrench className="h-5 w-5 text-warning-foreground" />
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-center gap-3">
+                  <div className="shrink-0 rounded-lg bg-warning/20 p-2">
+                    <Wrench className="h-5 w-5 text-warning" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-warning-foreground">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate font-semibold text-warning">
                       {t("status.pending")}
                     </h3>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="truncate text-sm text-muted-foreground">
                       {pendingMaintenance.length} {t("maintenance.list")}
                     </p>
                   </div>
-                  <Link href="/admin/maintenance">
-                    <Button variant="outline" size="sm">
+                  <Link href="/admin/maintenance" className="shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-warning text-warning hover:bg-warning hover:text-warning-foreground">
                       {t("common.view")}
                     </Button>
                   </Link>
@@ -234,47 +239,52 @@ export default function AdminDashboard() {
       )}
 
       {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">{t("bills.list")}</CardTitle>
-              <CardDescription>{t("bills.subtitle")}</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-4 sm:p-6">
+            <div className="min-w-0">
+              <CardTitle className="text-base sm:text-lg">
+                {t("bills.list")}
+              </CardTitle>
+              <CardDescription className="truncate">
+                {t("bills.subtitle")}
+              </CardDescription>
             </div>
-            <Link href="/admin/bills">
+            <Link href="/admin/bills" className="shrink-0">
               <Button variant="ghost" size="sm">
-                {t("common.viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
+                <span className="hidden sm:inline">{t("common.viewAll")}</span>
+                <ArrowRight className="h-4 w-4 sm:ml-2" />
               </Button>
             </Link>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+            <div className="space-y-1">
               {recentBills.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">
+                <p className="py-4 text-center text-sm text-muted-foreground">
                   {t("common.noData")}
                 </p>
               )}
               {recentBills.map((bill) => (
                 <div
                   key={bill.bill_id}
-                  className="flex items-center justify-between py-2 border-b last:border-0"
+                  className="flex items-center justify-between gap-3 border-b py-2.5 last:border-0"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-muted">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="shrink-0 rounded-lg bg-muted p-2">
                       <Receipt className="h-4 w-4 text-muted-foreground" />
                     </div>
-                    <div>
-                      <p className="font-medium">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">
                         {t("rooms.roomNumber")}{" "}
                         {bill.room_number ?? bill.room_id}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs text-muted-foreground sm:text-sm">
                         {bill.bill_month}/{bill.bill_year}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <p className="font-semibold tabular-nums">
                       {formatCurrency(bill.total_amount)}
                     </p>
                     <BillStatusBadge status={bill.status} />
@@ -286,41 +296,48 @@ export default function AdminDashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">{t("maintenance.list")}</CardTitle>
-              <CardDescription>{t("maintenance.subtitle")}</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-4 sm:p-6">
+            <div className="min-w-0">
+              <CardTitle className="text-base sm:text-lg">
+                {t("maintenance.list")}
+              </CardTitle>
+              <CardDescription className="truncate">
+                {t("maintenance.subtitle")}
+              </CardDescription>
             </div>
-            <Link href="/admin/maintenance">
+            <Link href="/admin/maintenance" className="shrink-0">
               <Button variant="ghost" size="sm">
-                {t("common.viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
+                <span className="hidden sm:inline">{t("common.viewAll")}</span>
+                <ArrowRight className="h-4 w-4 sm:ml-2" />
               </Button>
             </Link>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+            <div className="space-y-1">
               {recentMaintenance.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">
+                <p className="py-4 text-center text-sm text-muted-foreground">
                   {t("common.noData")}
                 </p>
               )}
               {recentMaintenance.map((req) => (
                 <div
                   key={req.request_id}
-                  className="flex items-center justify-between py-2 border-b last:border-0"
+                  className="flex items-center justify-between gap-3 border-b py-2.5 last:border-0"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-muted">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="shrink-0 rounded-lg bg-muted p-2">
                       <Wrench className="h-4 w-4 text-muted-foreground" />
                     </div>
-                    <div>
-                      <p className="font-medium">{req.category}</p>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{req.category}</p>
+                      <p className="truncate text-xs text-muted-foreground sm:text-sm">
                         {t("rooms.roomNumber")} {req.room_number ?? "-"}
                       </p>
                     </div>
                   </div>
-                  <MaintenanceStatusBadge status={req.status} />
+                  <div className="shrink-0">
+                    <MaintenanceStatusBadge status={req.status} />
+                  </div>
                 </div>
               ))}
             </div>
@@ -330,28 +347,32 @@ export default function AdminDashboard() {
 
       {/* Room Overview */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">{t("rooms.list")}</CardTitle>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-base sm:text-lg">
+            {t("rooms.list")}
+          </CardTitle>
           <CardDescription>{t("rooms.subtitle")}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
           {rooms.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
+            <p className="py-4 text-center text-sm text-muted-foreground">
               {t("common.noData")}
             </p>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-6 lg:grid-cols-8">
               {rooms.map((room) => (
                 <Link
                   key={room.room_id}
                   href="/admin/rooms"
-                  className={`p-4 rounded-lg border text-center transition-colors hover:border-primary
+                  className={`rounded-lg border p-2.5 text-center transition-colors hover:border-primary sm:p-3
                     ${room.status === "available" ? "bg-success/10 border-success/30" : ""}
                     ${room.status === "occupied" ? "bg-primary/10 border-primary/30" : ""}
                     ${room.status === "maintenance" ? "bg-warning/10 border-warning/30" : ""}`}
                 >
-                  <p className="font-bold text-lg">{room.room_number}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-base font-bold sm:text-lg">
+                    {room.room_number}
+                  </p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground sm:text-xs">
                     {room.status === "available" && t("status.available")}
                     {room.status === "occupied" && t("status.occupied")}
                     {room.status === "maintenance" && t("status.maintenance")}

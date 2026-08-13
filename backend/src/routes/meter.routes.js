@@ -1,3 +1,5 @@
+//src/routes/meter.routes.js
+
 const express = require('express');
 const { body, query } = require('express-validator');
 const router = express.Router();
@@ -15,13 +17,25 @@ const readingValidation = [
   body('rate_per_unit').optional().isFloat({ min: 0 }),
 ];
 
+// ⚠️ ใหม่: เดิม PUT /:id ไม่มี validator เลย — สร้างชุดแยกต่างหาก (ไม่ใช้
+// readingValidation.map(v => v.optional()) เพราะ ValidationChain เป็น
+// mutable object จะไปกระทบ readingValidation ต้นทางที่ POST ใช้อยู่)
+const updateReadingValidation = [
+  body('current_unit').optional().isFloat({ min: 0 }).withMessage('current_unit must be >= 0'),
+  body('rate_per_unit').optional().isFloat({ min: 0 }).withMessage('rate_per_unit must be >= 0'),
+];
+
 router.get('/',
   authenticate, authorizeRoles('admin'),
   ctrl.getAllReadings
 );
 
+// ใหม่
+// ⚠️ FIX: เดิมไม่จำกัด role — tenant คนไหนก็ไล่เลข roomId ดูมิเตอร์ล่าสุด
+// ของห้องอื่นได้ทั้งที่ endpoint นี้มีไว้ auto-fill ฟอร์มตอน admin กรอก
+// มิเตอร์ใหม่เท่านั้น
 router.get('/rooms/:roomId/previous',
-  authenticate,
+  authenticate, authorizeRoles('admin'),
   ctrl.getPreviousReading
 );
 
@@ -46,6 +60,7 @@ router.post('/',
 router.put('/:id',
   authenticate, authorizeRoles('admin'),
   uploadMeterImage,
+  updateReadingValidation,
   ctrl.updateReading
 );
 

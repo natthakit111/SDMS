@@ -155,7 +155,9 @@ export default function TenantBillsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{t("tenant.bills.title")}</h1>
-          <p className="text-muted-foreground">{t("tenant.bills.subtitle")}</p>
+          <p className="text-muted-foreground mt-2">
+            {t("tenant.bills.subtitle")}
+          </p>
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-48">
@@ -192,64 +194,73 @@ export default function TenantBillsPage() {
                 bill.status === "overdue" ? "border-destructive/50" : ""
               }
             >
-              <CardContent className="p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`p-3 rounded-lg ${
+              <CardContent className="p-4 sm:p-6">
+                {/* ── Top row: ไอคอน + เดือน/วันครบกำหนด (+ จำนวนเงินบน desktop) ── */}
+                <div className="flex items-center gap-4">
+                  <div
+                    className={`p-3 rounded-lg shrink-0 ${
+                      bill.status === "paid"
+                        ? "bg-green-500/20"
+                        : bill.status === "overdue"
+                          ? "bg-destructive/20"
+                          : "bg-yellow-500/20"
+                    }`}
+                  >
+                    <Receipt
+                      className={`h-6 w-6 ${
                         bill.status === "paid"
-                          ? "bg-green-500/20"
+                          ? "text-green-500"
                           : bill.status === "overdue"
-                            ? "bg-destructive/20"
-                            : "bg-yellow-500/20"
+                            ? "text-destructive"
+                            : "text-yellow-600"
                       }`}
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-lg truncate">
+                      {t(`month.${bill.bill_month}`)} {bill.bill_year}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {t("bills.dueDate")} {fmtDate(bill.due_date)}
+                    </p>
+                  </div>
+                  {/* จำนวนเงิน + badge — โชว์ในแถวนี้เฉพาะ sm ขึ้นไป */}
+                  <div className="hidden sm:block text-right shrink-0">
+                    <p className="text-2xl font-bold">
+                      {fmt(bill.total_amount)}
+                    </p>
+                    <BillStatusBadge status={bill.status} />
+                  </div>
+                </div>
+
+                {/* ── จำนวนเงิน + badge บนมือถือ: แยกเป็นแถวของตัวเอง ไม่บีบกับปุ่ม ── */}
+                <div className="flex sm:hidden items-center justify-between mt-4">
+                  <p className="text-2xl font-bold">{fmt(bill.total_amount)}</p>
+                  <BillStatusBadge status={bill.status} />
+                </div>
+
+                {/* ── ปุ่ม action: เต็มความกว้างบนมือถือ, ปกติบน desktop ── */}
+                <div className="flex gap-2 mt-4 sm:justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 sm:flex-none min-h-[40px]"
+                    onClick={() => handleViewBill(bill)}
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    {t("common.view")}
+                  </Button>
+                  {(bill.status === "pending" || bill.status === "overdue") && (
+                    <Link
+                      href={`/tenant/payment?bill=${bill.bill_id}`}
+                      className="flex-1 sm:flex-none"
                     >
-                      <Receipt
-                        className={`h-6 w-6 ${
-                          bill.status === "paid"
-                            ? "text-green-500"
-                            : bill.status === "overdue"
-                              ? "text-destructive"
-                              : "text-yellow-600"
-                        }`}
-                      />
-                    </div>
-                    <div>
-                      <p className="font-medium text-lg">
-                        {t(`month.${bill.bill_month}`)} {bill.bill_year}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {t("bills.dueDate")} {fmtDate(bill.due_date)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-2xl font-bold">
-                        {fmt(bill.total_amount)}
-                      </p>
-                      <BillStatusBadge status={bill.status} />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewBill(bill)}
-                      >
-                        <FileText className="h-4 w-4 mr-1" />
-                        {t("common.view")}
+                      <Button size="sm" className="w-full min-h-[40px]">
+                        <CreditCard className="h-4 w-4 mr-1" />
+                        {t("tenant.payNow")}
                       </Button>
-                      {(bill.status === "pending" ||
-                        bill.status === "overdue") && (
-                        <Link href={`/tenant/payment?bill=${bill.bill_id}`}>
-                          <Button size="sm">
-                            <CreditCard className="h-4 w-4 mr-1" />
-                            {t("tenant.payNow")}
-                          </Button>
-                        </Link>
-                      )}
-                    </div>
-                  </div>
+                    </Link>
+                  )}
                 </div>
 
                 {/* Bill breakdown */}
@@ -310,9 +321,9 @@ export default function TenantBillsPage() {
           {viewingBill && (
             <div className="space-y-4">
               {/* Room + Month */}
-              <div className="flex justify-between items-center pb-4 border-b">
-                <div>
-                  <p className="font-medium text-lg">
+              <div className="flex justify-between items-center pb-4 border-b gap-3">
+                <div className="min-w-0">
+                  <p className="font-medium text-lg truncate">
                     {t("rooms.roomNumber")} {viewingBill.room_number}
                   </p>
                   <p className="text-sm text-muted-foreground">
@@ -325,58 +336,67 @@ export default function TenantBillsPage() {
 
               {/* Breakdown */}
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span className="text-muted-foreground">
                     {t("bills.rentAmount")}
                   </span>
-                  <span className="font-medium">
+                  <span className="font-medium shrink-0">
                     {fmt(viewingBill.rent_amount)}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="flex items-center gap-1 text-muted-foreground">
-                    <Zap className="h-3 w-3 text-yellow-500" />
-                    {t("bills.electricAmount")}
-                    {elecReading && (
-                      <span className="text-xs text-muted-foreground ml-1">
-                        ({elecReading.previous_unit} →{" "}
-                        {elecReading.current_unit} = {elecReading.units_used}{" "}
-                        {t("meters.used")} × ฿{elecReading.rate_per_unit})
-                      </span>
-                    )}
-                  </span>
-                  <span className="font-medium">
-                    {fmt(viewingBill.electric_amount)}
-                  </span>
+
+                {/* Electric — label/amount แถวเดียว, รายละเอียดมิเตอร์แยกบรรทัดล่าง */}
+                <div className="space-y-1">
+                  <div className="flex justify-between gap-2">
+                    <span className="flex items-center gap-1 text-muted-foreground min-w-0">
+                      <Zap className="h-3 w-3 text-yellow-500 shrink-0" />
+                      {t("bills.electricAmount")}
+                    </span>
+                    <span className="font-medium shrink-0">
+                      {fmt(viewingBill.electric_amount)}
+                    </span>
+                  </div>
+                  {elecReading && (
+                    <p className="text-xs text-muted-foreground pl-4">
+                      {elecReading.previous_unit} → {elecReading.current_unit} ={" "}
+                      {elecReading.units_used} {t("meters.used")} × ฿
+                      {elecReading.rate_per_unit}
+                    </p>
+                  )}
                 </div>
-                <div className="flex justify-between">
-                  <span className="flex items-center gap-1 text-muted-foreground">
-                    <Droplets className="h-3 w-3 text-blue-500" />
-                    {t("bills.waterAmount")}
-                    {waterReading && (
-                      <span className="text-xs text-muted-foreground ml-1">
-                        ({waterReading.previous_unit} →{" "}
-                        {waterReading.current_unit} = {waterReading.units_used}{" "}
-                        {t("meters.used")} × ฿{waterReading.rate_per_unit})
-                      </span>
-                    )}
-                  </span>
-                  <span className="font-medium">
-                    {fmt(viewingBill.water_amount)}
-                  </span>
+
+                {/* Water — เหมือนกัน */}
+                <div className="space-y-1">
+                  <div className="flex justify-between gap-2">
+                    <span className="flex items-center gap-1 text-muted-foreground min-w-0">
+                      <Droplets className="h-3 w-3 text-blue-500 shrink-0" />
+                      {t("bills.waterAmount")}
+                    </span>
+                    <span className="font-medium shrink-0">
+                      {fmt(viewingBill.water_amount)}
+                    </span>
+                  </div>
+                  {waterReading && (
+                    <p className="text-xs text-muted-foreground pl-4">
+                      {waterReading.previous_unit} → {waterReading.current_unit}{" "}
+                      = {waterReading.units_used} {t("meters.used")} × ฿
+                      {waterReading.rate_per_unit}
+                    </p>
+                  )}
                 </div>
+
                 {viewingBill.other_amount > 0 && (
-                  <div className="flex justify-between">
+                  <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">
                       {t("bills.otherAmount")}
                     </span>
-                    <span className="font-medium">
+                    <span className="font-medium shrink-0">
                       {fmt(viewingBill.other_amount)}
                     </span>
                   </div>
                 )}
               </div>
-
+              
               {/* Total */}
               <div className="flex justify-between pt-4 border-t text-xl font-bold">
                 <span>{t("common.total")}</span>

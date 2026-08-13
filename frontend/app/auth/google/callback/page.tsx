@@ -3,8 +3,7 @@
 "use client";
 
 export const dynamic = "force-dynamic";
-
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Building2, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,7 @@ import {
 import Link from "next/link";
 import api from "@/lib/api/axiosInstance";
 import { useAuth } from "@/context/auth-context";
-
+import { useLanguage } from "@/context/language-context"
 /**
  * /auth/google/callback?code=<short-lived exchange code>
  *
@@ -40,6 +39,7 @@ function GoogleCallbackInner() {
   const router = useRouter();
   const { refreshUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const hasExchangedRef = useRef(false);
 
   useEffect(() => {
     const code = searchParams.get("code");
@@ -55,16 +55,13 @@ function GoogleCallbackInner() {
       return;
     }
 
+    if (hasExchangedRef.current) return; // ← กันยิงซ้ำตรงนี้
+    hasExchangedRef.current = true;
+
     let cancelled = false;
 
     (async () => {
       try {
-        // ⚠️ เดิมเก็บ token เองผ่าน localStorage.setItem — ตัดออกแล้ว
-        // backend set httpOnly cookie (`token`) + readable cookie
-        // (`auth_hint`) ให้เองอัตโนมัติผ่าน response header ของ endpoint
-        // นี้แล้ว (ดู oauth.routes.js) frontend แค่ต้อง withCredentials:
-        // true ตอนเรียก (ตั้งไว้ที่ axiosInstance.js แล้ว) ไม่ต้องทำอะไร
-        // กับ token เพิ่มอีกเลย
         const res = await api.post("/auth/oauth/exchange", { code });
         const { user } = res.data?.data ?? {};
 
@@ -75,14 +72,6 @@ function GoogleCallbackInner() {
           return;
         }
 
-        // ใช้ role จาก response ที่ backend verify แล้วโดยตรง
-        // (ไม่ต้อง decode JWT เองฝั่ง client อีกต่อไป — และตอนนี้ก็ทำ
-        // ไม่ได้อยู่แล้วเพราะ token อยู่ใน httpOnly cookie ที่ JS มองไม่เห็น)
-        //
-        // ⚠️ สำคัญ: ต้องเรียก refreshUser() ก่อน router.replace() เสมอ
-        // ไม่งั้น AuthProvider (ที่คงอยู่ทั้งแอป ไม่ remount ตอน soft nav)
-        // จะยังเห็น user เป็น null อยู่ ทำให้ route guard ของ /admin,
-        // /tenant เข้าใจผิดว่ายังไม่ login แล้วเด้งกลับ /login ทันที
         await refreshUser();
         router.replace(user.role === "admin" ? "/admin" : "/tenant");
       } catch (e: any) {
@@ -127,6 +116,7 @@ function GoogleCallbackInner() {
 }
 
 export default function GoogleCallbackPage() {
+  const { language } = useLanguage();
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
@@ -137,7 +127,11 @@ export default function GoogleCallbackPage() {
             </div>
           </div>
           <CardTitle className="text-xl">SDMS</CardTitle>
-          <CardDescription>เข้าสู่ระบบด้วย Google</CardDescription>
+          <CardDescription>
+            {language === "th"
+              ? "เข้าสู่ระบบด้วย Google"
+              : "Sign in with Google"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Suspense

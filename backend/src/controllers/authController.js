@@ -19,6 +19,7 @@ const PasswordResetModel = require('../models/passwordReset.model');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
+const { pool } = require('../config/db');
 const UserModel = require('../models/user.model');
 const TenantModel = require('../models/tenant.model');
 const { sendResetPasswordEmail } = require('../services/email.service');
@@ -26,13 +27,13 @@ const {
   sendSuccess, sendCreated, sendBadRequest, sendUnauthorized,
 } = require('../utils/response');
 
-// ⚠️ frontend และ backend อยู่คนละโดเมนกันแน่ๆ ตอน production (เช่น
+// frontend และ backend อยู่คนละโดเมนกันแน่ๆ ตอน production (เช่น
 // frontend บน Vercel, backend บน Railway/Render) ตั้ง COOKIE_CROSS_SITE=true
 // ใน .env ของ production เท่านั้น — local dev ปล่อยว่างไว้ (false)
 const CROSS_SITE = process.env.COOKIE_CROSS_SITE === 'true';
 
 const signToken = (user, rememberMe = false) => {
-  // ⚠️ ใหม่: csrf claim — ใช้คู่กับ csrf_token cookie (ไม่ httpOnly) ทำ
+  // csrf claim — ใช้คู่กับ csrf_token cookie (ไม่ httpOnly) ทำ
   // double-submit CSRF protection เพราะพอย้าย sameSite เป็น 'none'
   // (จำเป็นเนื่องจาก frontend/backend คนละโดเมน) เกราะป้องกัน CSRF ที่
   // sameSite เคยให้ฟรีๆ จะหายไปทันที ต้องมีกลไกอื่นมาแทน
@@ -61,7 +62,7 @@ const signToken = (user, rememberMe = false) => {
 const setAuthCookies = (res, token, csrfToken, rememberMe = false) => {
   const maxAge = (rememberMe ? 7 : 1) * 24 * 60 * 60 * 1000; // ต้องตรงกับ expiresIn ของ JWT
 
-  // ⚠️ FIX: เดิมมี `|| IS_PROD` fallback ตรงนี้ ซึ่งพัง เพราะเครื่อง dev
+  // FIX: เดิมมี `|| IS_PROD` fallback ตรงนี้ ซึ่งพัง เพราะเครื่อง dev
   // บางเครื่องตั้ง NODE_ENV=production ไว้ด้วยเหตุผลอื่น (เช่น performance
   // ของ Express) ทำให้ secure: true ถูกบังคับใช้อยู่ดีแม้ตั้งใจจะปิดตอน
   // local — ต้องคุมด้วย COOKIE_SECURE ที่ตั้งเองตรงๆ เท่านั้น ไม่ผูกกับ
@@ -81,25 +82,28 @@ const clearAuthCookies = (res) => {
 };
 
 const register = async (req, res, next) => {
+  const conn = await pool.getConnection();
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
-    const { password, role = 'tenant', name, email, phone } = req.body;
+    // ⚠️ FIX: role ไม่รับจาก client อีกต่อไป — endpoint นี้ใช้สมัคร tenant
+    // เท่านั้น เดิมรับ role จาก body ได้ ถ้าไม่มี validator จำกัดค่าไว้ก่อนหน้า
+    // ใครก็ส่ง role: "admin" มาแล้วได้สิทธิ์แอดมินทันที
+    const role = 'tenant';
+    const { password, name, email, phone } = req.body;
     const autoUsername = phone;
 
     const existing = await UserModel.findByUsername(autoUsername);
     if (existing) return sendBadRequest(res, 'เบอร์โทรศัพท์นี้ถูกใช้สมัครสมาชิกไปแล้ว');
 
-    if (role === 'tenant') {
-      const conflict = await TenantModel.findConflictByPhoneOrEmail(phone, email);
-      if (conflict) {
-        const conflictField = conflict.phone === phone ? 'เบอร์โทรศัพท์' : 'อีเมล';
-        return sendBadRequest(
-          res,
-          `${conflictField}นี้มีบัญชีผู้เช่าอยู่ในระบบแล้ว กรุณาติดต่อผู้ดูแลหอพัก หรือใช้ "ลืมรหัสผ่าน" หากจำรหัสผ่านไม่ได้`
-        );
-      }
+    const conflict = await TenantModel.findConflictByPhoneOrEmail(phone, email);
+    if (conflict) {
+      const conflictField = conflict.phone === phone ? 'เบอร์โทรศัพท์' : 'อีเมล';
+      return sendBadRequest(
+        res,
+        `${conflictField}นี้มีบัญชีผู้เช่าอยู่ในระบบแล้ว กรุณาติดต่อผู้ดูแลหอพัก หรือใช้ "ลืมรหัสผ่าน" หากจำรหัสผ่านไม่ได้`
+      );
     }
 
     const nameParts = (name || '').trim().split(' ');
@@ -109,23 +113,34 @@ const register = async (req, res, next) => {
     const salt = await bcrypt.genSalt(12);
     const password_hash = await bcrypt.hash(password, salt);
 
+    // ⚠️ FIX: ห่อ createUser + createFromSelfRegistration ใน transaction
+    // เดียวกัน — เดิมใช้ INSERT IGNORE เงียบๆ ถ้า insert tenant ชน unique
+    // constraint จะไม่ error แต่ user ถูกสร้างไปแล้ว เกิด orphaned user
+    // (role=tenant แต่ไม่มี tenant record ผูกอยู่) ตอนนี้ถ้า insert tenant
+    // fail ด้วยเหตุผลอะไรก็ตาม จะ rollback user ที่สร้างไปด้วย ไม่ทิ้ง
+    // orphaned record ไว้
+    await conn.beginTransaction();
+
     const userId = await UserModel.createUser({
       username: autoUsername, password_hash, role,
       first_name: firstName, last_name: lastName, email, phone,
+    }, conn);
+
+    await TenantModel.createFromSelfRegistration(conn, {
+      userId, firstName, lastName, phone, email,
     });
 
-    if (role === 'tenant') {
-      await TenantModel.createFromSelfRegistration({
-        userId, firstName, lastName, phone, email,
-      });
-    }
+    await conn.commit();
 
-    return sendCreated(res, { user_id: userId, username: autoUsername, role }, 'Account registered successfully');
+    return sendCreated(res, { user_id: userId, username: autoUsername, role }, 'ลงทะเบียนบัญชีสำเร็จ');
   } catch (err) {
+    await conn.rollback();
     if (err.code === 'ER_DUP_ENTRY') {
       return sendBadRequest(res, 'ERROR_DUPLICATE_ENTRY');
     }
     next(err);
+  } finally {
+    conn.release();
   }
 };
 
@@ -180,7 +195,7 @@ const logout = async (req, res, next) => {
 const getMe = async (req, res, next) => {
   try {
     const profile = await UserModel.getProfileById(req.user.user_id);
-    if (!profile) return sendUnauthorized(res, 'User no longer exists');
+    if (!profile) return sendUnauthorized(res, 'ไม่พบข้อมูลผู้ใช้งาน');
     return sendSuccess(res, profile);
   } catch (err) { next(err); }
 };
@@ -188,26 +203,26 @@ const getMe = async (req, res, next) => {
 const updateProfile = async (req, res, next) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
     const { firstName, lastName, email, phone } = req.body;
 
     await UserModel.updateProfileFields(req.user.user_id, { firstName, lastName, email, phone });
     const profile = await UserModel.getProfileById(req.user.user_id);
 
-    return sendSuccess(res, profile, 'Profile updated successfully');
+    return sendSuccess(res, profile, 'อัปเดตโปรไฟล์สำเร็จ');
   } catch (err) { next(err); }
 };
 
 const setPassword = async (req, res, next) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
     const { newPassword } = req.body;
 
     const currentHash = await UserModel.getPasswordHash(req.user.user_id);
-    if (currentHash === null) return sendUnauthorized(res, 'User not found');
+    if (currentHash === null) return sendUnauthorized(res, 'ไม่พบข้อมูลผู้ใช้งาน');
 
     if (currentHash && currentHash !== '') {
       return sendBadRequest(res, 'บัญชีนี้มีรหัสผ่านอยู่แล้ว กรุณาใช้ "เปลี่ยนรหัสผ่าน" แทน');
@@ -224,12 +239,12 @@ const setPassword = async (req, res, next) => {
 const changePassword = async (req, res, next) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
     const { currentPassword, newPassword } = req.body;
 
     const currentHash = await UserModel.getPasswordHash(req.user.user_id);
-    if (currentHash === null) return sendUnauthorized(res, 'User not found');
+    if (currentHash === null) return sendUnauthorized(res, 'ไม่พบข้อมูลผู้ใช้งาน');
 
     if (!currentHash || currentHash === '') {
       return sendBadRequest(res, 'บัญชีนี้ยังไม่มีรหัสผ่าน กรุณาใช้ "ตั้งรหัสผ่าน" แทน');

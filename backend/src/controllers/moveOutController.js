@@ -8,6 +8,7 @@ const TenantModel      = require('../models/tenant.model');
 const ContractModel    = require('../models/contract.model');
 const RoomModel        = require('../models/room.model');
 const DepositModel     = require('../models/deposit.model');
+const logger = require('../utils/logger');
 const {
   sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden,
 } = require('../utils/response');
@@ -77,6 +78,10 @@ const create = async (req, res, next) => {
 
 // ── GET /api/move-out/:id/deposit-preview  (admin only) ──────────────────────
 // พรีวิวยอดคืนเงินประกันก่อนอนุมัติ — ไม่เขียนอะไรลง DB
+// ⚠️ FIX: ไม่ใช้ request.move_out_date (tenant กรอกเอง) คำนวณอีกต่อไป —
+// default เป็นวันนี้ (วันที่ admin กำลังพิจารณา) รับ query param
+// ?checkout_date= เผื่อ admin อยากลองคำนวณสถานการณ์อื่น (เช่นถ้าจะยืนยัน
+// วันที่ตรวจห้องล่วงหน้า/ย้อนหลัง)
 const getDepositPreview = async (req, res, next) => {
   try {
     const request = await MoveOutModel.findById(req.params.id);
@@ -85,15 +90,23 @@ const getDepositPreview = async (req, res, next) => {
     const contract = await ContractModel.findById(request.contract_id);
     if (!contract) return sendNotFound(res, 'ไม่พบสัญญาเช่าของคำร้องนี้');
 
-    const checkoutDate = request.move_out_date ? new Date(request.move_out_date) : new Date();
-    const preview = calcDepositRefund(contract, checkoutDate);
+    let checkoutDate = new Date();
+    if (req.query.checkout_date) {
+      const parsed = new Date(req.query.checkout_date);
+      if (!Number.isNaN(parsed.getTime())) checkoutDate = parsed;
+    }
 
-    return sendSuccess(res, preview);
+    const preview = calcDepositRefund(contract, checkoutDate);
+    return sendSuccess(res, {
+      ...preview,
+      checkout_date_used: checkoutDate.toISOString().split('T')[0],
+      tenant_requested_date: request.move_out_date, // แสดงไว้ให้ admin ดูอ้างอิงเฉยๆ ไม่ใช้คำนวณ
+    });
   } catch (err) { next(err); }
 };
 
 // ── PUT /api/move-out/:id/approve  (admin only) ──────────────────────────────
-// body: { admin_note, deduction_extra (บาท, ค่าเสียหายเพิ่มเติมที่แอดมินกรอกเอง), deduction_extra_note }
+// body: { admin_note, actual_checkout_date?, deduction_extra, deduction_extra_note }
 const approve = async (req, res, next) => {
   const conn = await pool.getConnection();
   try {
@@ -107,17 +120,28 @@ const approve = async (req, res, next) => {
     const contract = await ContractModel.findById(request.contract_id);
     if (!contract) { conn.release(); return sendNotFound(res, 'ไม่พบสัญญาเช่าของคำร้องนี้'); }
 
-    const { admin_note, deduction_extra, deduction_extra_note } = req.body;
+    const { admin_note, deduction_extra, deduction_extra_note, actual_checkout_date } = req.body;
     const extraDeduction = parseFloat(deduction_extra) || 0;
     if (extraDeduction < 0) {
       conn.release();
       return sendBadRequest(res, 'ยอดหักเพิ่มเติมต้องไม่ติดลบ');
     }
 
-    const checkoutDate = new Date(request.move_out_date);
+    // ⚠️ FIX: ตัดการพึ่ง request.move_out_date (tenant กรอกเอง) ในการ
+    // คำนวณค่าปรับทั้งหมด — ใช้วันที่ admin ยืนยันจริง (actual_checkout_date)
+    // ถ้าส่งมา ไม่งั้น fallback เป็นวันนี้ (วันที่ approve จริง)
+    let checkoutDate = new Date();
+    if (actual_checkout_date) {
+      const parsed = new Date(actual_checkout_date);
+      if (Number.isNaN(parsed.getTime())) {
+        conn.release();
+        return sendBadRequest(res, 'วันที่ย้ายออกจริงไม่ถูกต้อง');
+      }
+      checkoutDate = parsed;
+    }
+
     const calc = calcDepositRefund(contract, checkoutDate);
 
-    // หักเพิ่มห้ามเกินยอดที่เหลือหลังหักค่าปรับออกก่อนกำหนดแล้ว
     if (extraDeduction > calc.net_refund) {
       conn.release();
       return sendBadRequest(res, 'ยอดหักเพิ่มเติมเกินกว่ายอดเงินประกันที่เหลืออยู่');
@@ -131,7 +155,6 @@ const approve = async (req, res, next) => {
     await ContractModel.updateStatus(request.contract_id, 'terminated', conn);
     await RoomModel.updateStatus(request.room_id, 'available', conn);
 
-    // ถ้ามีเงินประกันอยู่ ให้ปิดยอดใน deposits ด้วย
     if (calc.deposit_amount > 0) {
       const deposit = await DepositModel.findByContract(request.contract_id);
       if (deposit) {
@@ -146,14 +169,15 @@ const approve = async (req, res, next) => {
           processed_by: req.user.user_id,
           move_out_request_id: request.request_id,
         }, conn);
+      } else {
+        logger.warn(`Move-out approve: contract ${request.contract_id} has deposit_amount=${calc.deposit_amount} but no deposits record found (request_id=${request.request_id})`);
       }
-      // ถ้า deposit_amount > 0 แต่หา record ใน deposits ไม่เจอ (สัญญาเก่าก่อนแก้บั๊ก)
-      // ปล่อยผ่านไปก่อน ไม่ block การอนุมัติย้ายออก — แต่ควร log ไว้เช็คทีหลัง
     }
 
     await MoveOutModel.updateReviewStatus(request.request_id, 'approved', {
       admin_note,
       reviewed_by: req.user.user_id,
+      actual_move_out_date: checkoutDate.toISOString().split('T')[0], // ⚠️ audit trail
     }, conn);
 
     await conn.commit();
@@ -162,6 +186,7 @@ const approve = async (req, res, next) => {
       ...(await MoveOutModel.findById(request.request_id)),
       deposit_summary: {
         deposit_amount: calc.deposit_amount,
+        checkout_date_used: checkoutDate.toISOString().split('T')[0],
         fine_amount: calc.fine_amount,
         deduction_extra: extraDeduction,
         total_deduction: totalDeduction,

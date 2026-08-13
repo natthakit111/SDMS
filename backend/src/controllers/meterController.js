@@ -1,13 +1,13 @@
 /**
  * controllers/meterController.js
- * Admin records monthly water/electric meter readings per room.
- * Optionally uploads a meter photo for evidence.
+ * ผู้ดูแลระบบบันทึกค่ามิเตอร์น้ำ/ไฟรายเดือนของแต่ละห้อง
+ * สามารถอัปโหลดรูปมิเตอร์เพื่อใช้เป็นหลักฐานได้
  *
- * ── Error response shape ───────────────────────────────────────────────────
- * Every 4xx response now includes an `error_code` field that matches a key
- * in the frontend translations (language-context.tsx).  The frontend reads
- * `error_code` first, calls `t(error_code)` to get a localised message, and
- * only falls back to the raw `message` string when the key is unknown.
+ * ── รูปแบบการตอบกลับ Error ────────────────────────────────────────────────
+ * ทุก 4xx response จะมีฟิลด์ `error_code` ที่ตรงกับ key
+ * ใน frontend translations (language-context.tsx) โดย frontend จะอ่าน
+ * `error_code` ก่อน และเรียก `t(error_code)` เพื่อแสดงข้อความตามภาษา
+ * หากไม่พบ key จึงจะใช้ข้อความ `message` ดิบแทน
  * ──────────────────────────────────────────────────────────────────────────
  */
 
@@ -19,11 +19,11 @@ const { sendSuccess, sendCreated, sendBadRequest, sendNotFound } = require('../u
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
-/** Sends a 400 response with an i18n-ready error_code AND a raw message. */
+/** ส่ง response 400 พร้อม error_code สำหรับรองรับหลายภาษา และข้อความดิบ */
 const sendBadRequestCoded = (res, error_code, message) =>
   res.status(400).json({ success: false, error_code, message });
 
-/** Sends a 404 response with an i18n-ready error_code AND a raw message. */
+/** ส่ง response 404 พร้อม error_code สำหรับรองรับหลายภาษา และข้อความดิบ */
 const sendNotFoundCoded = (res, error_code, message) =>
   res.status(404).json({ success: false, error_code, message });
 
@@ -43,7 +43,7 @@ const getReadingById = async (req, res, next) => {
   try {
     const reading = await MeterModel.findById(req.params.id);
     if (!reading)
-      return sendNotFoundCoded(res, 'meters.error.notFound', 'Meter reading not found');
+      return sendNotFoundCoded(res, 'meters.error.notFound', 'ไม่พบข้อมูลการอ่านมิเตอร์');
     return sendSuccess(res, reading);
   } catch (err) { next(err); }
 };
@@ -65,7 +65,7 @@ const getPreviousReading = async (req, res, next) => {
 const createReading = async (req, res, next) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
     const { room_id, meter_type, reading_month, reading_year, current_unit, other_amount } = req.body;
     let { rate_per_unit } = req.body;
@@ -76,7 +76,7 @@ const createReading = async (req, res, next) => {
       return sendBadRequestCoded(
         res,
         'meters.error.noContract',
-        `Room ${room_id} has no active contract — cannot record meter`,
+        `ห้อง ${room_id} ไม่มีสัญญาเช่าที่ใช้งานอยู่ ไม่สามารถบันทึกค่ามิเตอร์ได้`,
       );
     }
 
@@ -86,13 +86,13 @@ const createReading = async (req, res, next) => {
       return sendBadRequestCoded(
         res,
         'meters.error.alreadyExists',
-        `A ${meter_type} reading for room ${room_id} in ${reading_month}/${reading_year} already exists.`,
+        `มีการบันทึกค่ามิเตอร์ประเภท ${meter_type} สำหรับห้อง ${room_id} ในเดือน ${reading_month}/${reading_year} อยู่แล้ว`,
       );
     }
 
     // ── 3. ต้องมีอัตราค่าไฟ/น้ำ ──────────────────────────────────────────
     if (!rate_per_unit) {
-      const currentRate = await UtilityRateModel.getCurrentRate(meter_type);
+      const currentRate = await UtilityRateModel.getCurrentRate(meterType);
       if (!currentRate) {
         const errorCode = meter_type === 'water'
           ? 'meters.error.noWaterRate'
@@ -100,7 +100,7 @@ const createReading = async (req, res, next) => {
         return sendBadRequestCoded(
           res,
           errorCode,
-          `No ${meter_type} rate configured. Please set a rate in Utility Rates first.`,
+          `ยังไม่ได้ตั้งค่าอัตราค่าบริการสำหรับ ${meter_type} กรุณาตั้งค่าอัตราในเมนูอัตราค่าสาธารณูปโภคก่อน`,
         );
       }
       rate_per_unit = currentRate.rate_per_unit;
@@ -114,7 +114,7 @@ const createReading = async (req, res, next) => {
       return sendBadRequestCoded(
         res,
         'meters.error.unitLessThanPrev',
-        `Current unit (${current_unit}) cannot be less than previous unit (${previous_unit})`,
+        `ค่ามิเตอร์ปัจจุบัน (${current_unit}) ต้องไม่น้อยกว่าค่ามิเตอร์ก่อนหน้า (${previous_unit})`,
       );
     }
 
@@ -133,16 +133,19 @@ const createReading = async (req, res, next) => {
     });
 
     const created = await MeterModel.findById(readingId);
-    return sendCreated(res, created, 'Meter reading recorded successfully');
+    return sendCreated(res, created, 'บันทึกค่ามิเตอร์สำเร็จ');
   } catch (err) { next(err); }
 };
 
 // PUT /api/meters/:id
 const updateReading = async (req, res, next) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
+
     const reading = await MeterModel.findById(req.params.id);
     if (!reading)
-      return sendNotFoundCoded(res, 'meters.error.notFound', 'Meter reading not found');
+      return sendNotFoundCoded(res, 'meters.error.notFound', 'ไม่พบข้อมูลการอ่านมิเตอร์');
 
     const { current_unit, rate_per_unit } = req.body;
     // ✅ Cloudinary: req.file.path คือ URL เต็ม ไม่ต้อง replace backslash
@@ -154,7 +157,7 @@ const updateReading = async (req, res, next) => {
         return sendBadRequestCoded(
           res,
           'meters.error.unitLessThanPrev',
-          `Current unit cannot be less than previous unit (${reading.previous_unit})`,
+          `ค่ามิเตอร์ปัจจุบันต้องไม่น้อยกว่าค่ามิเตอร์ก่อนหน้า (${reading.previous_unit})`,
         );
       }
       updates.current_unit = parseFloat(current_unit);
@@ -164,7 +167,7 @@ const updateReading = async (req, res, next) => {
 
     await MeterModel.update(req.params.id, updates);
     const updated = await MeterModel.findById(req.params.id);
-    return sendSuccess(res, updated, 'Meter reading updated successfully');
+    return sendSuccess(res, updated, 'แก้ไขข้อมูลการอ่านมิเตอร์สำเร็จ');
   } catch (err) { next(err); }
 };
 

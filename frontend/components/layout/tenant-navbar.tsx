@@ -29,7 +29,7 @@ export function TenantNavbar() {
   const router = useRouter();
 
   const [roomNumber, setRoomNumber] = useState<string>("-");
-  const { hasUnread, markAsRead } = useNotification();
+  const { hasUnread, markAllAsRead } = useNotification();
 
   useEffect(() => {
     contractAPI
@@ -80,7 +80,7 @@ export function TenantNavbar() {
           size="icon"
           className="relative shrink-0"
           onClick={() => {
-            markAsRead();
+            markAllAsRead();
             router.push("/tenant/notifications");
           }}
         >

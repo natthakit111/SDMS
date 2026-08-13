@@ -43,13 +43,23 @@ export function StatsCard({
 
   return (
     <Card className={cn("transition-colors", variantStyles[variant])}>
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">{title}</p>
-            <p className="text-3xl font-bold">{value}</p>
+      {/* ✅ p-4 บนมือถือ → p-6 บน sm ขึ้นไป ลดความอึดอัดบนจอแคบ */}
+      <CardContent className="p-4 sm:p-6">
+        <div className="flex items-start justify-between gap-3">
+          {/* ✅ min-w-0 กัน text ดันจนล้น / space-y ลดลงบนมือถือ */}
+          <div className="min-w-0 space-y-1 sm:space-y-2">
+            {/* ✅ title ตัดบรรทัดเดียว + ขนาดเล็กลงบนมือถือ */}
+            <p className="truncate text-xs sm:text-sm text-muted-foreground">
+              {title}
+            </p>
+            {/* ✅ ตัวเลขหลัก: text-2xl บนมือถือ → text-3xl บน sm ขึ้นไป */}
+            <p className="text-2xl sm:text-3xl font-bold leading-tight">
+              {value}
+            </p>
             {description && (
-              <p className="text-xs text-muted-foreground">{description}</p>
+              <p className="text-xs text-muted-foreground line-clamp-2">
+                {description}
+              </p>
             )}
             {trend && (
               <p
@@ -63,8 +73,14 @@ export function StatsCard({
               </p>
             )}
           </div>
-          <div className={cn("p-3 rounded-lg", iconStyles[variant])}>
-            <Icon className="h-6 w-6" />
+          {/* ✅ icon box: p-2 + ไอคอน h-5 บนมือถือ → p-3 + h-6 บน sm, shrink-0 กันบีบ */}
+          <div
+            className={cn(
+              "shrink-0 rounded-lg p-2 sm:p-3",
+              iconStyles[variant],
+            )}
+          >
+            <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
         </div>
       </CardContent>

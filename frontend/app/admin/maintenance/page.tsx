@@ -1,4 +1,4 @@
-//maintenance/page.tsx
+// admin/maintenance/page.tsx
 
 "use client";
 
@@ -45,25 +45,7 @@ import { Search, Wrench, Eye, CheckCircle, Loader2 } from "lucide-react";
 import { maintenanceAPI } from "@/lib/api/maintenance.api";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface MaintenanceRequest {
-  request_id: number;
-  tenant_id: number;
-  room_id: number;
-  room_number: string;
-  tenant_name: string;
-  category: string;
-  description: string;
-  priority: "low" | "medium" | "high";
-  status: "pending" | "in_progress" | "resolved" | "cancelled";
-  assigned_to: string | null;
-  admin_note: string | null;
-  resolved_at: string | null;
-  created_at: string;
-  image_path: string | null;
-}
+import { MaintenanceRequest } from "@/types/index";
 
 interface UpdateData {
   status: string;
@@ -276,65 +258,117 @@ export default function MaintenancePage() {
               {t("common.loading")}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("meters.colRoom")}</TableHead>
-                  <TableHead>{t("maintenance.colReporter")}</TableHead>
-                  <TableHead>{t("maintenance.colCategory")}</TableHead>
-                  <TableHead>{t("maintenance.colPriority")}</TableHead>
-                  <TableHead>{t("maintenance.colReportedAt")}</TableHead>
-                  <TableHead>{t("common.status")}</TableHead>
-                  <TableHead className="text-right">
-                    {t("common.actions")}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* ── Desktop: table ───────────────────────────────────── */}
+              <Table className="hidden md:table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("meters.colRoom")}</TableHead>
+                    <TableHead>{t("maintenance.colReporter")}</TableHead>
+                    <TableHead>{t("maintenance.colCategory")}</TableHead>
+                    <TableHead>{t("maintenance.colPriority")}</TableHead>
+                    <TableHead>{t("maintenance.colReportedAt")}</TableHead>
+                    <TableHead>{t("common.status")}</TableHead>
+                    <TableHead className="text-right">
+                      {t("common.actions")}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedRequests.map((request) => (
+                    <TableRow key={request.request_id}>
+                      <TableCell className="font-medium">
+                        {request.room_number}
+                      </TableCell>
+                      <TableCell>{request.tenant_name}</TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{request.category}</p>
+                          <p className="text-xs text-muted-foreground truncate max-w-[180px]">
+                            {request.description}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <PriorityBadge priority={request.priority} />
+                      </TableCell>
+                      <TableCell>{formatDate(request.created_at)}</TableCell>
+                      <TableCell>
+                        <MaintenanceStatusBadge status={request.status} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openViewDialog(request)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {sortedRequests.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className="text-center py-8 text-muted-foreground"
+                      >
+                        {t("maintenance.notFound")}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+
+              {/* ── Mobile: card list ──────────────────────────────────
+                  เดิม table เดียวใช้ทุกขนาดจอ 7 คอลัมน์ล้นจอมือถือ ต้อง
+                  scroll ซ้าย-ขวา — ตอนนี้แยกเป็นการ์ดที่กดได้ทั้งใบ พร้อม
+                  โชว์ priority/status badge เด่นๆ ให้สแกนงานด่วนได้ไว */}
+              <div className="md:hidden space-y-3">
+                {sortedRequests.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    {t("maintenance.notFound")}
+                  </div>
+                )}
                 {sortedRequests.map((request) => (
-                  <TableRow key={request.request_id}>
-                    <TableCell className="font-medium">
-                      {request.room_number}
-                    </TableCell>
-                    <TableCell>{request.tenant_name}</TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{request.category}</p>
-                        <p className="text-xs text-muted-foreground truncate max-w-[180px]">
+                  <button
+                    key={request.request_id}
+                    type="button"
+                    onClick={() => openViewDialog(request)}
+                    className="w-full text-left rounded-lg border p-3 space-y-1.5 active:bg-muted/50"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-baseline gap-1.5 min-w-0">
+                        <p className="font-medium text-sm">
+                          {request.room_number}
+                        </p>
+                        <span className="text-xs text-muted-foreground truncate">
+                          · {request.tenant_name}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {formatDate(request.created_at)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {request.category}
+                        </p>
+                        <p className="text-xs text-muted-foreground line-clamp-1">
                           {request.description}
                         </p>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <PriorityBadge priority={request.priority} />
-                    </TableCell>
-                    <TableCell>{formatDate(request.created_at)}</TableCell>
-                    <TableCell>
-                      <MaintenanceStatusBadge status={request.status} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openViewDialog(request)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <PriorityBadge priority={request.priority} />
+                        <MaintenanceStatusBadge status={request.status} />
+                      </div>
+                    </div>
+                  </button>
                 ))}
-                {sortedRequests.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-center py-8 text-muted-foreground"
-                    >
-                      {t("maintenance.notFound")}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -346,7 +380,7 @@ export default function MaintenancePage() {
           if (!open) setViewingRequest(null);
         }}
       >
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("maintenance.detailTitle")}</DialogTitle>
             <DialogDescription>{t("maintenance.detailDesc")}</DialogDescription>

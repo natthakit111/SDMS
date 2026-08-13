@@ -1,8 +1,8 @@
-//frontend/app/admin/announcements/page.tsx
+//app/admin/announcements/page.tsx
 
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -45,30 +45,30 @@ import {
   Users,
   Building2,
   CalendarClock,
-  Calendar as CalendarIcon,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
   Send,
 } from "lucide-react";
 import { announcementAPI } from "@/lib/api/announcement.api";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
+import { DatePickerField } from "@/components/common/date-picker-field";
+import { formatDate } from "@/lib/utils";
+import { Announcement } from "@/types/index";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface Announcement {
-  announcement_id: number;
-  title: string;
-  content: string;
-  target_audience: "all" | "admin" | "tenant";
-  target_floor: number | null;
-  is_pinned: number;
-  is_urgent: number;
-  published_by: number;
-  published_at: string;
-  expires_at: string | null;
-}
+// interface Announcement {
+//   announcement_id: number;
+//   title: string;
+//   content: string;
+//   target_audience: "all" | "admin" | "tenant";
+//   target_floor: number | null;
+//   is_pinned: number;
+//   is_urgent: number;
+//   published_by: number;
+//   published_at: string;
+//   expires_at: string | null;
+// }
 
 interface FormData {
   title: string;
@@ -90,235 +90,17 @@ const emptyForm: FormData = {
   expires_at: "",
 };
 
-const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString("th-TH", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-
-// ── Bilingual date picker (copy จาก admin/bills/page.tsx เพื่อให้ปฏิทิน
-//    หน้าตาเหมือนกันทั้งระบบ — แสดง พ.ศ. ตอนภาษาไทย, ค.ศ. ตอนอังกฤษ,
-//    ไม่ใช่ input type="date" ดิบของเบราว์เซอร์ที่ locale ผูกกับเครื่องผู้ใช้เอง) ──
-
-const MONTHS_TH = [
-  "มกราคม",
-  "กุมภาพันธ์",
-  "มีนาคม",
-  "เมษายน",
-  "พฤษภาคม",
-  "มิถุนายน",
-  "กรกฎาคม",
-  "สิงหาคม",
-  "กันยายน",
-  "ตุลาคม",
-  "พฤศจิกายน",
-  "ธันวาคม",
-];
-const MONTHS_EN = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-const DAYS_TH = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
-const DAYS_EN = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-
-function toISODate(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate(),
-  ).padStart(2, "0")}`;
-}
-
-function DatePickerField({
-  id,
-  value,
-  onChange,
-  language,
-  required,
-  placeholder,
-}: {
-  id?: string;
-  value: string;
-  onChange: (v: string) => void;
-  language: string;
-  required?: boolean;
-  placeholder?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [viewDate, setViewDate] = useState<Date>(
-    value ? new Date(value + "T00:00:00") : new Date(),
-  );
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (value) setViewDate(new Date(value + "T00:00:00"));
-  }, [value]);
-
-  useEffect(() => {
-    const onClickOutside = (e: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-    if (open) document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
-
-  const months = language === "th" ? MONTHS_TH : MONTHS_EN;
-  const days = language === "th" ? DAYS_TH : DAYS_EN;
-
-  const year = viewDate.getFullYear();
-  const month = viewDate.getMonth();
-  const displayYear = language === "th" ? year + 543 : year;
-  const firstDayOfMonth = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const selected = value ? new Date(value + "T00:00:00") : null;
-
-  const cells: (number | null)[] = [
-    ...Array(firstDayOfMonth).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-
-  const isSelected = (day: number) =>
-    !!selected &&
-    selected.getFullYear() === year &&
-    selected.getMonth() === month &&
-    selected.getDate() === day;
-
-  const isToday = (day: number) => {
-    const now = new Date();
-    return (
-      now.getFullYear() === year &&
-      now.getMonth() === month &&
-      now.getDate() === day
-    );
-  };
-
-  const label = value
-    ? new Date(value + "T00:00:00").toLocaleDateString(
-        language === "th" ? "th-TH" : "en-US",
-        { year: "numeric", month: "short", day: "numeric" },
-      )
-    : (placeholder ?? (language === "th" ? "เลือกวันที่" : "Select date"));
-
-  return (
-    <div className="relative" ref={containerRef}>
-      <button
-        id={id}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus:ring-2 focus:ring-ring/50"
-      >
-        <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className={value ? "" : "text-muted-foreground"}>{label}</span>
-      </button>
-
-      {required && (
-        <input
-          tabIndex={-1}
-          value={value}
-          required
-          onChange={() => {}}
-          className="sr-only"
-        />
-      )}
-
-      {open && (
-        <div className="absolute left-0 bottom-full mb-2 z-[100] w-64 rounded-md border bg-popover p-3 text-popover-foreground shadow-lg sm:bottom-auto sm:top-full sm:mt-2">
-          <div className="flex items-center justify-between mb-2">
-            <button
-              type="button"
-              className="p-1 rounded hover:bg-muted"
-              onClick={() => setViewDate(new Date(year, month - 1, 1))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="text-sm font-medium">
-              {months[month]} {displayYear}
-            </span>
-            <button
-              type="button"
-              className="p-1 rounded hover:bg-muted"
-              onClick={() => setViewDate(new Date(year, month + 1, 1))}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-7 gap-1 mb-1 text-center text-xs text-muted-foreground">
-            {days.map((d) => (
-              <div key={d}>{d}</div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-1">
-            {cells.map((day, idx) =>
-              day === null ? (
-                <div key={idx} />
-              ) : (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    onChange(toISODate(new Date(year, month, day)));
-                    setOpen(false);
-                  }}
-                  className={`h-8 w-8 rounded-md text-sm hover:bg-muted transition-colors ${
-                    isSelected(day)
-                      ? "bg-primary text-primary-foreground hover:bg-primary"
-                      : isToday(day)
-                        ? "border border-primary"
-                        : ""
-                  }`}
-                >
-                  {day}
-                </button>
-              ),
-            )}
-          </div>
-
-          <div className="mt-2 flex justify-end">
-            <button
-              type="button"
-              className="text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                const today = new Date();
-                setViewDate(today);
-                onChange(toISODate(today));
-                setOpen(false);
-              }}
-            >
-              {language === "th" ? "วันนี้" : "Today"}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Telegram preview helpers ──────────────────────────────────────────────────
-// จำลองข้อความให้ตรงกับรูปแบบจริงที่ telegram.service.js -> broadcastAnnouncement
-// ประกอบขึ้น (📢/🚨 + หัวข้อ + ตัวหนา + เนื้อหา) ผู้ดูแลจะได้เห็นก่อนกดส่งจริง
-const buildPreviewText = (form: FormData) => {
+// รับ t function เข้ามาเพื่อใช้ดึงข้อมูลภาษาสำหรับ Preview
+const buildPreviewText = (form: FormData, t: any) => {
   const urgentTag = form.is_urgent ? "🚨 " : "";
-  const floorLabel = form.target_floor ? ` (ชั้น ${form.target_floor})` : "";
+  const floorLabel = form.target_floor
+    ? ` (${t("announcements.floorBadge")} ${form.target_floor})`
+    : "";
   return {
-    header: `📢 ${urgentTag}ประกาศจากหอพัก${floorLabel}`,
-    title: form.title || "หัวข้อประกาศจะแสดงตรงนี้",
-    content: form.content || "เนื้อหาประกาศจะแสดงตรงนี้",
+    header: `📢 ${urgentTag}${t("announcements.fromDorm")}${floorLabel}`,
+    title: form.title || t("announcements.previewTitlePlaceholder"),
+    content: form.content || t("announcements.previewContentPlaceholder"),
   };
 };
 
@@ -443,7 +225,7 @@ export default function AnnouncementsPage() {
   const isExpired = (ann: Announcement) =>
     ann.expires_at ? new Date(ann.expires_at) < new Date() : false;
 
-  const preview = buildPreviewText(formData);
+  const preview = buildPreviewText(formData, t);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -469,15 +251,7 @@ export default function AnnouncementsPage() {
             </Button>
           </DialogTrigger>
 
-          {/*
-            เดิม dialog กว้าง max-w-lg คอลัมน์เดียว — ตอนนี้ขยายเป็น 2 คอลัมน์บนจอกว้าง
-            (ฟอร์มซ้าย + live preview ข้อความ Telegram ขวา) เพื่อให้แอดมินเห็นว่า
-            ข้อความจะไปโผล่หน้าตาแบบไหนจริงก่อนกดส่ง — บนจอแคบยุบเหลือคอลัมน์เดียว
-            preview เลื่อนไปอยู่บนสุดของฟอร์มแทน
-
-            ยังคง fix เดิมไว้: flex column ความสูงจำกัด, body เลื่อนได้, footer ติดล่างเสมอ
-          */}
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto p-0 gap-0">
+          <DialogContent className="w-[calc(100%-2rem)] max-w-lg max-h-[85dvh] overflow-y-auto p-0 gap-0">
             <DialogHeader className="p-6 pb-4 border-b sticky top-0 bg-background z-10">
               <DialogTitle className="flex items-center gap-2">
                 <Megaphone className="h-5 w-5 text-primary" />
@@ -492,25 +266,19 @@ export default function AnnouncementsPage() {
               </DialogDescription>
             </DialogHeader>
 
-            {/*
-              ลองมาแล้ว 2 แบบ: (1) 2 คอลัมน์ตลอด — สูงเกินจอ (2) flex+ScrollArea+Tabs
-              ที่บังคับความสูงเอง — footer ทับเนื้อหา (bug จาก flex chain ที่ผิดพลาด)
-              กลับมาใช้วิธีเรียบง่ายที่สุดที่พิสูจน์แล้วว่าใช้ได้จริงในโปรเจกต์นี้
-              (เหมือน maintenance/page.tsx): ให้ DialogContent ทั้งกล่อง scroll เอง
-              ตรงๆ ด้วย overflow-y-auto ธรรมดา ไม่ต้องคำนวณความสูงเอง — Header/Footer
-              แค่ sticky ติดขอบบน-ล่างของกล่องที่ scroll อยู่แล้ว ไม่มีทางทับเนื้อหา
-            */}
             <form onSubmit={handleSubmit}>
               <div className="p-6 space-y-6">
                 <Tabs defaultValue="form">
                   <TabsList className="w-full grid grid-cols-2 mb-4">
-                    <TabsTrigger value="form">แก้ไขประกาศ</TabsTrigger>
+                    <TabsTrigger value="form">
+                      {t("announcements.formTab")}
+                    </TabsTrigger>
                     <TabsTrigger
                       value="preview"
                       disabled={formData.target_audience === "admin"}
                     >
                       <Send className="h-3.5 w-3.5 mr-1.5" />
-                      ตัวอย่าง Telegram
+                      {t("announcements.telegramPreviewTab")}
                     </TabsTrigger>
                   </TabsList>
 
@@ -525,7 +293,7 @@ export default function AnnouncementsPage() {
                           id="title"
                           value={formData.title}
                           onChange={set("title")}
-                          placeholder="เช่น แจ้งซ่อมลิฟต์ชั่วคราว"
+                          placeholder={t("announcements.titlePlaceholder")}
                           required
                         />
                       </Field>
@@ -539,7 +307,7 @@ export default function AnnouncementsPage() {
                           value={formData.content}
                           onChange={set("content")}
                           rows={4}
-                          placeholder="รายละเอียดประกาศ..."
+                          placeholder={t("announcements.contentPlaceholder")}
                           required
                         />
                       </Field>
@@ -548,7 +316,7 @@ export default function AnnouncementsPage() {
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                         <Users className="h-4 w-4" />
-                        กลุ่มเป้าหมายและการเข้าถึง
+                        {t("announcements.audienceSection")}
                       </div>
                       <FieldGroup>
                         <Field>
@@ -605,7 +373,7 @@ export default function AnnouncementsPage() {
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                         <Pin className="h-4 w-4" />
-                        ความสำคัญและระยะเวลา
+                        {t("announcements.prioritySection")}
                       </div>
 
                       <div className="flex items-center justify-between rounded-md border p-3">
@@ -613,10 +381,10 @@ export default function AnnouncementsPage() {
                           <Pin className="h-4 w-4 text-yellow-500" />
                           <div>
                             <p className="text-sm font-medium">
-                              ปักหมุดไว้บนสุด
+                              {t("announcements.pinTitle")}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              แสดงในหัวข้อ &quot;ประกาศสำคัญ&quot; ของผู้เช่า
+                              {t("announcements.pinDesc")}
                             </p>
                           </div>
                         </div>
@@ -663,9 +431,10 @@ export default function AnnouncementsPage() {
                           <CalendarClock className="h-3.5 w-3.5" />
                           {t("announcements.expires")}
                           <span className="text-xs text-muted-foreground font-normal">
-                            (ไม่บังคับ)
+                            {t("announcements.optional")}
                           </span>
                         </FieldLabel>
+                        {/* เรียกใช้ Component จากไฟล์กลางที่เรา Import มา */}
                         <DatePickerField
                           id="expires_at"
                           value={formData.expires_at}
@@ -684,7 +453,7 @@ export default function AnnouncementsPage() {
                   {/* ═══ แท็บ 2: live preview ข้อความ Telegram ═══ */}
                   <TabsContent value="preview" className="space-y-3 mt-0">
                     <p className="text-sm text-muted-foreground">
-                      ตัวอย่างข้อความที่ผู้เช่าจะเห็นใน Telegram
+                      {t("announcements.telegramPreviewDesc")}
                     </p>
                     <div className="rounded-2xl bg-[#17212b] p-4 space-y-2 shadow-sm">
                       <div className="rounded-xl bg-[#2b5278] px-3 py-2.5 text-sm text-white/95 max-w-[92%] space-y-1.5">
@@ -698,15 +467,15 @@ export default function AnnouncementsPage() {
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      ผู้เช่าที่ปิดการแจ้งเตือน &quot;ประกาศทั่วไป&quot;
-                      ไว้จะไม่ได้รับ ข้อความนี้ ยกเว้นติ๊ก &quot;
-                      {t("announcements.urgent")}&quot; ซึ่งจะส่งถึงทุกคนเสมอ
+                      {t("announcements.telegramMuteWarning")} &quot;
+                      {t("announcements.urgent")}&quot;{" "}
+                      {t("announcements.telegramMuteWarningTail")}
                     </p>
                   </TabsContent>
                 </Tabs>
               </div>
 
-              {/* Footer ติดขอบล่างของกล่องที่ scroll อยู่ — sticky ธรรมดา ไม่ใช่ flex */}
+              {/* Footer */}
               <DialogFooter className="sticky bottom-0 bg-background p-6 pt-4 border-t">
                 <Button type="button" variant="outline" onClick={resetForm}>
                   {t("common.cancel")}
@@ -747,19 +516,21 @@ export default function AnnouncementsPage() {
             className={ann.is_urgent ? "border-destructive/40" : undefined}
           >
             <CardHeader>
-              <div className="flex justify-between">
-                <div className="flex gap-3">
+              {/* แก้ล้น: อยู่แถวเดียวกันเสมอ ให้ title เป็นฝั่งที่ wrap แทน */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex gap-3 min-w-0">
                   {getPriorityIcon(ann)}
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      {ann.title}
+                  <div className="min-w-0">
+                    <CardTitle className="flex flex-wrap items-center gap-2">
+                      {/* กันไม่ให้ title ยาว ๆ ดันเลย์เอาต์จนล้น */}
+                      <span className="break-words">{ann.title}</span>
                       {ann.is_urgent === 1 && (
-                        <span className="text-xs font-semibold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">
+                        <span className="text-xs font-semibold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full whitespace-nowrap">
                           {t("announcements.urgentBadge")}
                         </span>
                       )}
                       {isExpired(ann) && (
-                        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full whitespace-nowrap">
                           {t("status.expired")}
                         </span>
                       )}
@@ -776,22 +547,25 @@ export default function AnnouncementsPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                {/* shrink-0 กันปุ่มโดนบีบ, size="icon" ให้ปุ่มพอดีตัวไอคอน ไม่บวม */}
+                <div className="flex gap-1 shrink-0">
                   <Button
-                    size="sm"
+                    size="icon"
                     variant="ghost"
+                    className="h-8 w-8"
                     onClick={() => handleEdit(ann)}
+                    aria-label={t("common.edit")}
                   >
-                    <Pencil className="h-4 w-4 mr-1" />
-                    {t("common.edit")}
+                    <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
-                    size="sm"
+                    size="icon"
                     variant="ghost"
+                    className="h-8 w-8"
                     onClick={() => handleDelete(ann)}
+                    aria-label={t("common.delete")}
                   >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    {t("common.delete")}
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </div>

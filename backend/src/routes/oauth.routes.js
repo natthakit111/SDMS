@@ -63,7 +63,7 @@ async function upsertOAuthUser({ provider, providerId, email, displayName }) {
     [provider, String(providerId)]
   );
   if (existing.length > 0) return existing[0];
- 
+
   // 2. Find by email (link accounts)
   if (email) {
     const [byEmail] = await pool.query(
@@ -83,14 +83,14 @@ async function upsertOAuthUser({ provider, providerId, email, displayName }) {
   const nameParts = (displayName || '').trim().split(' ');
   const firstName = nameParts[0] || '';
   const lastName  = nameParts.slice(1).join(' ') || '';
- 
+
   // ใช้ชื่อจริงเป็น base username (lowercase, no space)
   const baseUsername = (displayName || `${provider}_${providerId}`)
     .toLowerCase()
     .replace(/\s+/g, '_')       // space → underscore
     .replace(/[^a-z0-9_]/g, '') // ตัดอักขระพิเศษออก
     .slice(0, 40);              // จำกัดความยาว
- 
+
   // ป้องกันชื่อซ้ำ — เติม _2, _3 ถ้าซ้ำ
   let username = baseUsername;
   let counter  = 2;
@@ -102,38 +102,58 @@ async function upsertOAuthUser({ provider, providerId, email, displayName }) {
     if (taken.length === 0) break;
     username = `${baseUsername}_${counter++}`;
   }
- 
-  const [result] = await pool.query(
-    `INSERT INTO users
-       (username, password_hash, role, first_name, last_name, email,
-        oauth_provider, oauth_provider_id, is_active)
-     VALUES (?, '', 'tenant', ?, ?, ?, ?, ?, 1)`,
-    [username, firstName, lastName, email || null, provider, String(providerId)]
-  );
 
-  const newUserId = result.insertId;
+  // ⚠️ FIX: เดิม insert users แล้วตามด้วย INSERT IGNORE tenants แยกกัน
+  // ไม่ห่อ transaction — ถ้า insert tenant ล้มเหลว (เช่น phone ชน unique
+  // constraint) จะเหลือ orphaned user (role='tenant' แต่ไม่มี tenants
+  // row ผูกอยู่) เหมือนบั๊กเดียวกับที่เคยแก้ใน authController.register()
+  //
+  // ⚠️ FIX สำคัญกว่า: เดิม phone hardcode เป็น '0000000000' คงที่ทุกคน —
+  // ตั้งแต่เพิ่ม UNIQUE constraint บน tenants.phone ไปแล้ว คนที่ 2 ที่
+  // login ผ่าน OAuth (ไม่ว่า provider ไหน) จะ insert tenant ไม่ผ่านทันที
+  // เปลี่ยนเป็น placeholder ที่ unique ต่อ user_id แทน
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
 
-  // Auto-create tenant record (ข้อมูลบางส่วนยังไม่มี — ให้กรอกเพิ่มในโปรไฟล์ภายหลัง)
-  const placeholderIdCard = `OAUTH${String(newUserId).padStart(8, '0')}`;
-  await pool.query(
-    `INSERT IGNORE INTO tenants
-       (user_id, first_name, last_name, id_card_number, phone, email)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [
-      newUserId,
-      firstName || 'ไม่ระบุ',
-      lastName  || 'ไม่ระบุ',
-      placeholderIdCard,   // placeholder — แก้ได้ในหน้า profile
-      '0000000000',        // placeholder — แก้ได้ในหน้า profile
-      email || null,
-    ]
-  );
+    const [result] = await conn.query(
+      `INSERT INTO users
+         (username, password_hash, role, first_name, last_name, email,
+          oauth_provider, oauth_provider_id, is_active)
+       VALUES (?, '', 'tenant', ?, ?, ?, ?, ?, 1)`,
+      [username, firstName, lastName, email || null, provider, String(providerId)]
+    );
+    const newUserId = result.insertId;
 
-  const [newUser] = await pool.query(
-    'SELECT * FROM users WHERE user_id = ? LIMIT 1',
-    [newUserId]
-  );
-  return newUser[0];
+    const placeholderIdCard = `OAUTH${String(newUserId).padStart(8, '0')}`;
+    const placeholderPhone  = `0000${String(newUserId).padStart(6, '0')}`; // unique ต่อ user_id
+
+    await conn.query(
+      `INSERT INTO tenants (user_id, first_name, last_name, id_card_number, phone, email)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        newUserId,
+        firstName || 'ไม่ระบุ',
+        lastName  || 'ไม่ระบุ',
+        placeholderIdCard,
+        placeholderPhone,
+        email || null,
+      ]
+    );
+
+    await conn.commit();
+
+    const [newUser] = await pool.query(
+      'SELECT * FROM users WHERE user_id = ? LIMIT 1',
+      [newUserId]
+    );
+    return newUser[0];
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
 }
 
 /* ═════════════════════════════════════════

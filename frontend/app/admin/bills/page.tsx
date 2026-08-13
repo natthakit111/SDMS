@@ -1,8 +1,8 @@
-//admin/bills/page.tsx
+//app/admin/bills/page.tsx
 
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -51,16 +51,19 @@ import {
   Camera,
   ImageIcon,
   Download,
-  Calendar as CalendarIcon,
-  ChevronLeft,
-  ChevronRight,
   Info,
+  Home,
+  Calendar,
 } from "lucide-react";
 import { billAPI } from "@/lib/api/bill.api";
 import { roomAPI } from "@/lib/api/room.api";
 import { useLanguage } from "@/context/language-context";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+
+// 💡 1. Import Component กลางเข้ามาใช้งาน
+import { DatePickerField } from "@/components/common/date-picker-field";
+import { formatCurrency } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -106,7 +109,7 @@ interface FormData {
   month: string;
   year: string;
   other_amount: string;
-  note: string; // 💡 เพิ่มฟิลด์หมายเหตุ
+  note: string; // เพิ่มฟิลด์หมายเหตุ
   due_date: string;
 }
 
@@ -115,16 +118,9 @@ const emptyForm: FormData = {
   month: String(new Date().getMonth() + 1),
   year: String(new Date().getFullYear()),
   other_amount: "0",
-  note: "", // 💡 ค่าเริ่มต้น
+  note: "", // ค่าเริ่มต้น
   due_date: "",
 };
-
-const formatCurrency = (n: number) =>
-  new Intl.NumberFormat("th-TH", {
-    style: "currency",
-    currency: "THB",
-    maximumFractionDigits: 0,
-  }).format(n);
 
 const imgUrl = (path: string | null) => {
   if (!path) return null;
@@ -132,215 +128,7 @@ const imgUrl = (path: string | null) => {
   return `${process.env.NEXT_PUBLIC_API_URL ?? ""}/${path}`;
 };
 
-// ── Custom bilingual date picker ────────────────────────────────────────────
-
-const MONTHS_TH = [
-  "มกราคม",
-  "กุมภาพันธ์",
-  "มีนาคม",
-  "เมษายน",
-  "พฤษภาคม",
-  "มิถุนายน",
-  "กรกฎาคม",
-  "สิงหาคม",
-  "กันยายน",
-  "ตุลาคม",
-  "พฤศจิกายน",
-  "ธันวาคม",
-];
-const MONTHS_EN = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-const DAYS_TH = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
-const DAYS_EN = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-
-function toISODate(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate(),
-  ).padStart(2, "0")}`;
-}
-
-function DatePickerField({
-  id,
-  value,
-  onChange,
-  language,
-  required,
-  placeholder,
-}: {
-  id?: string;
-  value: string;
-  onChange: (v: string) => void;
-  language: string;
-  required?: boolean;
-  placeholder?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [viewDate, setViewDate] = useState<Date>(
-    value ? new Date(value + "T00:00:00") : new Date(),
-  );
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (value) setViewDate(new Date(value + "T00:00:00"));
-  }, [value]);
-
-  useEffect(() => {
-    const onClickOutside = (e: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-    if (open) document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
-
-  const months = language === "th" ? MONTHS_TH : MONTHS_EN;
-  const days = language === "th" ? DAYS_TH : DAYS_EN;
-
-  const year = viewDate.getFullYear();
-  const month = viewDate.getMonth();
-  const displayYear = language === "th" ? year + 543 : year;
-  const firstDayOfMonth = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const selected = value ? new Date(value + "T00:00:00") : null;
-
-  const cells: (number | null)[] = [
-    ...Array(firstDayOfMonth).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-
-  const isSelected = (day: number) =>
-    !!selected &&
-    selected.getFullYear() === year &&
-    selected.getMonth() === month &&
-    selected.getDate() === day;
-
-  const isToday = (day: number) => {
-    const now = new Date();
-    return (
-      now.getFullYear() === year &&
-      now.getMonth() === month &&
-      now.getDate() === day
-    );
-  };
-
-  const label = value
-    ? new Date(value + "T00:00:00").toLocaleDateString(
-        language === "th" ? "th-TH" : "en-US",
-        { year: "numeric", month: "short", day: "numeric" },
-      )
-    : (placeholder ?? (language === "th" ? "เลือกวันที่" : "Select date"));
-
-  return (
-    <div className="relative" ref={containerRef}>
-      <button
-        id={id}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus:ring-2 focus:ring-ring/50"
-      >
-        <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className={value ? "" : "text-muted-foreground"}>{label}</span>
-      </button>
-
-      {required && (
-        <input
-          tabIndex={-1}
-          value={value}
-          required
-          onChange={() => {}}
-          className="sr-only"
-        />
-      )}
-
-      {open && (
-        <div className="absolute left-0 bottom-full mb-2 z-[100] w-64 rounded-md border bg-popover p-3 text-popover-foreground shadow-lg sm:bottom-auto sm:top-full sm:mt-2">
-          <div className="flex items-center justify-between mb-2">
-            <button
-              type="button"
-              className="p-1 rounded hover:bg-muted"
-              onClick={() => setViewDate(new Date(year, month - 1, 1))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="text-sm font-medium">
-              {months[month]} {displayYear}
-            </span>
-            <button
-              type="button"
-              className="p-1 rounded hover:bg-muted"
-              onClick={() => setViewDate(new Date(year, month + 1, 1))}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-7 gap-1 mb-1 text-center text-xs text-muted-foreground">
-            {days.map((d) => (
-              <div key={d}>{d}</div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-1">
-            {cells.map((day, idx) =>
-              day === null ? (
-                <div key={idx} />
-              ) : (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    onChange(toISODate(new Date(year, month, day)));
-                    setOpen(false);
-                  }}
-                  className={`h-8 w-8 rounded-md text-sm hover:bg-muted transition-colors ${
-                    isSelected(day)
-                      ? "bg-primary text-primary-foreground hover:bg-primary"
-                      : isToday(day)
-                        ? "border border-primary"
-                        : ""
-                  }`}
-                >
-                  {day}
-                </button>
-              ),
-            )}
-          </div>
-
-          <div className="mt-2 flex justify-end">
-            <button
-              type="button"
-              className="text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                const today = new Date();
-                setViewDate(today);
-                onChange(toISODate(today));
-                setOpen(false);
-              }}
-            >
-              {language === "th" ? "วันนี้" : "Today"}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// 💡 2. ลบ MONTHS_TH, MONTHS_EN, DAYS_TH, DAYS_EN, toISODate และ DatePickerField ของเดิมทิ้งไปแล้ว
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
@@ -582,7 +370,7 @@ export default function BillsPage() {
             </Button>
           </DialogTrigger>
           {/* 💡 ขยายขนาดหน้าต่างให้กว้างขึ้นเป็น max-w-2xl */}
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[calc(100%-2rem)] max-w-2xl max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{t("bills.generate")}</DialogTitle>
               <DialogDescription>{t("bills.subtitle")}</DialogDescription>
@@ -799,7 +587,7 @@ export default function BillsPage() {
         </CardContent>
       </Card>
 
-      {/* Table */}
+      {/* Bill List — table บน desktop, card บน mobile */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -816,91 +604,168 @@ export default function BillsPage() {
               <Loader2 className="h-5 w-5 animate-spin" />
               {t("common.loading")}
             </div>
+          ) : filteredBills.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {t("common.noData")}
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("rooms.roomNumber")}</TableHead>
-                  <TableHead>{t("tenants.title")}</TableHead>
-                  <TableHead>
-                    {t("bills.month")}/{t("bills.year")}
-                  </TableHead>
-                  <TableHead className="text-right">
-                    {t("bills.totalAmount")}
-                  </TableHead>
-                  <TableHead>{t("bills.dueDate")}</TableHead>
-                  <TableHead>{t("common.status")}</TableHead>
-                  <TableHead className="text-right">
-                    {t("common.actions")}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredBills.map((bill) => (
-                  <TableRow key={bill.bill_id}>
-                    <TableCell className="font-medium">
-                      {bill.room_number}
-                    </TableCell>
-                    <TableCell>{bill.tenant_name}</TableCell>
-                    <TableCell>
-                      {t(`month.${bill.bill_month}`)} {bill.bill_year}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(bill.total_amount)}
-                    </TableCell>
-                    <TableCell>{formatDate(bill.due_date)}</TableCell>
-                    <TableCell>
-                      <BillStatusBadge status={bill.status} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleViewBill(bill)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleExportInvoice(bill)}
-                          disabled={exportingId === bill.bill_id}
-                          title={t("bills.exportInvoice") ?? "Export invoice"}
-                        >
-                          {exportingId === bill.bill_id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Download className="h-4 w-4" />
-                          )}
-                        </Button>
-                        {(bill.status === "pending" ||
-                          bill.status === "overdue") && (
+            <>
+              {/* ── Desktop: table (ซ่อนบน mobile) ───────────────────── */}
+              <Table className="hidden md:table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("rooms.roomNumber")}</TableHead>
+                    <TableHead>{t("tenants.title")}</TableHead>
+                    <TableHead>
+                      {t("bills.month")}/{t("bills.year")}
+                    </TableHead>
+                    <TableHead className="text-right">
+                      {t("bills.totalAmount")}
+                    </TableHead>
+                    <TableHead>{t("bills.dueDate")}</TableHead>
+                    <TableHead>{t("common.status")}</TableHead>
+                    <TableHead className="text-right">
+                      {t("common.actions")}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredBills.map((bill) => (
+                    <TableRow key={bill.bill_id}>
+                      <TableCell className="font-medium">
+                        {bill.room_number}
+                      </TableCell>
+                      <TableCell>{bill.tenant_name}</TableCell>
+                      <TableCell>
+                        {t(`month.${bill.bill_month}`)} {bill.bill_year}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(bill.total_amount)}
+                      </TableCell>
+                      <TableCell>{formatDate(bill.due_date)}</TableCell>
+                      <TableCell>
+                        <BillStatusBadge status={bill.status} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleCancel(bill)}
-                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleViewBill(bill)}
                           >
-                            <XCircle className="h-4 w-4" />
+                            <Eye className="h-4 w-4" />
                           </Button>
-                        )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleExportInvoice(bill)}
+                            disabled={exportingId === bill.bill_id}
+                            title={t("bills.exportInvoice") ?? "Export invoice"}
+                          >
+                            {exportingId === bill.bill_id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                          </Button>
+                          {(bill.status === "pending" ||
+                            bill.status === "overdue") && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleCancel(bill)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {/* ── Mobile: card list (ซ่อนบน desktop) ──────────────────
+            ⚠️ ใหม่: เดิมใช้ table เดียวกันทุกขนาดจอ ทำให้บนมือถือ
+            (~375-403px) เห็นแค่ 3 คอลัมน์แรกแล้วต้อง scroll ขวาไปดู
+            ยอดเงิน/สถานะที่เป็นข้อมูลสำคัญที่สุด — ตอนนี้ทำเป็น card
+            แทน เห็นข้อมูลครบในการ์ดเดียวไม่ต้อง scroll แนวนอนเลย
+            (ใช้ pattern เดียวกับหน้า Payments ที่มีอยู่แล้ว) */}
+              <div className="md:hidden space-y-3">
+                {filteredBills.map((bill) => (
+                  <div
+                    key={bill.bill_id}
+                    className="rounded-lg border p-4 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <Home className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          {t("rooms.roomNumber")} {bill.room_number}
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {bill.tenant_name}
+                        </p>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                      <BillStatusBadge status={bill.status} />
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {t(`month.${bill.bill_month}`)} {bill.bill_year}
+                      </span>
+                      <span className="font-semibold text-base">
+                        {formatCurrency(bill.total_amount)}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground">
+                      {t("bills.dueDate")}: {formatDate(bill.due_date)}
+                    </div>
+
+                    {/* Action bar — ปุ่มเต็มความกว้าง กดง่ายด้วยนิ้ว */}
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleViewBill(bill)}
+                      >
+                        <Eye className="h-4 w-4 mr-1.5" />
+                        {t("common.view") ?? "ดู"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleExportInvoice(bill)}
+                        disabled={exportingId === bill.bill_id}
+                      >
+                        {exportingId === bill.bill_id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4 mr-1.5" />
+                        )}
+                        {t("bills.exportInvoice") ?? "PDF"}
+                      </Button>
+                      {(bill.status === "pending" ||
+                        bill.status === "overdue") && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="text-destructive hover:text-destructive shrink-0"
+                          onClick={() => handleCancel(bill)}
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 ))}
-                {filteredBills.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-center py-8 text-muted-foreground"
-                    >
-                      {t("common.noData")}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -910,7 +775,7 @@ export default function BillsPage() {
         open={!!viewingBill}
         onOpenChange={(open) => !open && setViewingBill(null)}
       >
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />

@@ -28,11 +28,22 @@ const errorHandler = (err, req, res, next) => {
     return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
   }
 
-  // Multer file size error
+// Multer file size error
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({
       success: false,
       message: `File too large. Maximum allowed size is ${process.env.MAX_FILE_SIZE_MB || 5}MB.`,
+    });
+  }
+
+  // ⚠️ ใหม่: ไฟล์ประเภทที่ไม่รองรับ (จาก upload.middleware.js fileFilter)
+  // ต้องมี case แยก ไม่งั้นจะตกไป default branch ที่ซ่อน message จริงตอน
+  // production (เพราะ statusCode 400 แต่ NODE_ENV=production จะโชว์แค่
+  // "Internal Server Error" ทั้งที่เป็น validation error ที่ user ควรเห็น)
+  if (err.code === 'INVALID_FILE_TYPE') {
+    return res.status(err.statusCode || 400).json({
+      success: false,
+      message: err.message,
     });
   }
 

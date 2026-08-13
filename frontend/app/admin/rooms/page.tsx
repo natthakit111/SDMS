@@ -39,21 +39,21 @@ import {
 } from "@/components/ui/select";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { RoomStatusBadge } from "@/components/common/status-badge";
-import { Plus, Search, Pencil, Trash2, DoorOpen, Loader2 } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Pencil,
+  Trash2,
+  DoorOpen,
+  Loader2,
+  Building2,
+  Ruler,
+} from "lucide-react";
 import { roomAPI } from "@/lib/api/room.api";
 import { settingsAPI } from "@/lib/api/settings.api";
 import { toast } from "sonner";
-
-interface Room {
-  room_id: number;
-  room_number: string;
-  floor: number;
-  room_type: string;
-  area_sqm: number | null;
-  base_rent: number;
-  status: "available" | "occupied" | "maintenance";
-  description: string | null;
-}
+import { formatCurrency } from "@/lib/utils";
+import { Room } from "@/types/index";
 
 interface FormData {
   room_number: string;
@@ -74,13 +74,6 @@ const emptyForm: FormData = {
   status: "available",
   description: "",
 };
-
-const formatCurrency = (n: number) =>
-  new Intl.NumberFormat("th-TH", {
-    style: "currency",
-    currency: "THB",
-    maximumFractionDigits: 0,
-  }).format(n);
 
 export default function RoomsPage() {
   const { t, language } = useLanguage();
@@ -173,7 +166,7 @@ export default function RoomsPage() {
     } finally {
       setSubmitting(false);
     }
-  };;
+  };
 
   const getRoomTypeLabel = (type: string) => {
     // รองรับทั้งกรณีที่หลังบ้านเก็บเป็น "fan"/"aircon" หรือเก็บเป็นภาษาไทยเดิม
@@ -201,7 +194,7 @@ export default function RoomsPage() {
       room_type: room.room_type,
       base_rent: room.base_rent.toString(),
       area_sqm: room.area_sqm?.toString() ?? "",
-      status: room.status,
+      status: room.status as FormData["status"],
       description: room.description ?? "",
     });
     setIsAddDialogOpen(true);
@@ -251,7 +244,7 @@ export default function RoomsPage() {
               {t("rooms.add")}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="w-[calc(100%-2rem)] max-w-lg max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingRoom ? t("common.edit") : t("rooms.add")}
@@ -262,7 +255,7 @@ export default function RoomsPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} noValidate>
               <FieldGroup>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field>
                     <FieldLabel>{t("rooms.roomNumber")}</FieldLabel>
                     <Input
@@ -302,7 +295,7 @@ export default function RoomsPage() {
                     </Select>
                   </Field>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field>
                     <FieldLabel>{t("rooms.type")}</FieldLabel>
                     <Select
@@ -342,11 +335,17 @@ export default function RoomsPage() {
                         <SelectItem value="available">
                           {t("status.available")}
                         </SelectItem>
+                        <SelectItem value="occupied">
+                          {t("status.occupied")}
+                        </SelectItem>
+                        <SelectItem value="maintenance">
+                          {t("status.maintenance")}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </Field>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field>
                     <FieldLabel>{t("rooms.rent")}</FieldLabel>
                     <Input
@@ -443,71 +442,129 @@ export default function RoomsPage() {
               <Loader2 className="h-5 w-5 animate-spin" />
               {t("common.loading")}
             </div>
+          ) : filteredRooms.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {t("common.noData")}
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("rooms.roomNumber")}</TableHead>
-                  <TableHead>{t("rooms.floor")}</TableHead>
-                  <TableHead>{t("rooms.type")}</TableHead>
-                  <TableHead>{t("rooms.area")}</TableHead>
-                  <TableHead>{t("rooms.rent")}</TableHead>
-                  <TableHead>{t("common.status")}</TableHead>
-                  <TableHead className="text-right">
-                    {t("common.actions")}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredRooms.map((room) => (
-                  <TableRow key={room.room_id}>
-                    <TableCell className="font-medium">
-                      {room.room_number}
-                    </TableCell>
-                    <TableCell>{room.floor}</TableCell>
-                    <TableCell>{getRoomTypeLabel(room.room_type)}</TableCell>
-                    <TableCell>
-                      {room.area_sqm
-                        ? `${room.area_sqm} ${t("rooms.sqm")}`
-                        : "-"}
-                    </TableCell>
-                    <TableCell>{formatCurrency(room.base_rent)}</TableCell>
-                    <TableCell>
-                      <RoomStatusBadge status={room.status} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(room)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(room)}
-                          disabled={room.status === "occupied"}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredRooms.length === 0 && (
+            <>
+              {/* ── Desktop: table ───────────────────────────────────── */}
+              <Table className="hidden md:table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-center py-8 text-muted-foreground"
-                    >
-                      {t("common.noData")}
-                    </TableCell>
+                    <TableHead>{t("rooms.roomNumber")}</TableHead>
+                    <TableHead>{t("rooms.floor")}</TableHead>
+                    <TableHead>{t("rooms.type")}</TableHead>
+                    <TableHead>{t("rooms.area")}</TableHead>
+                    <TableHead>{t("rooms.rent")}</TableHead>
+                    <TableHead>{t("common.status")}</TableHead>
+                    <TableHead className="text-right">
+                      {t("common.actions")}
+                    </TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredRooms.map((room) => (
+                    <TableRow key={room.room_id}>
+                      <TableCell className="font-medium">
+                        {room.room_number}
+                      </TableCell>
+                      <TableCell>{room.floor}</TableCell>
+                      <TableCell>{getRoomTypeLabel(room.room_type)}</TableCell>
+                      <TableCell>
+                        {room.area_sqm
+                          ? `${room.area_sqm} ${t("rooms.sqm")}`
+                          : "-"}
+                      </TableCell>
+                      <TableCell>{formatCurrency(room.base_rent)}</TableCell>
+                      <TableCell>
+                        <RoomStatusBadge status={room.status} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(room)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(room)}
+                            disabled={room.status === "occupied"}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {/* ── Mobile: card list ──────────────────────────────────
+            ⚠️ ใหม่: เดิม table เดียวใช้ทุกขนาดจอ 6 คอลัมน์ล้นจอมือถือ
+            แน่นอน — แปลงเป็นการ์ดแยกแต่ละห้อง เห็นข้อมูลครบไม่ต้อง
+            scroll แนวนอน */}
+              <div className="md:hidden space-y-3">
+                {filteredRooms.map((room) => (
+                  <div
+                    key={room.room_id}
+                    className="rounded-lg border p-4 space-y-3"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                          {t("rooms.roomNumber")} {room.room_number}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {t("rooms.floor")} {room.floor} ·{" "}
+                          {getRoomTypeLabel(room.room_type)}
+                        </p>
+                      </div>
+                      <RoomStatusBadge status={room.status} />
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm">
+                      {room.area_sqm && (
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Ruler className="h-3.5 w-3.5" />
+                          {room.area_sqm} {t("rooms.sqm")}
+                        </span>
+                      )}
+                      <span className="font-semibold ml-auto">
+                        {formatCurrency(room.base_rent)}
+                      </span>
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleEdit(room)}
+                      >
+                        <Pencil className="h-4 w-4 mr-1.5" />
+                        {t("common.edit") ?? "แก้ไข"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-destructive hover:text-destructive"
+                        onClick={() => handleDelete(room)}
+                        disabled={room.status === "occupied"}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1.5" />
+                        {t("common.delete") ?? "ลบ"}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

@@ -48,6 +48,8 @@ import {
   Loader2,
   ImageIcon,
   X,
+  Home,
+  Calendar,
 } from "lucide-react";
 import { meterAPI } from "@/lib/api/meter.api";
 import { roomAPI } from "@/lib/api/room.api";
@@ -55,30 +57,7 @@ import { utilityRateAPI } from "@/lib/api/utilityRate.api";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 import { settingsAPI } from "@/lib/api/settings.api";
-
-// Month names are generated from t("month.N") inside the component
-
-interface Room {
-  room_id: number;
-  room_number: string;
-  status: string;
-  tenant_name?: string;
-}
-
-interface Reading {
-  reading_id: number;
-  room_id: number;
-  room_number: string;
-  meter_type: "electric" | "water";
-  reading_month: number;
-  reading_year: number;
-  previous_unit: number;
-  current_unit: number;
-  units_used: number;
-  rate_per_unit: number;
-  image_path: string | null;
-  recorded_at: string;
-}
+import { Room, Reading } from "@/types/index";
 
 // จัดกลุ่ม readings ตาม room+month+year
 interface GroupedReading {
@@ -103,6 +82,44 @@ const formatDate = (d: string) =>
     month: "short",
     day: "numeric",
   });
+
+// ⚠️ ใหม่: บีบอัดรูปฝั่ง client ก่อนอัปโหลด — กล้องมือถือมักได้ไฟล์
+// 8-15MB ซึ่งเกิน MAX_FILE_SIZE_MB=5 ของ backend เกือบทุกครั้ง ทำให้
+// admin โดน reject ระหว่างถ่ายมิเตอร์จริงในสนามบ่อยๆ บีบให้เหลือ
+// ความกว้างสูงสุด 1600px + คุณภาพ 0.7 พอเพียงให้อ่านตัวเลขมิเตอร์
+// ในรูปได้ชัดเจน แต่ขนาดไฟล์เล็กลงมาก
+const compressImage = (
+  file: File,
+  maxWidth = 1600,
+  quality = 0.7,
+): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      img.src = e.target?.result as string;
+    };
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext("2d");
+      ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return reject(new Error("Compress failed"));
+          resolve(new File([blob], file.name, { type: "image/jpeg" }));
+        },
+        "image/jpeg",
+        quality,
+      );
+    };
+    img.onerror = reject;
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
 
 const now = new Date();
 
@@ -178,7 +195,6 @@ export default function MetersPage() {
       setLoading(false);
     }
   }, []);
-  
 
   useEffect(() => {
     fetchAll();
@@ -210,21 +226,30 @@ export default function MetersPage() {
   const grouped: GroupedReading[] = (() => {
     const map = new Map<string, GroupedReading>();
     readings.forEach((r) => {
-      const key = `${r.room_id}-${r.reading_month}-${r.reading_year}`;
+      // 💡 กันเหนียวสำหรับ TypeScript (Fallback values)
+      const roomId = r.room_id ?? 0;
+      const roomNum = r.room_number ?? "";
+      const rMonth = r.reading_month ?? 0;
+      const rYear = r.reading_year ?? 0;
+
+      const key = `${roomId}-${rMonth}-${rYear}`;
       if (!map.has(key)) {
         map.set(key, {
           key,
-          room_id: r.room_id,
-          room_number: r.room_number,
-          reading_month: r.reading_month,
-          reading_year: r.reading_year,
+          room_id: roomId,
+          room_number: roomNum,
+          reading_month: rMonth,
+          reading_year: rYear,
           electric: null,
           water: null,
         });
       }
       const g = map.get(key)!;
-      if (r.meter_type === "electric") g.electric = r;
-      else g.water = r;
+      if (r.meter_type === "electric") {
+        g.electric = r;
+      } else {
+        g.water = r;
+      }
     });
     return Array.from(map.values());
   })();
@@ -238,35 +263,58 @@ export default function MetersPage() {
     return matchSearch && matchMonth;
   });
 
-const handleRoomChange = async (rid: string) => {
-  setRoomId(rid);
-  setElecPrev("");
-  setWaterPrev("");
-  if (!rid) return;
-  try {
-    const [elec, water] = await Promise.all([
-      meterAPI.getPreviousReading(rid, "electric").catch(() => null),
-      meterAPI.getPreviousReading(rid, "water").catch(() => null),
-    ]);
-    const elecData = elec?.data ?? elec;
-    const waterData = water?.data ?? water;
-    if (elecData?.previous_unit !== undefined)
-      setElecPrev(String(elecData.previous_unit));
-    if (waterData?.previous_unit !== undefined)
-      setWaterPrev(String(waterData.previous_unit));
-  } catch {}
-};
-
-  const handleElecImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0] ?? null;
-    setElecImage(f);
-    setElecPreview(f ? URL.createObjectURL(f) : null);
+  const handleRoomChange = async (rid: string) => {
+    setRoomId(rid);
+    setElecPrev("");
+    setWaterPrev("");
+    if (!rid) return;
+    try {
+      const [elec, water] = await Promise.all([
+        meterAPI.getPreviousReading(rid, "electric").catch(() => null),
+        meterAPI.getPreviousReading(rid, "water").catch(() => null),
+      ]);
+      const elecData = elec?.data ?? elec;
+      const waterData = water?.data ?? water;
+      if (elecData?.previous_unit !== undefined)
+        setElecPrev(String(elecData.previous_unit));
+      if (waterData?.previous_unit !== undefined)
+        setWaterPrev(String(waterData.previous_unit));
+    } catch {}
   };
 
-  const handleWaterImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleElecImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] ?? null;
-    setWaterImage(f);
-    setWaterPreview(f ? URL.createObjectURL(f) : null);
+    if (!f) {
+      setElecImage(null);
+      setElecPreview(null);
+      return;
+    }
+    try {
+      const compressed = await compressImage(f);
+      setElecImage(compressed);
+      setElecPreview(URL.createObjectURL(compressed));
+    } catch {
+      // compress พลาด — ใช้ไฟล์ต้นฉบับแทน ดีกว่าบล็อกไม่ให้อัปโหลดเลย
+      setElecImage(f);
+      setElecPreview(URL.createObjectURL(f));
+    }
+  };
+
+  const handleWaterImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] ?? null;
+    if (!f) {
+      setWaterImage(null);
+      setWaterPreview(null);
+      return;
+    }
+    try {
+      const compressed = await compressImage(f);
+      setWaterImage(compressed);
+      setWaterPreview(URL.createObjectURL(compressed));
+    } catch {
+      setWaterImage(f);
+      setWaterPreview(URL.createObjectURL(f));
+    }
   };
 
   const resetDialog = () => {
@@ -432,7 +480,7 @@ const handleRoomChange = async (rid: string) => {
         </CardContent>
       </Card>
 
-      {/* Table */}
+      {/* Table/Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -448,119 +496,214 @@ const handleRoomChange = async (rid: string) => {
             <div className="flex justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {t("meters.notFound")}
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("meters.colRoom")}</TableHead>
-                  <TableHead>{t("meters.colMonthYear")}</TableHead>
-                  <TableHead className="text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <Zap className="h-4 w-4 text-yellow-500" />
-                      {t("meters.colElectric")}
-                    </div>
-                  </TableHead>
-                  <TableHead className="text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <Droplets className="h-4 w-4 text-blue-500" />
-                      {t("meters.colWater")}
-                    </div>
-                  </TableHead>
-                  <TableHead>{t("meters.colRecordedAt")}</TableHead>
-                  <TableHead className="text-right">
-                    {t("common.actions")}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* ── Desktop: table ───────────────────────────────────── */}
+              <Table className="hidden md:table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("meters.colRoom")}</TableHead>
+                    <TableHead>{t("meters.colMonthYear")}</TableHead>
+                    <TableHead className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Zap className="h-4 w-4 text-yellow-500" />
+                        {t("meters.colElectric")}
+                      </div>
+                    </TableHead>
+                    <TableHead className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Droplets className="h-4 w-4 text-blue-500" />
+                        {t("meters.colWater")}
+                      </div>
+                    </TableHead>
+                    <TableHead>{t("meters.colRecordedAt")}</TableHead>
+                    <TableHead className="text-right">
+                      {t("common.actions")}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((g) => (
+                    <TableRow key={g.key}>
+                      <TableCell className="font-medium">
+                        {g.room_number}
+                      </TableCell>
+                      <TableCell>
+                        {MONTHS[g.reading_month - 1]} {g.reading_year}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {g.electric ? (
+                          <div className="flex items-center justify-center gap-1 text-sm">
+                            <span className="text-muted-foreground">
+                              {g.electric.previous_unit}
+                            </span>
+                            {" → "}
+                            <span>{g.electric.current_unit}</span>
+                            <span className="text-primary font-medium ml-1">
+                              ({g.electric.units_used})
+                            </span>
+                            {g.electric.image_path && (
+                              <CheckCircle className="h-4 w-4 text-green-500 ml-1" />
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">
+                            -
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {g.water ? (
+                          <div className="flex items-center justify-center gap-1 text-sm">
+                            <span className="text-muted-foreground">
+                              {g.water.previous_unit}
+                            </span>
+                            {" → "}
+                            <span>{g.water.current_unit}</span>
+                            <span className="text-primary font-medium ml-1">
+                              ({g.water.units_used})
+                            </span>
+                            {g.water.image_path && (
+                              <CheckCircle className="h-4 w-4 text-green-500 ml-1" />
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">
+                            -
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {formatDate(
+                          g.electric?.recorded_at ?? g.water?.recorded_at ?? "",
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title={t("meters.viewPhotos")}
+                            onClick={() => {
+                              setViewingGroup(g);
+                              setPhotoDialogOpen(true);
+                            }}
+                          >
+                            <Camera className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEdit(g)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {/* ── Mobile: card list ──────────────────────────────────
+            ⚠️ ใหม่: เดิมใช้ table เดียวกันทุกขนาดจอ ตัวเลขมิเตอร์
+            (previous → current (used)) ถูกอัดในเซลล์เล็กจนอ่านยาก
+            บนจอแคบ แถมยังมีคอลัมน์วันที่บันทึกที่ต้อง scroll ขวา
+            ไปดู — ตอนนี้แยกไฟฟ้า/น้ำเป็นคนละบรรทัดในการ์ด อ่านง่ายขึ้น */}
+              <div className="md:hidden space-y-3">
                 {filtered.map((g) => (
-                  <TableRow key={g.key}>
-                    <TableCell className="font-medium">
-                      {g.room_number}
-                    </TableCell>
-                    <TableCell>
-                      {MONTHS[g.reading_month - 1]} {g.reading_year}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {g.electric ? (
-                        <div className="flex items-center justify-center gap-1 text-sm">
-                          <span className="text-muted-foreground">
-                            {g.electric.previous_unit}
+                  <div key={g.key} className="rounded-lg border p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <Home className="h-3.5 w-3.5 text-muted-foreground" />
+                        {g.room_number}
+                      </div>
+                      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {MONTHS[g.reading_month - 1]} {g.reading_year}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Zap className="h-3.5 w-3.5 text-yellow-500" />
+                          {t("meters.colElectric")}
+                        </span>
+                        {g.electric ? (
+                          <span className="flex items-center gap-1">
+                            {g.electric.previous_unit} →{" "}
+                            {g.electric.current_unit}
+                            <span className="text-primary font-medium">
+                              ({g.electric.units_used})
+                            </span>
+                            {g.electric.image_path && (
+                              <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                            )}
                           </span>
-                          {" → "}
-                          <span>{g.electric.current_unit}</span>
-                          <span className="text-primary font-medium ml-1">
-                            ({g.electric.units_used})
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Droplets className="h-3.5 w-3.5 text-blue-500" />
+                          {t("meters.colWater")}
+                        </span>
+                        {g.water ? (
+                          <span className="flex items-center gap-1">
+                            {g.water.previous_unit} → {g.water.current_unit}
+                            <span className="text-primary font-medium">
+                              ({g.water.units_used})
+                            </span>
+                            {g.water.image_path && (
+                              <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                            )}
                           </span>
-                          {/* ✅ badge รูป */}
-                          {g.electric.image_path && (
-                            <CheckCircle className="h-4 w-4 text-green-500 ml-1" />
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {g.water ? (
-                        <div className="flex items-center justify-center gap-1 text-sm">
-                          <span className="text-muted-foreground">
-                            {g.water.previous_unit}
-                          </span>
-                          {" → "}
-                          <span>{g.water.current_unit}</span>
-                          <span className="text-primary font-medium ml-1">
-                            ({g.water.units_used})
-                          </span>
-                          {g.water.image_path && (
-                            <CheckCircle className="h-4 w-4 text-green-500 ml-1" />
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm">
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground">
+                      {t("meters.colRecordedAt")}:{" "}
                       {formatDate(
                         g.electric?.recorded_at ?? g.water?.recorded_at ?? "",
                       )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex gap-2 justify-end">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title={t("meters.viewPhotos")}
-                          onClick={() => {
-                            setViewingGroup(g);
-                            setPhotoDialogOpen(true);
-                          }}
-                        >
-                          <Camera className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEdit(g)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          setViewingGroup(g);
+                          setPhotoDialogOpen(true);
+                        }}
+                      >
+                        <Camera className="h-4 w-4 mr-1.5" />
+                        {t("meters.viewPhotos")}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => openEdit(g)}
+                      >
+                        <Pencil className="h-4 w-4 mr-1.5" />
+                        {t("common.edit") ?? "แก้ไข"}
+                      </Button>
+                    </div>
+                  </div>
                 ))}
-                {filtered.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      className="text-center py-8 text-muted-foreground"
-                    >
-                      {t("meters.notFound")}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -572,7 +715,7 @@ const handleRoomChange = async (rid: string) => {
           if (!o) resetDialog();
         }}
       >
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingElectric || editingWater
@@ -584,8 +727,8 @@ const handleRoomChange = async (rid: string) => {
 
           <FieldGroup>
             {/* Room / Month / Year */}
-            <div className="grid grid-cols-3 gap-4">
-              <Field className="col-span-1">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+              <Field className="col-span-2 sm:col-span-1">
                 <FieldLabel>{t("contracts.room")}</FieldLabel>
                 <Select
                   value={roomId}
@@ -596,12 +739,23 @@ const handleRoomChange = async (rid: string) => {
                     <SelectValue placeholder={t("contracts.selectRoom")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableRooms.map((r) => (
-                      <SelectItem key={r.room_id} value={String(r.room_id)}>
-                        {r.room_number}
-                        {r.tenant_name ? ` (${r.tenant_name})` : ""}
+                    {/* ⚠️ แก้: ตอนแก้ไข (edit) เราไม่ได้ fetch availableRooms
+                        เลย ทำให้ value={roomId} ไม่มี SelectItem ที่ match →
+                        ช่องห้องโชว์ว่างเปล่า. เพิ่ม item ของห้องปัจจุบันเข้าไป
+                        เพื่อให้แสดงเลขห้องได้ถูกต้องในโหมดแก้ไข */}
+                    {editingElectric || editingWater ? (
+                      <SelectItem value={roomId}>
+                        {(editingElectric ?? editingWater)?.room_number ??
+                          roomId}
                       </SelectItem>
-                    ))}
+                    ) : (
+                      availableRooms.map((r) => (
+                        <SelectItem key={r.room_id} value={String(r.room_id)}>
+                          {r.room_number}
+                          {r.tenant_name ? ` (${r.tenant_name})` : ""}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </Field>
@@ -690,6 +844,7 @@ const handleRoomChange = async (rid: string) => {
                   ref={elecRef}
                   type="file"
                   accept="image/*"
+                  capture="environment"
                   className="hidden"
                   onChange={handleElecImage}
                 />
@@ -785,6 +940,7 @@ const handleRoomChange = async (rid: string) => {
                     ref={waterRef}
                     type="file"
                     accept="image/*"
+                    capture="environment"
                     className="hidden"
                     onChange={handleWaterImage}
                   />
@@ -849,7 +1005,7 @@ const handleRoomChange = async (rid: string) => {
             </DialogTitle>
           </DialogHeader>
           {viewingGroup && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <Zap className="h-4 w-4 text-yellow-500" />

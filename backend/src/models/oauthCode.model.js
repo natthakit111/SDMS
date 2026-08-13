@@ -38,6 +38,13 @@ const createCode = async (userId) => {
  * (ป้องกัน replay — ต่อให้ attacker ดัก request แรกไม่ทัน ก็เอา code
  * เดิมไปยิงซ้ำไม่ได้อีก เพราะถูกลบไปตั้งแต่ครั้งแรกที่ query แล้ว)
  *
+ * ⚠️ FIX: เดิม SELECT แล้วค่อย DELETE เป็นสองคำสั่งแยกกัน ไม่ atomic —
+ * ถ้ามีสอง request ใช้ code เดียวกันพร้อมกันเป๊ะ (เช่น attacker ดัก code
+ * ได้แล้วแข่งกับ request จริงของเจ้าของ) ทั้งคู่อาจ SELECT ผ่านก่อนที่ฝั่ง
+ * ไหนจะ DELETE ทัน ทำให้ code เดียวกันถูก "consume" ได้มากกว่าหนึ่งครั้ง
+ * แก้โดยเช็ค affectedRows จาก DELETE แทน — ถ้าอีก request หนึ่งชิงลบไป
+ * ก่อนแล้ว affectedRows จะเป็น 0 ทำให้รู้ว่า code นี้ถูกใช้ไปแล้วจริง ๆ
+ *
  * @returns {number|null} user_id ถ้า code ถูกต้องและยังไม่หมดอายุ, null ถ้าไม่ผ่าน
  */
 const consumeCode = async (code) => {
@@ -46,12 +53,17 @@ const consumeCode = async (code) => {
     [code]
   );
   if (rows.length === 0) return null;
-
-  // ลบทันที ไม่รอเช็ค expiry ก่อน — กัน race condition ที่ request คู่ขนาน
-  // อาจอ่าน record เดิมซ้ำก่อนถูกลบ
-  await pool.query(`DELETE FROM oauth_exchange_codes WHERE code = ?`, [code]);
-
   const record = rows[0];
+
+  // ลบทันที แล้วเช็คว่าเราเป็นคนลบจริง (affectedRows > 0) — ถ้า 0 แปลว่า
+  // มี request อื่นชิงลบไปก่อนแล้ว (race condition) ต้อง treat เหมือนไม่มี
+  // code นี้อยู่เลย ไม่ให้ user_id กลับไปทั้งสองฝั่ง
+  const [delResult] = await pool.query(
+    `DELETE FROM oauth_exchange_codes WHERE code = ?`,
+    [code]
+  );
+  if (delResult.affectedRows === 0) return null;
+
   if (new Date(record.expires_at) < new Date()) return null; // หมดอายุแล้ว
 
   return record.user_id;

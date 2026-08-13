@@ -52,13 +52,13 @@ const create = async ({ tenant_id, contract_id, room_id, move_out_date, reason }
   return result.insertId;
 };
 
-// ใช้ร่วมกันทั้ง approve และ reject — ต่างกันแค่ค่า status ที่ส่งเข้ามา
-const updateReviewStatus = async (requestId, status, { admin_note = null, reviewed_by }, executor = pool) => {
+//  เพิ่ม actual_move_out_date เป็น optional (reject ไม่ต้องส่งมา จะเป็น NULL)
+const updateReviewStatus = async (requestId, status, { admin_note = null, reviewed_by, actual_move_out_date = null }, executor = pool) => {
   const [result] = await executor.query(
     `UPDATE move_out_requests
-     SET status = ?, admin_note = ?, reviewed_by = ?, reviewed_at = NOW()
+     SET status = ?, admin_note = ?, reviewed_by = ?, reviewed_at = NOW(), actual_move_out_date = ?
      WHERE request_id = ?`,
-    [status, admin_note, reviewed_by, requestId]
+    [status, admin_note, reviewed_by, actual_move_out_date, requestId]
   );
   return result.affectedRows;
 };

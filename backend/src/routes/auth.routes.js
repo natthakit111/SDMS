@@ -10,11 +10,13 @@ const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
 
 const registerValidation = [
-  // ลบ body('username') บรรทัดเดิมออกไปเลย แล้วใส่ phone แทน
   body('phone').trim().notEmpty().withMessage('Phone is required')
     .matches(/^[0-9]+$/).withMessage('Phone must contain only numbers'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('role').optional().isIn(['admin', 'tenant']).withMessage('Role must be either admin or tenant'),
+  // ⚠️ FIX: ตัด body('role').optional().isIn(['admin', 'tenant']) ออก —
+  // /register ตอนนี้ไม่รับ role จาก client แล้วทั้งที่ route/controller
+  // เก็บ validator ที่ยอมรับ role ไว้เฉยๆ ไม่มีประโยชน์ และทำให้คนอ่านโค้ด
+  // เข้าใจผิดว่า endpoint นี้ยังรองรับการส่ง role อยู่
 ];
 
 const loginValidation = [
@@ -45,14 +47,14 @@ const setPasswordValidation = [
 ];
 
 // Public
-router.post('/register', registerValidation, (req, res, next) => {
-  if (req.body.role === 'admin') {
-    return authenticate(req, res, () => {
-      authorizeRoles('admin')(req, res, () => authController.register(req, res, next));
-    });
-  }
-  authController.register(req, res, next);
-});
+// ⚠️ FIX: ตัด branch "role === 'admin' → ต้อง authenticate ก่อน" ออก —
+// เดิมดูเหมือนเผื่อไว้ให้ admin สร้าง admin คนใหม่ผ่าน endpoint นี้ แต่
+// authController.register() hardcode role เป็น 'tenant' เสมอไปแล้ว (กัน
+// role escalation จาก client โดยตรง) ทำให้ branch นี้เป็น dead code ที่
+// ทำงานขัดกับ controller — ถ้า admin login แล้วยิง role:"admin" มาถูกต้อง
+// ตาม guard นี้ ก็ยังได้ tenant account อยู่ดี สร้างความสับสน
+// /auth/register ตอนนี้เป็น self-register สาธารณะสำหรับ tenant เท่านั้น
+router.post('/register', registerValidation, authController.register);
 
 router.post('/login', loginValidation, authController.login);
 router.post('/forgot-password', authController.forgotPassword);

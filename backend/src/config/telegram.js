@@ -71,22 +71,18 @@ const initBot = () => {
       try {
         const body = JSON.stringify({ token, chat_id: chatId, telegram_username: telegramUsername });
 
-        // FIX: previously `resolve` was passed directly as the response
-        // callback, so ANY http response (including a 400/401/404 from the
-        // backend for an expired/invalid token) was treated as success and
-        // silently swallowed — the tenant got no feedback at all. Now we
-        // buffer the body and reject on non-2xx status codes.
         await new Promise((resolve, reject) => {
           const url = new URL(`${BACKEND}/telegram/link`);
-          const mod = url.protocol === 'https:' ? require('https') : require('http');
+          const mod = url.protocol === 'https:' ? require('https') : require('http')
           const req = mod.request({
             hostname: url.hostname,
-            port:     url.port || (url.protocol === 'https:' ? 443 : 80),
-            path:     url.pathname,
-            method:   'POST',
+            port: url.port || (url.protocol === 'https:' ? 443 : 80),
+            path: url.pathname,
+            method: 'POST',
             headers: {
-              'Content-Type':   'application/json',
+              'Content-Type': 'application/json',
               'Content-Length': Buffer.byteLength(body),
+              'X-Internal-Secret': process.env.BOT_INTERNAL_SECRET, 
             },
           }, (res) => {
             let data = '';

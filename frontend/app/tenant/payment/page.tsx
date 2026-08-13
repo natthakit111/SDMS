@@ -1,4 +1,4 @@
-//tenant/payment/page..tsx
+//tenant/payment/page.tsx
 
 "use client";
 
@@ -37,12 +37,15 @@ import {
   CreditCard,
   Copy,
   Check,
+  Landmark,
+  Banknote,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useLanguage } from "@/context/language-context";
 import { billAPI } from "@/lib/api/bill.api";
 import { paymentAPI } from "@/lib/api/payment.api";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface Bill {
   bill_id: number;
@@ -64,6 +67,9 @@ interface QrData {
   bank_account?: string | null;
   bank_account_name?: string | null;
 }
+
+// วิธีชำระเงินที่ backend รองรับ (payment.routes.js validate 3 ค่านี้)
+type PayMethod = "qr_promptpay" | "bank_transfer" | "cash";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("th-TH", {
@@ -103,6 +109,31 @@ export default function TenantPaymentPage() {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [slipDialogOpen, setSlipDialogOpen] = useState(false);
   const [copiedAccount, setCopiedAccount] = useState(false);
+  // วิธีชำระที่ผู้เช่าเลือก — default พร้อมเพย์
+  const [selectedMethod, setSelectedMethod] =
+    useState<PayMethod>("qr_promptpay");
+
+  const methodOptions: {
+    value: PayMethod;
+    label: string;
+    icon: typeof QrCode;
+  }[] = [
+    {
+      value: "qr_promptpay",
+      label: language === "th" ? "พร้อมเพย์" : "PromptPay",
+      icon: QrCode,
+    },
+    {
+      value: "bank_transfer",
+      label: language === "th" ? "โอนเงิน" : "Transfer",
+      icon: Landmark,
+    },
+    {
+      value: "cash",
+      label: language === "th" ? "เงินสด" : "Cash",
+      icon: Banknote,
+    },
+  ];
 
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString(language === "th" ? "th-TH" : "en-GB", {
@@ -191,17 +222,31 @@ export default function TenantPaymentPage() {
     }
   };
 
-  const handleSlipUpload = async () => {
-    if (!slipFile || !selectedBillId) return;
+  // ส่งการชำระเงินด้วยวิธีที่ผู้เช่าเลือกจริง (ไม่ hardcode อีกต่อไป)
+  // - พร้อมเพย์ / โอนเงิน: ต้องแนบสลิป
+  // - เงินสด: แนบหลักฐานได��แต่ไม่บังคับ
+  const handleSubmit = async () => {
+    if (!selectedBillId) return;
+
+    if (selectedMethod !== "cash" && !slipFile) {
+      toast.error(
+        language === "th"
+          ? "กรุณาแนบสลิปการชำระเงิน"
+          : "Please attach a payment slip",
+      );
+      return;
+    }
+
     setUploading(true);
     try {
-      await paymentAPI.submit(selectedBillId, slipFile, "qr_promptpay");
+      await paymentAPI.submit(selectedBillId, slipFile, selectedMethod);
       setUploadDone(true);
       toast.success(t("payment.success.submitted"));
       setTimeout(async () => {
         setSlipDialogOpen(false);
         setUploadDone(false);
         setSlipFile(null);
+        setSelectedMethod("qr_promptpay");
         setLoading(true);
         await loadData();
       }, 2000);
@@ -219,7 +264,7 @@ export default function TenantPaymentPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">{t("tenant.payment.title")}</h1>
+        <h1 className="text-2xl font-bold">{t("tenant.payment.title")}</h1>
         <p className="text-muted-foreground mt-2">
           {t("tenant.payment.subtitle")}
         </p>
@@ -233,38 +278,42 @@ export default function TenantPaymentPage() {
       ) : (
         <>
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardHeader className="pb-2 px-3 sm:px-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
                   {t("payments.totalDue")}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{fmt(totalDue)}</div>
-                <p className="text-xs text-muted-foreground mt-1">
+              <CardContent className="px-3 sm:px-6">
+                <div className="text-lg sm:text-2xl font-bold truncate">
+                  {fmt(totalDue)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 truncate">
                   {pendingBills.length} {t("bills.list")}
                 </p>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardHeader className="pb-2 px-3 sm:px-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
                   {t("common.all")} {t("bills.list")}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{bills.length}</div>
+              <CardContent className="px-3 sm:px-6">
+                <div className="text-lg sm:text-2xl font-bold">
+                  {bills.length}
+                </div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardHeader className="pb-2 px-3 sm:px-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
                   {t("status.paid")}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-500">
+              <CardContent className="px-3 sm:px-6">
+                <div className="text-lg sm:text-2xl font-bold text-green-500">
                   {bills.filter((b) => b.status === "paid").length}
                 </div>
               </CardContent>
@@ -333,117 +382,191 @@ export default function TenantPaymentPage() {
                       {t("tenant.payment.afterPay")}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="grid grid-cols-2 gap-4">
-                    {/* QR */}
-                    <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
-                      <Button
-                        variant="outline"
-                        className="h-24 flex flex-col gap-2"
-                        onClick={handleOpenQR}
-                        disabled={!selectedBillId}
-                      >
-                        <QrCode className="w-6 h-6" />
-                        <span>{t("payments.qr")}</span>
-                        <span className="text-xs text-muted-foreground">
-                          PromptPay
-                        </span>
-                      </Button>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{t("payments.qr")}</DialogTitle>
-                          <DialogDescription>
-                            {t("tenant.payment.methods")}
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div className="bg-white p-6 rounded-lg flex items-center justify-center">
-                            {qrData?.qr_payload ? (
-                              <QRCodeSVG value={qrData.qr_payload} size={240} />
-                            ) : (
-                              <QrCode className="w-48 h-48 text-gray-800" />
+                  <CardContent className="space-y-5">
+                    {/* ── เลือกวิธีชำระ: segmented control แตะง่ายบนมือถือ ── */}
+                    <div
+                      role="radiogroup"
+                      aria-label={
+                        language === "th" ? "วิธีชำระเงิน" : "Payment method"
+                      }
+                      className="grid grid-cols-3 gap-2"
+                    >
+                      {methodOptions.map((m) => {
+                        const active = selectedMethod === m.value;
+                        const Icon = m.icon;
+                        return (
+                          <button
+                            key={m.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            onClick={() => setSelectedMethod(m.value)}
+                            className={cn(
+                              "flex min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-lg border p-3 text-center transition-colors active:scale-[0.98]",
+                              active
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border text-muted-foreground hover:bg-muted",
                             )}
-                          </div>
-                          {selectedBill && (
-                            <p className="text-center font-bold text-lg">
-                              {fmt(selectedBill.total_amount)}
-                            </p>
-                          )}
-
-                          {/* ข้อมูลธนาคาร — โชว์เฉพาะเมื่อ admin ตั้งค่าไว้ */}
-                          {qrData?.bank_account && (
-                            <div className="border-t pt-4 space-y-2">
-                              <p className="text-xs text-muted-foreground text-center">
-                                {language === "th"
-                                  ? "หรือโอนผ่านแอปธนาคาร"
-                                  : "Or transfer via bank app"}
-                              </p>
-                              <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
-                                <div className="min-w-0">
-                                  {qrData.bank_name && (
-                                    <p className="text-sm font-medium truncate">
-                                      {qrData.bank_name}
-                                    </p>
-                                  )}
-                                  <p className="text-sm font-mono">
-                                    {formatBankAccount(qrData.bank_account)}
-                                  </p>
-                                  {qrData.bank_account_name && (
-                                    <p className="text-xs text-muted-foreground truncate">
-                                      {qrData.bank_account_name}
-                                    </p>
-                                  )}
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="shrink-0"
-                                  onClick={() =>
-                                    handleCopyAccount(qrData.bank_account!)
-                                  }
-                                >
-                                  {copiedAccount ? (
-                                    <Check className="h-4 w-4 text-green-500" />
-                                  ) : (
-                                    <Copy className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-
-                          <p className="text-sm text-muted-foreground text-center">
-                            {t("tenant.payment.afterPay")}
-                          </p>
-                          <Button
-                            onClick={() => setQrDialogOpen(false)}
-                            className="w-full"
                           >
-                            {t("common.close")}
-                          </Button>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
+                            <Icon className="h-5 w-5" />
+                            <span className="text-xs font-medium leading-tight">
+                              {m.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                    {/* Upload Slip */}
+                    {/* ── การทำงานตามวิธีที่เลือก ── */}
+                    {selectedMethod === "cash" ? (
+                      <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+                        {language === "th"
+                          ? "ชำระเงินสดกับผู้ดูแลหอพัก แล้วกดยืนยันเพื่อแจ้งการชำระ (แนบหลักฐานได้ถ้ามี)"
+                          : "Pay cash to the dorm manager, then confirm to notify. Attach a receipt if available."}
+                      </div>
+                    ) : (
+                      <Dialog
+                        open={qrDialogOpen}
+                        onOpenChange={setQrDialogOpen}
+                      >
+                        <Button
+                          variant="outline"
+                          className="h-12 w-full gap-2"
+                          onClick={handleOpenQR}
+                          disabled={!selectedBillId}
+                        >
+                          {selectedMethod === "qr_promptpay" ? (
+                            <>
+                              <QrCode className="h-5 w-5" />
+                              {language === "th"
+                                ? "แสดง QR พร้อมเพย์"
+                                : "Show PromptPay QR"}
+                            </>
+                          ) : (
+                            <>
+                              <Landmark className="h-5 w-5" />
+                              {language === "th"
+                                ? "ดูเลขบัญชีธนาคาร"
+                                : "View bank account"}
+                            </>
+                          )}
+                        </Button>
+                        <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto rounded-lg">
+                          <DialogHeader>
+                            <DialogTitle>{t("payments.qr")}</DialogTitle>
+                            <DialogDescription>
+                              {t("tenant.payment.methods")}
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            {/* QR โชว์เฉพาะวิธีพร้อมเพย์ */}
+                            {selectedMethod === "qr_promptpay" && (
+                              <div className="bg-white p-6 rounded-lg flex items-center justify-center">
+                                {qrData?.qr_payload ? (
+                                  <QRCodeSVG
+                                    value={qrData.qr_payload}
+                                    size={240}
+                                  />
+                                ) : (
+                                  <QrCode className="w-48 h-48 text-gray-800" />
+                                )}
+                              </div>
+                            )}
+                            {selectedBill && (
+                              <p className="text-center font-bold text-lg">
+                                {fmt(selectedBill.total_amount)}
+                              </p>
+                            )}
+
+                            {/* ข้อมูลธนาคาร — โชว์เฉพาะวิธีโอนเงิน และเมื่อ admin ตั้งค่าไว้ */}
+                            {selectedMethod === "bank_transfer" &&
+                              qrData?.bank_account && (
+                                <div className="space-y-2">
+                                  <p className="text-xs text-muted-foreground text-center">
+                                    {language === "th"
+                                      ? "โอนผ่านแอปธนาคาร"
+                                      : "Transfer via bank app"}
+                                  </p>
+                                  <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
+                                    <div className="min-w-0">
+                                      {qrData.bank_name && (
+                                        <p className="text-sm font-medium truncate">
+                                          {qrData.bank_name}
+                                        </p>
+                                      )}
+                                      <p className="text-sm font-mono">
+                                        {formatBankAccount(qrData.bank_account)}
+                                      </p>
+                                      {qrData.bank_account_name && (
+                                        <p className="text-xs text-muted-foreground truncate">
+                                          {qrData.bank_account_name}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="shrink-0"
+                                      onClick={() =>
+                                        handleCopyAccount(qrData.bank_account!)
+                                      }
+                                    >
+                                      {copiedAccount ? (
+                                        <Check className="h-4 w-4 text-green-500" />
+                                      ) : (
+                                        <Copy className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+
+                            {/* กรณีเลือกโอนเงินแต่ admin ยังไม่ได้ตั้งค่าบัญชี */}
+                            {selectedMethod === "bank_transfer" &&
+                              !qrData?.bank_account && (
+                                <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                                  {language === "th"
+                                    ? "ยังไม่มีข้อมูลบัญชีธนาคาร กรุณาติดต่อผู้ดูแลหอพัก"
+                                    : "No bank account configured. Please contact the dorm manager."}
+                                </div>
+                              )}
+
+                            <p className="text-sm text-muted-foreground text-center">
+                              {t("tenant.payment.afterPay")}
+                            </p>
+                            <Button
+                              onClick={() => setQrDialogOpen(false)}
+                              className="w-full"
+                            >
+                              {t("common.close")}
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+
+                    {/* ── ปุ่มแจ้งชำระ + อัปโหลดสลิป (label ปรับตามวิธี) ── */}
                     <Dialog
                       open={slipDialogOpen}
                       onOpenChange={setSlipDialogOpen}
                     >
                       <DialogTrigger asChild>
                         <Button
-                          variant="outline"
-                          className="h-24 flex flex-col gap-2"
+                          className="h-12 w-full gap-2"
                           disabled={!selectedBillId}
                         >
-                          <Upload className="w-6 h-6" />
-                          <span>{t("payments.slip")}</span>
-                          <span className="text-xs text-muted-foreground">
-                            JPG/PNG
-                          </span>
+                          <Upload className="h-5 w-5" />
+                          {selectedMethod === "cash"
+                            ? language === "th"
+                              ? "ยืนยันการชำระเงินสด"
+                              : "Confirm cash payment"
+                            : language === "th"
+                              ? "แจ้งชำระ / อัปโหลดสลิป"
+                              : "Submit / upload slip"}
                         </Button>
                       </DialogTrigger>
-                      <DialogContent>
+                      <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto rounded-lg">
                         <DialogHeader>
                           <DialogTitle>{t("payments.slip")}</DialogTitle>
                           <DialogDescription>
@@ -477,15 +600,23 @@ export default function TenantPaymentPage() {
                               />
                               <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
                               <p className="font-medium">
-                                {slipFile?.name ?? t("common.upload")}
+                                {slipFile?.name ??
+                                  (selectedMethod === "cash"
+                                    ? language === "th"
+                                      ? "แนบหลักฐาน (ถ้ามี)"
+                                      : "Attach receipt (optional)"
+                                    : t("common.upload"))}
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 JPG, PNG
                               </p>
                             </label>
                             <Button
-                              onClick={handleSlipUpload}
-                              disabled={!slipFile || uploading}
+                              onClick={handleSubmit}
+                              disabled={
+                                uploading ||
+                                (selectedMethod !== "cash" && !slipFile)
+                              }
                               className="w-full"
                             >
                               {uploading && (

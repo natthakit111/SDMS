@@ -7,64 +7,84 @@ import {
   useContext,
   useState,
   useEffect,
-  ReactNode,
   useCallback,
+  ReactNode,
 } from "react";
-import { billAPI } from "@/lib/api/bill.api";
 import { useAuth } from "@/context/auth-context";
+import { useLanguage } from "@/context/language-context";
+import {
+  buildNotifications,
+  unreadTypesOf,
+  loadActions,
+  saveActions,
+  NotifType,
+} from "@/lib/notifications";
 
 interface NotificationContextType {
   hasUnread: boolean;
-  markAsRead: () => void;
+  unreadTypes: Set<NotifType>;
+  markAllAsRead: () => void;
   refresh: () => void;
 }
 
 const NotificationContext = createContext<NotificationContextType>({
   hasUnread: false,
-  markAsRead: () => {},
+  unreadTypes: new Set(),
+  markAllAsRead: () => {},
   refresh: () => {},
 });
 
-const STORAGE_KEY = "tenant_notif_last_seen";
-
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [hasUnread, setHasUnread] = useState(false);
+  const { t } = useLanguage();
+  const [unreadTypes, setUnreadTypes] = useState<Set<NotifType>>(new Set());
+
+  const labels = useCallback(
+    () => ({
+      pendingBill: t("tenant.pendingBill"),
+      overdueBill: t("tenant.overdueBill"),
+      resolved: t("status.resolved"),
+      announcement: t("announcements.title"),
+      totalAmount: t("bills.totalAmount"),
+    }),
+    [t],
+  );
+
+  const monthLabel = useCallback((m: number) => t(`month.${m}`), [t]);
 
   const fetchAndCheck = useCallback(() => {
     if (!user) return;
-
-    const lastSeen = localStorage.getItem(`${STORAGE_KEY}_${user.id}`);
-    const lastSeenDate = lastSeen ? new Date(lastSeen) : new Date(0);
-
-    billAPI
-      .getMyBills()
-      .then((r) => {
-        const bills = r.data ?? [];
-        // มีบิล pending/overdue ที่สร้างหลัง lastSeen ไหม
-        const hasNew = bills.some((b: any) => {
-          if (b.status !== "pending" && b.status !== "overdue") return false;
-          const createdAt = new Date(b.created_at || b.due_date || 0);
-          return createdAt > lastSeenDate;
-        });
-        setHasUnread(hasNew);
-      })
-      .catch(() => {});
-  }, [user]);
+    buildNotifications(user.id, (d) => d, labels(), monthLabel).then((items) =>
+      setUnreadTypes(unreadTypesOf(items)),
+    );
+  }, [user, labels, monthLabel]);
 
   useEffect(() => {
     fetchAndCheck();
   }, [fetchAndCheck]);
 
-  const markAsRead = useCallback(() => {
+  // mark ทุก item ที่ยัง unread ให้เป็น "read" จริงใน localStorage
+  // ไม่ใช่แค่ setState เฉยๆ — กัน dot โผล่กลับมาหลัง refresh
+  const markAllAsRead = useCallback(() => {
     if (!user) return;
-    localStorage.setItem(`${STORAGE_KEY}_${user.id}`, new Date().toISOString());
-    setHasUnread(false);
-  }, [user]);
+    buildNotifications(user.id, (d) => d, labels(), monthLabel).then(
+      (items) => {
+        const actions = loadActions(user.id);
+        items.filter((i) => !i.isRead).forEach((i) => (actions[i.id] = "read"));
+        saveActions(user.id, actions);
+        setUnreadTypes(new Set());
+      },
+    );
+  }, [user, labels, monthLabel]);
 
   return (
     <NotificationContext.Provider
-      value={{ hasUnread, markAsRead, refresh: fetchAndCheck }}
+      value={{
+        hasUnread: unreadTypes.size > 0,
+        unreadTypes,
+        markAllAsRead,
+        refresh: fetchAndCheck,
+      }}
     >
       {children}
     </NotificationContext.Provider>

@@ -43,27 +43,23 @@ const GoogleIcon = () => (
   </svg>
 );
 
-const TelegramIcon = () => (
-  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <path
-      d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0z"
-      fill="#2AABEE"
-    />
-    <path
-      d="M5.491 11.74l11.57-4.461c.537-.194 1.006.131.832.943l.001-.001-1.97 9.281c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953z"
-      fill="white"
-    />
-  </svg>
-);
+// const TelegramIcon = () => (
+//   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+//     <path
+//       d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0z"
+//       fill="#2AABEE"
+//     />
+//     <path
+//       d="M5.491 11.74l11.57-4.461c.537-.194 1.006.131.832.943l.001-.001-1.97 9.281c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953z"
+//       fill="white"
+//     />
+//   </svg>
+// );
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
-// ⚠️ FIX: เดิม `router.push(decodeURIComponent(redirectTo))` เชื่อ query
-// param ตรงๆ — เข้า /login?redirect=https://evil-site.com แล้ว login สำเร็จ
-// จะโดนพาออกไปเว็บนอกทันที (open redirect) ต้องยอมรับเฉพาะ path ภายใน
-// ระบบเท่านั้น (ขึ้นต้นด้วย "/" เดี่ยว ไม่ใช่ "//" หรือ "/\" ซึ่งเบราว์เซอร์
-// บางตัวตีความเป็น protocol-relative URL ออกนอกโดเมนได้เหมือนกัน)
+
 function getSafeRedirect(raw: string | null): string | null {
   if (!raw) return null;
   let decoded: string;
@@ -81,8 +77,7 @@ function getSafeRedirect(raw: string | null): string | null {
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const { t } = useLanguage();
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -124,10 +119,10 @@ export default function LoginPage() {
     window.location.href = `${BACKEND_URL}/auth/google`;
   };
 
-  const handleTelegramLogin = () => {
-    setOauthLoading("telegram");
-    window.location.href = `${BACKEND_URL}/auth/telegram`;
-  };
+  // const handleTelegramLogin = () => {
+  //   setOauthLoading("telegram");
+  //   window.location.href = `${BACKEND_URL}/auth/telegram`;
+  // };
 
   const isAnyLoading = isLoading || oauthLoading !== null;
 
@@ -171,7 +166,7 @@ export default function LoginPage() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-4">
             <Button
               type="button"
               variant="outline"
@@ -187,7 +182,7 @@ export default function LoginPage() {
               <span className="ml-2">Google</span>
             </Button>
 
-            <Button
+            {/* <Button
               type="button"
               variant="outline"
               className="w-full"
@@ -200,7 +195,7 @@ export default function LoginPage() {
                 <TelegramIcon />
               )}
               <span className="ml-2">Telegram</span>
-            </Button>
+            </Button> */}
           </div>
 
           <div className="relative">

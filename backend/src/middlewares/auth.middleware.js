@@ -25,6 +25,7 @@
 
 const jwt = require('jsonwebtoken');
 const { sendUnauthorized } = require('../utils/response');
+const UserModel = require('../models/user.model');
 
 /**
  * authenticate
@@ -32,33 +33,43 @@ const { sendUnauthorized } = require('../utils/response');
  * header (fallback ชั่วคราว).
  * Usage: router.get('/protected', authenticate, controller)
  */
-const authenticate = (req, res, next) => {
-  // ── ทางหลัก: httpOnly cookie ──
-  let token = req.cookies?.token;
 
+const authenticate = async (req, res, next) => {
+    // ── ทางหลัก: httpOnly cookie ──
+  let token = req.cookies?.token;
   // ── Fallback ชั่วคราว: Authorization header ──
-  // เก็บไว้ระหว่าง migrate เท่านั้น ลบทิ้งเมื่อ client ทุกตัวย้ายมาใช้
-  // cookie ครบแล้ว (ไม่งั้นเปิดช่องให้ยังส่ง token ผ่าน header ได้อยู่ดี
-  // ซึ่งขัดจุดประสงค์การย้ายมา cookie)
   if (!token) {
     const authHeader = req.headers['authorization'];
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
     }
   }
-
-  if (!token) {
-    return sendUnauthorized(res, 'No token provided');
-  }
+  if (!token) return sendUnauthorized(res, 'No token provided');
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { user_id, username, role }
+
+    let active;
+    try {
+      active = await UserModel.isUserActive(decoded.user_id);
+    } catch (dbErr) {
+      // ⚠️ ถ้า DB พังตอนเช็ค is_active — fail-closed (ปฏิเสธ) ปลอดภัยกว่า
+      // fail-open เพราะนี่คือ auth gate ไม่ใช่แค่ feature เสริม
+      console.error('[Auth] is_active check failed:', dbErr.message);
+      return sendUnauthorized(res, 'Authentication check failed, please try again');
+    }
+
+    if (!active) {
+      res.clearCookie('token', { path: '/' });
+      res.clearCookie('auth_hint', { path: '/' });
+      res.clearCookie('csrf_token', { path: '/' });
+      return sendUnauthorized(res, 'บัญชีนี้ถูกปิดการใช้งาน');
+    }
+
+    req.user = decoded;
     next();
   } catch (err) {
-    if (err.name === 'TokenExpiredError') {
-      return sendUnauthorized(res, 'Token has expired');
-    }
+    if (err.name === 'TokenExpiredError') return sendUnauthorized(res, 'Token has expired');
     return sendUnauthorized(res, 'Invalid token');
   }
 };

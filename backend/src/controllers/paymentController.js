@@ -1,5 +1,5 @@
 /**
- * controllers/paymentController.js (Phase 5 — Telegram wired in)
+ * controllers/paymentController.js (Phase 5 — เชื่อมต่อ Telegram แล้ว)
  */
 
 const { validationResult } = require('express-validator');
@@ -11,8 +11,8 @@ const { sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden } 
 
 const getAllPayments = async (req, res, next) => {
   try {
-    const { tenant_id, bill_id, status } = req.query;
-    const payments = await PaymentModel.findAll({ tenant_id, bill_id, status });
+    const { tenant_id, bill_id, status, payment_method } = req.query;  
+    const payments = await PaymentModel.findAll({ tenant_id, bill_id, status, payment_method });
     return sendSuccess(res, payments);
   } catch (err) { next(err); }
 };
@@ -20,7 +20,7 @@ const getAllPayments = async (req, res, next) => {
 const getMyPayments = async (req, res, next) => {
   try {
     const tenant = await TenantModel.findByUserId(req.user.user_id);
-    if (!tenant) return sendNotFound(res, 'Tenant profile not found');
+    if (!tenant) return sendNotFound(res, 'ไม่พบข้อมูลโปรไฟล์ผู้เช่า');
     const payments = await PaymentModel.findAll({ tenant_id: tenant.tenant_id });
     return sendSuccess(res, payments);
   } catch (err) { next(err); }
@@ -29,10 +29,10 @@ const getMyPayments = async (req, res, next) => {
 const getPaymentById = async (req, res, next) => {
   try {
     const payment = await PaymentModel.findById(req.params.id);
-    if (!payment) return sendNotFound(res, 'Payment not found');
+    if (!payment) return sendNotFound(res, 'ไม่พบข้อมูลการชำระเงิน');
     if (req.user.role === 'tenant') {
       const tenant = await TenantModel.findByUserId(req.user.user_id);
-      if (!tenant || tenant.tenant_id !== payment.tenant_id) return sendForbidden(res, 'Access denied');
+      if (!tenant || tenant.tenant_id !== payment.tenant_id) return sendForbidden(res, 'ไม่มีสิทธิ์เข้าถึงข้อมูล');
     }
     return sendSuccess(res, payment);
   } catch (err) { next(err); }
@@ -46,23 +46,33 @@ const sendErrorWithCode = (res, statusCode, error_code, message) => {
 const submitPayment = async (req, res, next) => {
   try {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
     const { bill_id, payment_method } = req.body;
-    const bill = await BillModel.findById(bill_id);
-    if (!bill)                       return sendNotFound(res, 'Bill not found');
-    if (bill.status === 'paid')      return sendErrorWithCode(res, 400, 'payment.error.alreadyPaid', 'Bill already paid');
-    if (bill.status === 'cancelled') return sendErrorWithCode(res, 400, 'payment.error.cancelled', 'Bill cancelled');
 
     const tenant = await TenantModel.findByUserId(req.user.user_id);
-    if (!tenant) return sendNotFound(res, 'Tenant profile not found');
-    if (tenant.tenant_id !== bill.tenant_id)
-      return sendErrorWithCode(res, 403, 'payment.error.notYours', 'Bill does not belong to you');
+    if (!tenant) return sendNotFound(res, 'ไม่พบข้อมูลโปรไฟล์ผู้เช่า');
+
+    const bill = await BillModel.findById(bill_id);
+    // ⚠️ FIX: เช็ค ownership ก่อนเปิดเผยสถานะบิล — เดิมเช็คสถานะ (paid/
+    // cancelled) ก่อนเช็คว่าเป็นเจ้าของไหม ทำให้ tenant คนไหนก็ตามส่ง
+    // bill_id ของคนอื่นมาเดา (auto-increment ID เดาง่าย) แล้วรู้สถานะ
+    // การเงินของ tenant คนอื่นได้ทันที ทั้งที่ไม่ใช่บิลของตัวเอง — ตอนนี้
+    // เช็ค ownership ก่อน และคืน 404 เหมือนไม่มีบิลนี้อยู่เลย ไม่ยืนยัน
+    // ด้วยซ้ำว่า bill_id นี้มีอยู่จริงในระบบ
+    
+    // controllers/paymentController.js
+    if (!bill || bill.tenant_id !== tenant.tenant_id) {
+      return sendErrorWithCode(res, 404, 'payment.error.billNotFound', 'ไม่พบข้อมูลบิล');
+    }
+
+    if (bill.status === 'paid') return sendErrorWithCode(res, 400, 'payment.error.alreadyPaid', 'บิลนี้ชำระเงินแล้ว');
+    if (bill.status === 'cancelled') return sendErrorWithCode(res, 400, 'payment.error.cancelled', 'บิลนี้ถูกยกเลิกแล้ว');
 
     const existingPayments = await PaymentModel.findByBillId(bill_id);
     const hasPending = existingPayments.some(p => p.status === 'pending_verify');
     if (hasPending)
-      return sendErrorWithCode(res, 400, 'payment.error.pendingVerify', 'Payment already pending verification');
+      return sendErrorWithCode(res, 400, 'payment.error.pendingVerify', 'มีรายการชำระเงินที่รอการตรวจสอบอยู่แล้ว');
 
     const slip_image = req.file ? req.file.path : null;
 
@@ -74,39 +84,39 @@ const submitPayment = async (req, res, next) => {
     const newPayment = await PaymentModel.findById(paymentId);
     TelegramService.notifyAdminNewPayment(newPayment).catch(() => {});
 
-    return sendCreated(res, newPayment, 'Payment submitted successfully. Awaiting admin verification.');
+    return sendCreated(res, newPayment, 'ส่งข้อมูลการชำระเงินสำเร็จ กำลังรอผู้ดูแลระบบตรวจสอบ');
   } catch (err) { next(err); }
 };
 
 const verifyPayment = async (req, res, next) => {
   try {
     const payment = await PaymentModel.findById(req.params.id);
-    if (!payment) return sendNotFound(res, 'Payment not found');
-    if (payment.status !== 'pending_verify') return sendBadRequest(res, `Payment is already '${payment.status}'`);
+    if (!payment) return sendNotFound(res, 'ไม่พบข้อมูลการชำระเงิน');
+    if (payment.status !== 'pending_verify') return sendBadRequest(res, `รายการชำระเงินนี้มีสถานะ '${payment.status}' อยู่แล้ว`);
 
     await PaymentModel.verify(req.params.id, req.user.user_id, 'verified', req.body.remark || null);
     await BillModel.updateStatus(payment.bill_id, 'paid');
     const updated = await PaymentModel.findById(req.params.id);
     TelegramService.sendPaymentConfirmation(updated).catch(() => {});
 
-    return sendSuccess(res, updated, 'Payment verified — bill marked as paid');
+    return sendSuccess(res, updated, 'ยืนยันการชำระเงินสำเร็จ — บิลถูกเปลี่ยนสถานะเป็นชำระแล้ว');
   } catch (err) { next(err); }
 };
 
 const rejectPayment = async (req, res, next) => {
   try {
     const { remark } = req.body;
-    if (!remark) return sendBadRequest(res, 'A remark/reason is required when rejecting a payment');
+    if (!remark) return sendBadRequest(res, 'กรุณาระบุหมายเหตุหรือเหตุผลในการปฏิเสธการชำระเงิน');
 
     const payment = await PaymentModel.findById(req.params.id);
-    if (!payment) return sendNotFound(res, 'Payment not found');
-    if (payment.status !== 'pending_verify') return sendBadRequest(res, `Payment is already '${payment.status}'`);
+    if (!payment) return sendNotFound(res, 'ไม่พบข้อมูลการชำระเงิน');
+    if (payment.status !== 'pending_verify') return sendBadRequest(res, `รายการชำระเงินนี้มีสถานะ '${payment.status}' อยู่แล้ว`);
 
     await PaymentModel.verify(req.params.id, req.user.user_id, 'rejected', remark);
     const updated = await PaymentModel.findById(req.params.id);
     TelegramService.sendPaymentRejected(updated).catch(() => {});
 
-    return sendSuccess(res, updated, 'Payment rejected. Tenant will be notified.');
+    return sendSuccess(res, updated, 'ปฏิเสธการชำระเงินแล้ว ผู้เช่าจะได้รับการแจ้งเตือน');
   } catch (err) { next(err); }
 };
 

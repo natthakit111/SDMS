@@ -75,46 +75,28 @@ export default function TenantContractPage() {
   const handleDownload = async () => {
     if (!contract) return;
 
-    // มีไฟล์สัญญาจริงในระบบ (admin อัปโหลดไว้แล้ว) → ดาวน์โหลดไฟล์จริง
-    if (contract.contract_file) {
-      setDownloading(true);
-      try {
-        const res = await contractAPI.downloadFile(contract.contract_id);
-        const blob = new Blob([res.data]);
-        const url = URL.createObjectURL(blob);
-        const ext = contract.contract_file.split(".").pop();
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `contract_CNT${String(contract.contract_id).padStart(3, "0")}.${ext}`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } catch {
-        toast.error(t("tenant.contract.downloadError"));
-      } finally {
-        setDownloading(false);
-      }
+    // ยังไม่มีไฟล์จริง — ไม่ต้องเรียก API เลย บอก user ตรงๆ
+    if (!contract.contract_file) {
+      toast.error(t("tenant.contract.noFileYetDesc"));
       return;
     }
 
-    // fallback: ยังไม่มีไฟล์อัปโหลด → สร้างสรุปข้อมูลเป็น .txt แทน
-    const s = statusConfig[contract.status] ?? statusConfig.expired;
-    const text = [
-      t("tenant.contract.title"),
-      "",
-      `${t("common.name")}: ${contract.tenant_name}`,
-      `${t("rooms.roomNumber")}: ${contract.room_number}`,
-      `${t("contracts.startDate")}: ${fmtDate(contract.start_date)}`,
-      `${t("contracts.endDate")}: ${fmtDate(contract.end_date)}`,
-      `${t("tenant.rentPerMonth")}: ${fmtCurrency(contract.rent_amount)}`,
-      `${t("contracts.deposit")}: ${fmtCurrency(contract.deposit_amount)}`,
-      `${t("common.status")}: ${s.label}`,
-      contract.note ? `${t("common.note")}: ${contract.note}` : "",
-    ].join("\n");
-
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
-    a.download = `contract_CNT${String(contract.contract_id).padStart(3, "0")}.txt`;
-    a.click();
+    setDownloading(true);
+    try {
+      const res = await contractAPI.downloadFile(contract.contract_id);
+      const blob = new Blob([res.data]);
+      const url = URL.createObjectURL(blob);
+      const ext = contract.contract_file.split(".").pop();
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `contract_CNT${String(contract.contract_id).padStart(3, "0")}.${ext}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error(t("tenant.contract.downloadError"));
+    } finally {
+      setDownloading(false);
+    }
   };
 
   if (loading)
@@ -129,7 +111,7 @@ export default function TenantContractPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">{t("tenant.contract.title")}</h1>
+          <h1 className="text-2xl font-bold">{t("tenant.contract.title")}</h1>
           <p className="text-muted-foreground mt-2">
             {t("tenant.contract.subtitle")}
           </p>
@@ -148,15 +130,17 @@ export default function TenantContractPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">{t("tenant.contract.title")}</h1>
+        <h1 className="text-2xl font-bold">{t("tenant.contract.title")}</h1>
         <p className="text-muted-foreground mt-2">
           {t("tenant.contract.subtitle")}
         </p>
       </div>
 
-      <Card className="border-primary/50 bg-primary/5">
+      <Card className="border-primary/50 bg-primary/5 max-w-2xl">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          {/* ✅ FIX: flex-wrap + gap-2 กันชนกันบนจอแคบมาก + shrink-0 ที่ badge
+              กันไม่ให้ label ยาวบีบจนแถบ CNT id ถูกอัดจนอ่านยาก */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <CardTitle>{t("tenant.contract.current")}</CardTitle>
               <CardDescription>
@@ -164,78 +148,91 @@ export default function TenantContractPage() {
               </CardDescription>
             </div>
             <span
-              className={`text-xs font-medium px-3 py-1 rounded-full ${s.color}`}
+              className={`text-xs font-medium px-3 py-1 rounded-full shrink-0 ${s.color}`}
             >
               {s.label}
             </span>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <p className="text-sm text-muted-foreground">
+        <CardContent className="space-y-5">
+          {/* Hero: ค่าเช่า */}
+          <div className="text-center py-2">
+            <p className="text-sm text-muted-foreground">
+              {t("tenant.rentPerMonth")}
+            </p>
+            <p className="text-3xl font-bold text-primary mt-1">
+              {fmtCurrency(contract.rent_amount)}
+            </p>
+          </div>
+
+          {/* Detail list */}
+          <div className="border-t pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
                 {t("rooms.roomNumber")}
-              </p>
-              <p className="text-2xl font-bold">{contract.room_number}</p>
+              </span>
+              <span className="text-sm font-medium">
+                {contract.room_number}
+              </span>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t("tenant.rentPerMonth")}
-              </p>
-              <p className="text-2xl font-bold text-primary">
-                {fmtCurrency(contract.rent_amount)}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
                 {t("contracts.startDate")}
-              </p>
-              <p className="text-lg font-semibold">
+              </span>
+              <span className="text-sm font-medium">
                 {fmtDate(contract.start_date)}
-              </p>
+              </span>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
                 {t("contracts.endDate")}
-              </p>
-              <p className="text-lg font-semibold">
+              </span>
+              <span className="text-sm font-medium">
                 {fmtDate(contract.end_date)}
-              </p>
+              </span>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
                 {t("contracts.deposit")}
-              </p>
-              <p className="text-lg font-semibold text-yellow-600">
+              </span>
+              <span className="text-sm font-medium text-yellow-600">
                 {fmtCurrency(contract.deposit_amount)}
-              </p>
+              </span>
             </div>
             {contract.note && (
-              <div>
-                <p className="text-sm text-muted-foreground">
+              <div className="flex items-start justify-between gap-4 pt-1">
+                <span className="text-sm text-muted-foreground shrink-0">
                   {t("common.note")}
-                </p>
-                <p className="text-sm">{contract.note}</p>
+                </span>
+                <span className="text-sm text-right">{contract.note}</span>
               </div>
             )}
           </div>
 
           <div className="pt-4 border-t">
+            {/* ปุ่ม Download เดิม — ไม่ต้องแก้ */}
             <Button
               onClick={handleDownload}
               disabled={downloading}
-              className="gap-2"
+              className="w-full sm:w-auto min-h-[44px]"
             >
               {downloading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t("tenant.contract.downloading")}
+                </>
+              ) : contract?.contract_file ? (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  {t("tenant.contract.download")}
+                </>
               ) : (
-                <Download className="h-4 w-4" />
+                <>{t("tenant.contract.noFileYet")}</>
               )}
-              {t("common.download")}
             </Button>
             {!contract.contract_file && (
               <p className="text-xs text-muted-foreground mt-2">
-                {t("tenant.contract.noFileYet")}
+                {t("tenant.contract.noFileYetDesc")}
               </p>
             )}
           </div>

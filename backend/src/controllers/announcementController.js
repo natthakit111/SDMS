@@ -42,10 +42,26 @@ const getAll = async (req, res, next) => {
   } catch (err) { next(err) }
 }
 
+// ใหม่
 const getById = async (req, res, next) => {
   try {
     const item = await AnnouncementModel.findById(req.params.id)
-    if (!item) return sendNotFound(res, 'Announcement not found')
+    if (!item) return sendNotFound(res, 'ไม่พบประกาศ')
+
+    // ⚠️ FIX: เดิมไม่มีการกรองสิทธิ์เลย ต่างจาก getAll ที่กรอง audience/floor
+    // ไว้ — tenant เดา announcement_id แล้วเห็นประกาศที่ไม่ใช่ของตัวเองได้
+    if (req.user.role !== 'admin') {
+      if (item.target_audience === 'admin') {
+        return sendNotFound(res, 'ไม่พบประกาศ')
+      }
+      if (item.target_floor !== null) {
+        const tenantFloor = await getTenantFloor(req.user.user_id)
+        if (tenantFloor !== item.target_floor) {
+          return sendNotFound(res, 'ไม่พบประกาศ')
+        }
+      }
+    }
+
     return sendSuccess(res, item)
   } catch (err) { next(err) }
 }
@@ -53,7 +69,7 @@ const getById = async (req, res, next) => {
 const create = async (req, res, next) => {
   try {
     const errors = validationResult(req)
-    if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array())
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array())
 
     const { title, content, target_audience, target_floor, is_pinned, is_urgent, expires_at } = req.body
     const id = await AnnouncementModel.create({
@@ -75,25 +91,28 @@ const create = async (req, res, next) => {
       ).catch(() => {})
     }
 
-    return sendCreated(res, item, 'Announcement published')
+    return sendCreated(res, item, 'เผยแพร่ประกาศสำเร็จ')
   } catch (err) { next(err) }
 }
 
 const update = async (req, res, next) => {
   try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array())
+
     const item = await AnnouncementModel.findById(req.params.id)
-    if (!item) return sendNotFound(res, 'Announcement not found')
+    if (!item) return sendNotFound(res, 'ไม่พบประกาศ')
     await AnnouncementModel.update(req.params.id, req.body)
-    return sendSuccess(res, await AnnouncementModel.findById(req.params.id), 'Announcement updated')
+    return sendSuccess(res, await AnnouncementModel.findById(req.params.id), 'อัปเดตประกาศสำเร็จ')
   } catch (err) { next(err) }
 }
 
 const remove = async (req, res, next) => {
   try {
     const item = await AnnouncementModel.findById(req.params.id)
-    if (!item) return sendNotFound(res, 'Announcement not found')
+    if (!item) return sendNotFound(res, 'ไม่พบประกาศ')
     await AnnouncementModel.remove(req.params.id)
-    return sendSuccess(res, null, 'Announcement deleted')
+    return sendSuccess(res, null, 'ลบประกาศสำเร็จ')
   } catch (err) { next(err) }
 }
 

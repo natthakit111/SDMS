@@ -34,17 +34,20 @@ export const contractAPI = {
   // data?: { checkout_date? } — ใช้ได้กับสัญญา status = 'active' (ยกเลิกก่อนกำหนด)
   // หรือ 'expired' (แอดมินเคลียร์ห้องหลังหมดสัญญา / ทำเรื่องย้ายออก) ไม่มีค่าปรับถ้าเช็คเอาท์หลังวันหมดสัญญา
 
-  // ── Contract file (PDF/Word) ────────────────────────────────
   uploadFile: (id, file) => {
     const formData = new FormData();
-    formData.append('file', file);
+    // ⚠️ field ชื่อ `contract_file` (ต้องตรงกับ Cloudinary multer ใน backend
+    // upload.middleware.js — เดิม backend ใช้ multer diskStorage แยกเอง
+    // field name 'file', ย้ายมาใช้ Cloudinary middleware กลางแล้ว field
+    // name เปลี่ยนเป็น 'contract_file' ตาม FIELD_CONFIG)
+    formData.append('contract_file', file);
     return api
       .post(`/contracts/${id}/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       .then((r) => r.data);
   },
-  // file: File object จาก <input type="file"> — เฉพาะ admin, รองรับ .pdf .doc .docx ไม่เกิน 10MB
+  // file: File object จาก <input type="file"> — เฉพาะ admin, รองรับ .pdf เท่านั้น ไม่เกิน 5MB
 
   downloadFile: (id) =>
     api.get(`/contracts/${id}/file`, { responseType: 'blob' }),

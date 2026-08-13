@@ -107,6 +107,18 @@ const findAll = async () => {
   return rows;
 };
 
+//  ใช้เช็ค is_active ทุก request ที่ authenticate (ดู
+// auth.middleware.js) — เลือก SELECT แค่ 2 คอลัมน์ที่จำเป็นเพื่อให้ query
+// เบาที่สุด ไม่ใช้ findById() ที่ select field เยอะกว่าที่ต้องการ
+const isUserActive = async (userId) => {
+  const [rows] = await pool.query(
+    'SELECT is_active FROM users WHERE user_id = ? LIMIT 1',
+    [userId]
+  );
+  if (!rows[0]) return false; // user ถูกลบไปแล้วจริงๆ (ไม่ใช่แค่ deactivate)
+  return rows[0].is_active === 1;
+};
+
 module.exports = {
   findByUsername,
   findByIdentifier,
@@ -121,4 +133,5 @@ module.exports = {
   clearTelegramChatId,
   deactivateUser,
   findAll,
+  isUserActive,
 };

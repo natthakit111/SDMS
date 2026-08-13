@@ -64,7 +64,7 @@ const update = async (tenantId, fields, conn = null) => {
   }
   if (!setClauses.length) return 0;
   params.push(tenantId);
-  const runner = conn || pool; // ✅ ใช้ conn ถ้ามี (อยู่ใน transaction) ไม่งั้น fallback เป็น pool ปกติ
+  const runner = conn || pool; // ✅ มีอยู่แล้ว ไม่ต้องแก้
   const [result] = await runner.query(`UPDATE tenants SET ${setClauses.join(', ')} WHERE tenant_id = ?`, params);
   return result.affectedRows;
 };
@@ -81,10 +81,14 @@ const findConflictByPhoneOrEmail = async (phone, email) => {
 };
 
 // ── ใช้ใน authController.register: สร้าง tenant record แบบ placeholder ──
-const createFromSelfRegistration = async ({ userId, firstName, lastName, phone, email }) => {
+// ⚠️ FIX: เปลี่ยนจาก INSERT IGNORE (เงียบเมื่อชน unique constraint) เป็น
+// INSERT ธรรมดา — ต้องรับ conn เข้ามาเพื่ออยู่ใน transaction เดียวกับ
+// createUser ใน authController.register ถ้า insert ล้มเหลว error จะ
+// propagate ขึ้นไปให้ transaction rollback ทั้งคู่ ไม่ทิ้ง orphaned user
+const createFromSelfRegistration = async (conn, { userId, firstName, lastName, phone, email }) => {
   const placeholderIdCard = `REG${String(userId).padStart(9, '0')}`;
-  await pool.query(
-    `INSERT IGNORE INTO tenants (user_id, first_name, last_name, id_card_number, phone, email)
+  await conn.query(
+    `INSERT INTO tenants (user_id, first_name, last_name, id_card_number, phone, email)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [userId, firstName, lastName || 'ไม่ระบุ', placeholderIdCard, phone || '0000000000', email || null]
   );
@@ -155,9 +159,11 @@ const createFull = async (conn, userId, data) => {
 };
 
 // ── ใช้ใน telegram.routes.js POST /broadcast: นับ tenant ที่ active + เชื่อม Telegram แล้ว ──
+// ป้องกันการนับผู้ใช้ซ้ำ (Overcounting) กรณีที่ 1 คนมีหลายสัญญาเช่า
 const countActiveWithTelegram = async () => {
   const [rows] = await pool.query(
-    `SELECT COUNT(*) AS total FROM users u
+    `SELECT COUNT(DISTINCT u.user_id) AS total 
+     FROM users u
      JOIN tenants t ON u.user_id = t.user_id
      JOIN contracts c ON c.tenant_id = t.tenant_id AND c.status = 'active'
      WHERE u.is_active = 1 AND u.telegram_chat_id IS NOT NULL`

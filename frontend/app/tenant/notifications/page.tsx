@@ -3,23 +3,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bell, Trash2, CheckCircle2, Loader2 } from "lucide-react";
-import { billAPI } from "@/lib/api/bill.api";
-import { maintenanceAPI } from "@/lib/api/maintenance.api";
-import { announcementAPI } from "@/lib/api/announcement.api";
 import { useLanguage } from "@/context/language-context";
-
-interface Notification {
-  id: string;
-  type: "bill" | "maintenance" | "announcement";
-  title: string;
-  message: string;
-  timestamp: string;
-  isRead: boolean;
-}
+import { useAuth } from "@/context/auth-context";
+import { useNotification } from "@/context/notification-context";
+import {
+  buildNotifications,
+  loadActions,
+  saveActions,
+  NotificationItem,
+} from "@/lib/notifications";
 
 const typeEmoji: Record<string, string> = {
   bill: "📄",
@@ -35,7 +32,10 @@ const typeColors: Record<string, string> = {
 
 export default function TenantNotificationsPage() {
   const { t, language } = useLanguage();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { user } = useAuth();
+  const { refresh: refreshBell } = useNotification();
+  const router = useRouter();
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fmtDate = (d: string) =>
@@ -46,101 +46,85 @@ export default function TenantNotificationsPage() {
     });
 
   useEffect(() => {
-    const build = async () => {
-      const items: Notification[] = [];
-      try {
-        const [billRes, maintRes, annRes] = await Promise.allSettled([
-          billAPI.getMyBills(),
-          maintenanceAPI.getMyRequests(),
-          announcementAPI.getAll(),
-        ]);
+    if (!user) return;
+    setLoading(true);
+    buildNotifications(
+      user.id,
+      fmtDate,
+      {
+        pendingBill: t("tenant.pendingBill"),
+        overdueBill: t("tenant.overdueBill"),
+        resolved: t("status.resolved"),
+        announcement: t("announcements.title"),
+        totalAmount: t("bills.totalAmount"),
+      },
+      (m) => t(`month.${m}`),
+    )
+      .then((items) => setNotifications(items))
+      .finally(() => setLoading(false));
+  }, [language, user]);
 
-        if (billRes.status === "fulfilled") {
-          const bills = billRes.value.data ?? [];
-          bills
-            .filter(
-              (b: any) => b.status === "pending" || b.status === "overdue",
-            )
-            .forEach((b: any) => {
-              items.push({
-                id: `bill-${b.bill_id}`,
-                type: "bill",
-                title:
-                  b.status === "overdue"
-                    ? t("tenant.overdueBill")
-                    : t("tenant.pendingBill"),
-                message: `${t(`month.${b.bill_month}`)} ${b.bill_year} • ${t("bills.totalAmount")} ${Number(b.total_amount).toLocaleString("th-TH")} ฿`,
-                timestamp: fmtDate(b.due_date),
-                isRead: false,
-              });
-            });
-        }
-
-        if (maintRes.status === "fulfilled") {
-          const reqs = maintRes.value.data ?? [];
-          reqs
-            .filter((r: any) => r.status === "resolved")
-            .forEach((r: any) => {
-              items.push({
-                id: `maint-${r.request_id}`,
-                type: "maintenance",
-                title: t("status.resolved"),
-                message: `${r.category} — ${t("status.resolved")}`,
-                timestamp: fmtDate(r.created_at),
-                isRead: true,
-              });
-            });
-        }
-
-        if (annRes.status === "fulfilled") {
-          const anns = annRes.value.data ?? [];
-          anns.slice(0, 3).forEach((a: any) => {
-            items.push({
-              id: `ann-${a.announcement_id}`,
-              type: "announcement",
-              title: t("announcements.title"),
-              message: a.title,
-              timestamp: fmtDate(a.published_at),
-              isRead: a.is_pinned !== 1,
-            });
-          });
-        }
-      } catch {
-        /* ไม่ทำอะไร */
-      }
-
-      setNotifications(items);
-      setLoading(false);
-    };
-    build();
-  }, [language]); // re-build เมื่อ language เปลี่ยน
-
-  const markRead = (id: string) =>
+  const markRead = (id: string) => {
     setNotifications((p) =>
       p.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
     );
+    if (user) {
+      const actions = loadActions(user.id);
+      actions[id] = "read";
+      saveActions(user.id, actions);
+      refreshBell();
+    }
+  };
 
-  const remove = (id: string) =>
+  const remove = (id: string) => {
     setNotifications((p) => p.filter((n) => n.id !== id));
+    if (user) {
+      const actions = loadActions(user.id);
+      actions[id] = "deleted";
+      saveActions(user.id, actions);
+      refreshBell();
+    }
+  };
 
-  const markAllRead = () =>
+  const markAllRead = () => {
     setNotifications((p) => p.map((n) => ({ ...n, isRead: true })));
+    if (user) {
+      const actions = loadActions(user.id);
+      notifications
+        .filter((n) => !n.isRead)
+        .forEach((n) => {
+          actions[n.id] = "read";
+        });
+      saveActions(user.id, actions);
+      refreshBell();
+    }
+  };
+
+  // คลิกที่การ์ด — mark read แล้วเด้งไปหน้าที่เกี่ยวข้อง
+  const handleCardClick = (n: NotificationItem) => {
+    markRead(n.id);
+    router.push(n.href);
+  };
 
   const unread = notifications.filter((n) => !n.isRead).length;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight">
             {t("notifications.title")}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground mt-2">
             {unread} {t("notifications.unread")}
           </p>
         </div>
         {unread > 0 && (
-          <Button variant="outline" onClick={markAllRead}>
+          <Button
+            variant="outline"
+            onClick={markAllRead}
+            className="w-full sm:w-auto"
+          >
             <CheckCircle2 className="w-4 h-4 mr-2" />
             {t("notifications.markAll")}
           </Button>
@@ -164,7 +148,8 @@ export default function TenantNotificationsPage() {
           {notifications.map((n) => (
             <div
               key={n.id}
-              className={`flex gap-4 p-4 rounded-lg border transition-all ${
+              onClick={() => handleCardClick(n)}
+              className={`flex gap-4 p-4 rounded-lg border transition-all cursor-pointer hover:border-primary/50 ${
                 n.isRead
                   ? "bg-card/50 border-border"
                   : "bg-primary/5 border-primary/30"
@@ -191,13 +176,16 @@ export default function TenantNotificationsPage() {
                   {n.timestamp}
                 </p>
               </div>
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex gap-1 flex-shrink-0">
                 {!n.isRead && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => markRead(n.id)}
-                    className="text-primary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      markRead(n.id);
+                    }}
+                    className="text-primary min-w-[40px] min-h-[40px] p-0"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                   </Button>
@@ -205,8 +193,11 @@ export default function TenantNotificationsPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => remove(n.id)}
-                  className="text-destructive hover:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    remove(n.id);
+                  }}
+                  className="text-destructive hover:text-destructive min-w-[40px] min-h-[40px] p-0"
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>

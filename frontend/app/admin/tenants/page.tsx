@@ -52,6 +52,7 @@ import {
   EyeOff,
   Dices,
   Info,
+  DoorOpen,
 } from "lucide-react";
 import { formatDate, type Locale } from "@/lib/utils";
 import { tenantAPI } from "@/lib/api/tenant.api";
@@ -367,6 +368,11 @@ export default function TenantsPage() {
       });
     }
   };
+  // ⚠️ ใหม่: mask เลขบัตรประชาชนในมุมมอง list — โชว์เต็มแค่ตอน edit
+  // (แสดงในฟอร์มปกติ) ป้องกัน shoulder-surfing ตอน admin เปิดดูบนมือถือ
+  // ในที่สาธารณะ
+  const maskIdCard = (id: string) =>
+    id?.length === 13 ? `${id.slice(0, 1)}-XXXX-XXXXX-XX-${id.slice(-1)}` : id;
 
   const FieldError = ({ field }: { field: keyof FormData }) =>
     fieldErrors[field] ? (
@@ -409,7 +415,7 @@ export default function TenantsPage() {
                 </Button>
               </DialogTrigger>
 
-              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogContent className="w-[calc(100%-2rem)] max-w-lg max-h-[90dvh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
                     {editingTenant ? t("tenants.edit") : t("tenants.addNew")}
@@ -423,7 +429,7 @@ export default function TenantsPage() {
 
                 <form onSubmit={handleSubmit} noValidate>
                   <FieldGroup>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <Field>
                         <FieldLabel htmlFor="first_name">
                           {t("common.firstName")}
@@ -460,7 +466,7 @@ export default function TenantsPage() {
                       </Field>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <Field>
                         <FieldLabel htmlFor="email">
                           {t("common.email")}
@@ -528,7 +534,7 @@ export default function TenantsPage() {
                       </Field>
                     )}
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <Field>
                         <FieldLabel htmlFor="emergency_contact_name">
                           {t("tenants.emergencyName")}
@@ -685,59 +691,127 @@ export default function TenantsPage() {
               <Loader2 className="h-5 w-5 animate-spin" />
               {t("common.loading")}
             </div>
+          ) : filteredTenants.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {t("common.noData")}
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("common.name")}</TableHead>
-                  <TableHead>{t("common.contact")}</TableHead>
-                  <TableHead>{t("rooms.roomNumber")}</TableHead>
-                  <TableHead>{t("tenants.contractStatus")}</TableHead>
-                  <TableHead>{t("common.createdAt")}</TableHead>
-                  <TableHead className="text-right">
-                    {t("common.actions")}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* ── Desktop: table ───────────────────────────────────── */}
+              <Table className="hidden md:table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("common.name")}</TableHead>
+                    <TableHead>{t("common.contact")}</TableHead>
+                    <TableHead>{t("rooms.roomNumber")}</TableHead>
+                    <TableHead>{t("tenants.contractStatus")}</TableHead>
+                    <TableHead>{t("common.createdAt")}</TableHead>
+                    <TableHead className="text-right">
+                      {t("common.actions")}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredTenants.map((tenant) => (
+                    <TableRow key={tenant.tenant_id}>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">
+                            {tenant.first_name} {tenant.last_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {maskIdCard(tenant.id_card_number)}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1 text-sm">
+                            <Phone className="h-3 w-3 text-muted-foreground" />
+                            {tenant.phone}
+                          </div>
+                          {tenant.email && (
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                              <Mail className="h-3 w-3" />
+                              {tenant.email}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {tenant.room_number ? (
+                          <span className="font-medium">
+                            {tenant.room_number}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {showInactive ? (
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                            {t("tenants.deleted")}
+                          </span>
+                        ) : (
+                          <TenantStatusBadge
+                            status={
+                              tenant.contract_status === "active"
+                                ? "active"
+                                : "pending"
+                            }
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {formatDate(tenant.created_at, language)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {!showInactive && (
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(tenant)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDelete(tenant)}
+                              disabled={tenant.contract_status === "active"}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {/* ── Mobile: card list ──────────────────────────────────
+            ⚠️ ใหม่: เดิม table เดียวใช้ทุกขนาดจอ 6 คอลัมน์ล้นจอมือถือ
+            แถมมี id_card_number อยู่ในรายการเห็นตรงๆ — ตอนนี้แยกเป็น
+            การ์ด + mask เลขบัตรในมุมมอง list ด้วย */}
+              <div className="md:hidden space-y-3">
                 {filteredTenants.map((tenant) => (
-                  <TableRow key={tenant.tenant_id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">
+                  <div
+                    key={tenant.tenant_id}
+                    className="rounded-lg border p-4 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">
                           {tenant.first_name} {tenant.last_name}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {tenant.id_card_number}
+                          {maskIdCard(tenant.id_card_number)}
                         </p>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3 w-3 text-muted-foreground" />
-                          {tenant.phone}
-                        </div>
-                        {tenant.email && (
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Mail className="h-3 w-3" />
-                            {tenant.email}
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {tenant.room_number ? (
-                        <span className="font-medium">
-                          {tenant.room_number}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
                       {showInactive ? (
-                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                        <span className="shrink-0 inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
                           {t("tenants.deleted")}
                         </span>
                       ) : (
@@ -749,43 +823,59 @@ export default function TenantsPage() {
                           }
                         />
                       )}
-                    </TableCell>
-                    <TableCell>{formatDate(tenant.created_at, language)}</TableCell>
-                    <TableCell className="text-right">
-                      {!showInactive && (
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(tenant)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(tenant)}
-                            disabled={tenant.contract_status === "active"}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                    </div>
+
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
+                        <Phone className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{tenant.phone}</span>
+                      </div>
+                      {tenant.email && (
+                        <div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
+                          <Mail className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{tenant.email}</span>
                         </div>
                       )}
-                    </TableCell>
-                  </TableRow>
+                      <div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
+                        <DoorOpen className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">
+                          {tenant.room_number ?? "-"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground">
+                      {t("common.createdAt")}:{" "}
+                      {formatDate(tenant.created_at, language)}
+                    </div>
+
+                    {!showInactive && (
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => handleEdit(tenant)}
+                        >
+                          <Pencil className="h-4 w-4 mr-1.5" />
+                          {t("common.edit") ?? "แก้ไข"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-destructive hover:text-destructive"
+                          onClick={() => handleDelete(tenant)}
+                          disabled={tenant.contract_status === "active"}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1.5" />
+                          {t("common.delete") ?? "ลบ"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 ))}
-                {filteredTenants.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      className="text-center py-8 text-muted-foreground"
-                    >
-                      {t("common.noData")}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

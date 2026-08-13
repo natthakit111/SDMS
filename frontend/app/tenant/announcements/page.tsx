@@ -71,10 +71,14 @@ export default function TenantAnnouncementsPage() {
     >
       <CardContent className="pt-6 space-y-3">
         <div className="flex items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              {ann.is_pinned === 1 && <Pin className="h-4 w-4 text-primary" />}
-              <h3 className={`font-bold ${highlight ? "text-lg" : ""}`}>
+              {ann.is_pinned === 1 && (
+                <Pin className="h-4 w-4 text-primary shrink-0" />
+              )}
+              <h3
+                className={`font-bold break-words ${highlight ? "text-lg" : ""}`}
+              >
                 {ann.title}
               </h3>
             </div>
@@ -95,7 +99,7 @@ export default function TenantAnnouncementsPage() {
         >
           {ann.content}
         </p>
-        <div className="flex items-center gap-4 text-xs text-muted-foreground pt-3 border-t">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground pt-3 border-t">
           <span className="flex items-center gap-1">
             <Calendar className="h-3 w-3" />
             {formatDate(ann.published_at)}
@@ -113,7 +117,7 @@ export default function TenantAnnouncementsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">{t("announcements.title")}</h1>
+        <h1 className="text-2xl font-bold">{t("announcements.title")}</h1>
         <p className="text-muted-foreground mt-2">
           {t("announcements.subtitle")}
         </p>
@@ -122,7 +126,7 @@ export default function TenantAnnouncementsPage() {
       <Card>
         <CardContent className="pt-6">
           <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder={t("common.search") + "..."}
               className="pl-10"

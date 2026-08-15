@@ -5,6 +5,11 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
+@source '../app/**/*.{ts,tsx}';
+@source '../components/**/*.{ts,tsx}';
+@source '../lib/**/*.{ts,tsx}';
+@source '../hooks/**/*.{ts,tsx}';
+
 @custom-variant dark (&:is(.dark *));
 
 /* ── Light Theme ──────────────────────────────────────────── */

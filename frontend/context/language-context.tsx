@@ -46,7 +46,10 @@ const translations: Record<string, { th: string; en: string }> = {
   "common.add": { th: "เพิ่ม", en: "Add" },
   "common.search": { th: "ค้นหา", en: "Search" },
   "common.filter": { th: "กรอง", en: "Filter" },
-  "common.all": { th: "ทั้งหมด", en: "All" },
+  "common.all": {
+    th: "สถานะทั้งหมด",
+    en: "All Statuses",
+  },
   "common.loading": { th: "กำลังโหลด...", en: "Loading..." },
   "common.noData": { th: "ไม่พบข้อมูล", en: "No data found" },
   "common.confirm": { th: "ยืนยัน", en: "Confirm" },
@@ -540,7 +543,7 @@ const translations: Record<string, { th: string; en: string }> = {
   "bills.electricAmount": { th: "ค่าไฟฟ้า", en: "Electric" },
   "bills.waterAmount": { th: "ค่าน้ำ", en: "Water" },
   "bills.otherAmount": { th: "ค่าอื่นๆ", en: "Other" },
-  "bills.totalAmount": { th: "ยอดรวม", en: "Total Amount" },
+  "bills.outstandingAmount": { th: "ยอดค้างชำระ", en: "Outstanding Amount" },
   "bills.list": { th: "รายการบิล", en: "Bill List" },
   "bills.cancelBill": { th: "ยกเลิกบิล", en: "Cancel Bill" },
   "bills.detail": { th: "รายละเอียดบิล", en: "Bill Detail" },
@@ -551,6 +554,10 @@ const translations: Record<string, { th: string; en: string }> = {
   "bills.exportInvoice": {
     th: "ดาวน์โหลดใบเสร็จ",
     en: "Download Receipt",
+  },
+  "bills.totalAmount": {
+    th: "ยอดเงินรวม",
+    en: "Total Amount"
   },
 
   // ── Bill Errors ─────────────────────────────────────────────────────────
@@ -609,7 +616,10 @@ const translations: Record<string, { th: string; en: string }> = {
   },
   "payment.billNo": { th: "บิล", en: "Bill" },
   "payment.method": { th: "วิธีชำระ", en: "Payment Method" },
-  "payment.allMethods": { th: "วิธีทั้งหมด", en: "All Methods" },
+  "payment.allMethods": {
+    th: "วิธีทั้งหมด",
+    en: "All Methods",
+  },
   "payment.methodQR": { th: "พร้อมเพย์", en: "PromptPay" },
   "payment.methodCash": { th: "เงินสด", en: "Cash" },
   "payment.methodTransfer": { th: "โอนเงิน", en: "Bank Transfer" },
@@ -714,6 +724,16 @@ const translations: Record<string, { th: string; en: string }> = {
   "paymentVerify.statsPending": { th: "รอการตรวจสอบ", en: "Pending Review" },
   "paymentVerify.statsVerified": { th: "ตรวจสอบแล้ว", en: "Verified" },
   "paymentVerify.statsRejected": { th: "ปฏิเสธ", en: "Rejected" },
+  "payment.exportUnverifiedWarning": {
+    th: "รายการที่ export รวมสถานะที่ยังไม่ตรวจสอบ/ถูกปฏิเสธด้วย แนะนำกรองเฉพาะ 'ชำระแล้ว' ก่อน export เพื่อความถูกต้องทางบัญชี",
+    en: "Export includes unverified/rejected items. Filter to 'Verified' only before exporting for accurate accounting.",
+  },
+
+  "payment.list": { th: "รายการชำระเงิน", en: "payments" },
+  "payment.exportExcel": {
+    th: "ส่งออกข้อมูลการชำระเงิน",
+    en: "Export Payment Data",
+  },
 
   // ── Maintenance ────────────────────────────────────────────────────────────
   "maintenance.title": { th: "จัดการแจ้งซ่อม", en: "Maintenance Management" },

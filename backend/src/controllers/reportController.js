@@ -185,14 +185,46 @@ const getRoomsReport = async (req, res, next) => {
 }
 
 // ── Payment Summary Report ────────────────────────────────────
+// query params รองรับ (ทั้งหมด optional ยกเว้น format):
+//   month, year          — กรองตามงวดบิล (เดิม เก็บไว้ตามหลัง)
+//   status                — pending_verify | verified | rejected
+//   payment_method        — qr_promptpay | cash | bank_transfer
+//   search                — ค้นชื่อผู้เช่า / เลขห้อง / เลขบิล (LIKE, parameterized)
+// ไม่ส่ง filter ตัวไหนมา = ไม่กรองด้วยเงื่อนไขนั้น (ต่างจากเดิมที่บังคับ
+// month/year เสมอ) — เพื่อให้ตรงกับหน้า Payments ของ admin ที่ export
+// ตาม filter บนหน้าจอ (status/method/search) ไม่ใช่ตามเดือน
 const getPaymentsReport = async (req, res, next) => {
   try {
-    const month  = parseInt(req.query.month) || new Date().getMonth() + 1
-    const year   = parseInt(req.query.year)  || new Date().getFullYear()
+    const month  = req.query.month ? parseInt(req.query.month) : null
+    const year   = req.query.year  ? parseInt(req.query.year)  : null
+    const status = req.query.status || null
+    const method = req.query.payment_method || null
+    const search = req.query.search ? String(req.query.search).trim() : null
     const format = (req.query.format || 'excel').toLowerCase()
 
+    const conditions = []
+    const params = []
+
+    if (month) { conditions.push('b.bill_month = ?'); params.push(month) }
+    if (year)  { conditions.push('b.bill_year = ?');  params.push(year) }
+    if (status) { conditions.push('p.status = ?'); params.push(status) }
+    if (method) { conditions.push('p.payment_method = ?'); params.push(method) }
+    if (search) {
+      // ค้นครอบชื่อผู้เช่า / เลขห้อง / เลขบิล — parameterized ทั้งหมด
+      // ป้องกัน SQL Injection (ห้าม concat string ของ search เข้า query ตรงๆ)
+      conditions.push(`(
+        CONCAT(t.first_name,' ',t.last_name) LIKE ?
+        OR r.room_number LIKE ?
+        OR CAST(p.bill_id AS CHAR) LIKE ?
+      )`)
+      const like = `%${search}%`
+      params.push(like, like, like)
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
     const [rows] = await pool.query(`
-      SELECT p.payment_id, p.paid_at, p.amount_paid, p.payment_method, p.status,
+      SELECT p.payment_id, p.bill_id, p.paid_at, p.amount_paid, p.payment_method, p.status,
              r.room_number,
              CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
              b.bill_month, b.bill_year,
@@ -202,15 +234,19 @@ const getPaymentsReport = async (req, res, next) => {
       JOIN rooms r ON b.room_id = r.room_id
       JOIN tenants t ON p.tenant_id = t.tenant_id
       LEFT JOIN users u ON p.verified_by = u.user_id
-      WHERE b.bill_month = ? AND b.bill_year = ?
+      ${whereClause}
       ORDER BY p.paid_at DESC
-    `, [month, year])
+    `, params)
+
+    // ── ชื่อ sheet/หัวรายงาน ปรับตามว่ามี filter เดือน/ปีไหม ──
+    const periodLabel = (month && year) ? `${THAI_MONTHS[month]} ${year + 543}` : 'ทั้งหมด'
+    const sheetName = `การชำระ ${periodLabel}`.slice(0, 31) // ExcelJS จำกัดชื่อ sheet ไม่เกิน 31 ตัวอักษร
 
     const wb = new ExcelJS.Workbook()
-    const ws = wb.addWorksheet(`การชำระ ${THAI_MONTHS[month]} ${year + 543}`)
+    const ws = wb.addWorksheet(sheetName)
 
     ws.mergeCells('A1:H1')
-    ws.getCell('A1').value = `รายงานการชำระเงิน ${THAI_MONTHS[month]} ${year + 543}`
+    ws.getCell('A1').value = `รายงานการชำระเงิน ${periodLabel}`
     ws.getCell('A1').font  = { bold: true, size: 14 }
     ws.getCell('A1').alignment = { horizontal: 'center' }
     ws.addRow([])
@@ -222,9 +258,16 @@ const getPaymentsReport = async (req, res, next) => {
 
     const methodMap = { qr_promptpay: 'QR PromptPay', cash: 'เงินสด', bank_transfer: 'โอนเงิน' }
     const statusMap = { pending_verify: 'รอตรวจสอบ', verified: 'ยืนยันแล้ว', rejected: 'ปฏิเสธ' }
-    let total = 0
+
+    // ── สรุปยอด: แยก "ยอดรวมที่แสดง" (ทุกแถวตาม filter) กับ "ยอดที่
+    // ยืนยันแล้ว" (เฉพาะ verified) เสมอ ไม่ว่าจะกรอง status อะไรมา —
+    // เพื่อให้ตัวเลขชัดเจนไม่กำกวมไม่ว่าจะ filter แบบไหน
+    let totalShown = 0
+    let totalVerified = 0
     rows.forEach(r => {
-      if (r.status === 'verified') total += parseFloat(r.amount_paid || 0)
+      const amount = parseFloat(r.amount_paid || 0)
+      totalShown += amount
+      if (r.status === 'verified') totalVerified += amount
       ws.addRow([
         excelSafe(r.room_number), excelSafe(r.tenant_name), fmt(r.amount_paid),
         methodMap[r.payment_method] || r.payment_method,
@@ -234,12 +277,19 @@ const getPaymentsReport = async (req, res, next) => {
         r.payment_id,
       ])
     })
-    ws.addRow([])
-    const tRow = ws.addRow(['','รวมที่ยืนยันแล้ว', fmt(total)])
-    tRow.font = { bold: true }
 
+    ws.addRow([])
+    const totalShownRow = ws.addRow(['','ยอดรวมที่แสดง (ตาม filter)', fmt(totalShown)])
+    totalShownRow.font = { bold: true }
+    const totalVerifiedRow = ws.addRow(['','ยอดรวมที่ยืนยันแล้ว', fmt(totalVerified)])
+    totalVerifiedRow.font = { bold: true, color: { argb: 'FF15803D' } }
+
+    // ── ชื่อไฟล์: ใส่เดือน/ปีถ้ามี filter, ไม่งั้นใช้วันที่ export แทน ──
+    const filenameSuffix = (month && year)
+      ? `${month}_${year}`
+      : new Date().toISOString().slice(0, 10)
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    res.setHeader('Content-Disposition', `attachment; filename=payments_${month}_${year}.xlsx`)
+    res.setHeader('Content-Disposition', `attachment; filename=payments_${filenameSuffix}.xlsx`)
     await wb.xlsx.write(res)
     return res.end()
   } catch (err) { next(err) }
@@ -264,6 +314,11 @@ const getSystemExport = async (req, res, next) => {
     }
 
     // ── ห้องพัก ──
+    // ⚠️ FIX: เพิ่ม excelSafe() ครอบทุกฟิลด์ที่มาจาก user input
+    // (room_number, room_type, tenant_name) — เดิมไม่มีเลย ต่างจาก
+    // getRoomsReport/getPaymentsReport ด้านบนที่ทำไว้แล้ว ทำให้ค่าที่
+    // ขึ้นต้นด้วย = + - @ ถูก Excel ตีความเป็นสูตรตอนเปิดไฟล์
+    // (ดูปัญหาจริงจากคอลัมน์ "ผู้เช่าปัจจุบัน" ที่กลายเป็น =1+1)
     const [rooms] = await pool.query(`
       SELECT r.room_number, r.floor, r.room_type, r.base_rent, r.status,
              CONCAT(t.first_name,' ',t.last_name) AS tenant_name
@@ -274,17 +329,19 @@ const getSystemExport = async (req, res, next) => {
     `)
     addSheet('ห้องพัก', ['ห้อง','ชั้น','ประเภท','ค่าเช่าตั้งต้น','สถานะ','ผู้เช่าปัจจุบัน'],
       [10,8,12,14,12,20],
-      rooms.map(r => [r.room_number, r.floor, r.room_type, fmt(r.base_rent), r.status, r.tenant_name || '-']))
+      rooms.map(r => [excelSafe(r.room_number), r.floor, excelSafe(r.room_type), fmt(r.base_rent), r.status, excelSafe(r.tenant_name) || '-']))
 
     // ── ผู้เช่า ──
+    // ⚠️ FIX: excelSafe() สำหรับ first_name, last_name, phone
     const [tenants] = await pool.query(`
       SELECT tenant_id, first_name, last_name, phone FROM tenants ORDER BY tenant_id
     `)
     addSheet('ผู้เช่า', ['รหัส','ชื่อ','นามสกุล','เบอร์โทร'],
       [8,14,14,14],
-      tenants.map(t => [t.tenant_id, t.first_name, t.last_name, t.phone || '-']))
+      tenants.map(t => [t.tenant_id, excelSafe(t.first_name), excelSafe(t.last_name), excelSafe(t.phone) || '-']))
 
     // ── สัญญาเช่า ──
+    // ⚠️ FIX: excelSafe() สำหรับ room_number, tenant_name
     const [contracts] = await pool.query(`
       SELECT c.contract_id, r.room_number, CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
              c.start_date, c.end_date, c.rent_amount, c.status
@@ -295,12 +352,13 @@ const getSystemExport = async (req, res, next) => {
     `)
     addSheet('สัญญาเช่า', ['รหัสสัญญา','ห้อง','ผู้เช่า','วันเริ่ม','วันสิ้นสุด','ค่าเช่า','สถานะ'],
       [10,10,20,14,14,12,12],
-      contracts.map(c => [c.contract_id, c.room_number, c.tenant_name,
+      contracts.map(c => [c.contract_id, excelSafe(c.room_number), excelSafe(c.tenant_name),
         c.start_date ? new Date(c.start_date).toLocaleDateString('th-TH') : '-',
         c.end_date ? new Date(c.end_date).toLocaleDateString('th-TH') : '-',
         fmt(c.rent_amount), c.status]))
 
     // ── บิลค่าเช่า ──
+    // ⚠️ FIX: excelSafe() สำหรับ room_number, tenant_name
     const [bills] = await pool.query(`
       SELECT b.bill_id, r.room_number, CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
              b.bill_month, b.bill_year, b.total_amount, b.status, b.due_date
@@ -312,10 +370,11 @@ const getSystemExport = async (req, res, next) => {
     `)
     addSheet('บิลค่าเช่า', ['รหัสบิล','ห้อง','ผู้เช่า','เดือน','ปี(พ.ศ.)','ยอดรวม','สถานะ','กำหนดชำระ'],
       [10,10,20,10,10,12,12,14],
-      bills.map(b => [b.bill_id, b.room_number, b.tenant_name, THAI_MONTHS[b.bill_month], b.bill_year + 543,
+      bills.map(b => [b.bill_id, excelSafe(b.room_number), excelSafe(b.tenant_name), THAI_MONTHS[b.bill_month], b.bill_year + 543,
         fmt(b.total_amount), b.status, b.due_date ? new Date(b.due_date).toLocaleDateString('th-TH') : '-']))
 
     // ── การชำระเงิน ──
+    // ⚠️ FIX: excelSafe() สำหรับ room_number, tenant_name
     const [payments] = await pool.query(`
       SELECT p.payment_id, r.room_number, CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
              p.amount_paid, p.payment_method, p.status, p.paid_at
@@ -327,7 +386,7 @@ const getSystemExport = async (req, res, next) => {
     `)
     addSheet('การชำระเงิน', ['รหัส','ห้อง','ผู้เช่า','จำนวนเงิน','วิธีชำระ','สถานะ','วันที่ชำระ'],
       [10,10,20,14,14,14,16],
-      payments.map(p => [p.payment_id, p.room_number, p.tenant_name, fmt(p.amount_paid),
+      payments.map(p => [p.payment_id, excelSafe(p.room_number), excelSafe(p.tenant_name), fmt(p.amount_paid),
         p.payment_method, p.status, p.paid_at ? new Date(p.paid_at).toLocaleString('th-TH') : '-']))
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')

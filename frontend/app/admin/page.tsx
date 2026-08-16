@@ -31,6 +31,11 @@ import { roomAPI } from "@/lib/api/room.api";
 import { billAPI } from "@/lib/api/bill.api";
 import { maintenanceAPI } from "@/lib/api/maintenance.api";
 import { tenantAPI } from "@/lib/api/tenant.api";
+// ⚠️ เพิ่ม: ต้องดึง payments เข้ามาด้วย เพราะการ์ด "ประวัติการชำระเงิน"
+// ควรนับจากรายการชำระเงินจริง (payments table) ไม่ใช่จำนวนบิลที่
+// status='paid' — เดิมนับจากบิลทำให้ตัวเลขไม่ตรงกับหน้า Payments/Excel
+// export ที่นับจาก payment record โดยตรง
+import { paymentAPI } from "@/lib/api/payment.api";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 
@@ -62,6 +67,12 @@ interface MaintenanceRequest {
   status: "pending" | "in_progress" | "resolved" | "cancelled";
   priority: "low" | "medium" | "high";
 }
+// ⚠️ เพิ่ม: type สำหรับ payment record (เท่าที่ dashboard ต้องใช้จริง)
+interface PaymentRecord {
+  payment_id: number;
+  amount_paid: number;
+  status: "pending_verify" | "verified" | "rejected";
+}
 
 export default function AdminDashboard() {
   const { t } = useLanguage();
@@ -74,6 +85,7 @@ export default function AdminDashboard() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bills, setBills] = useState<Bill[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceRequest[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [tenantCount, setTenantCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -81,18 +93,26 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [statsRes, roomsRes, billsRes, maintenanceRes, tenantsRes] =
-          await Promise.all([
-            roomAPI.getStats(),
-            roomAPI.getAll(),
-            billAPI.getAll(),
-            maintenanceAPI.getAll(),
-            tenantAPI.getAll(),
-          ]);
+        const [
+          statsRes,
+          roomsRes,
+          billsRes,
+          maintenanceRes,
+          tenantsRes,
+          paymentsRes,
+        ] = await Promise.all([
+          roomAPI.getStats(),
+          roomAPI.getAll(),
+          billAPI.getAll(),
+          maintenanceAPI.getAll(),
+          tenantAPI.getAll(),
+          paymentAPI.getAll(),
+        ]);
         setRoomStats(statsRes.data ?? statsRes);
         setRooms(roomsRes.data ?? roomsRes ?? []);
         setBills(billsRes.data ?? billsRes ?? []);
         setMaintenance(maintenanceRes.data ?? maintenanceRes ?? []);
+        setPayments(paymentsRes.data ?? paymentsRes ?? []);
         const tenantData = tenantsRes.data ?? tenantsRes ?? [];
         setTenantCount(Array.isArray(tenantData) ? tenantData.length : 0);
       } catch (err: any) {
@@ -108,13 +128,17 @@ export default function AdminDashboard() {
     (b) => b.status === "pending" || b.status === "overdue",
   );
   const overdueBills = bills.filter((b) => b.status === "overdue");
-  const paidBills = bills.filter((b) => b.status === "paid");
   const pendingAmount = pendingBills.reduce(
     (sum, b) => sum + Number(b.total_amount),
     0,
   );
-  const monthlyIncome = paidBills.reduce(
-    (sum, b) => sum + Number(b.total_amount),
+  // ⚠️ FIX: เปลี่ยนจากนับ "บิลที่ status=paid" มาเป็นนับ "payment ที่
+  // status=verified" โดยตรง — ตรงกับความหมายของชื่อการ์ด "ประวัติการ
+  // ชำระเงิน" มากกว่า และตัวเลขจะสอดคล้องกับหน้า Payments / Excel export
+  // ที่นับจาก payment record เหมือนกันแล้ว (ไม่ใช่คนละ metric อีกต่อไป)
+  const verifiedPayments = payments.filter((p) => p.status === "verified");
+  const verifiedAmount = verifiedPayments.reduce(
+    (sum, p) => sum + Number(p.amount_paid),
     0,
   );
   const pendingMaintenance = maintenance.filter(
@@ -166,16 +190,18 @@ export default function AdminDashboard() {
           variant="default"
         />
         <StatsCard
-          title={t("bills.totalAmount")}
+          title={t("bills.outstandingAmount")}
           value={formatCurrency(pendingAmount)}
           description={`${pendingBills.length} ${t("bills.list")}`}
           icon={Receipt}
           variant={overdueBills.length > 0 ? "destructive" : "warning"}
         />
+        {/* ⚠️ FIX: value/description เปลี่ยนมาใช้ verifiedPayments แทน
+            paidBills — ให้ตรงกับชื่อการ์ด "ประวัติการชำระเงิน" จริงๆ */}
         <StatsCard
           title={t("payments.history")}
-          value={formatCurrency(monthlyIncome)}
-          description={`${t("common.all")} ${paidBills.length} ${t("bills.list")}`}
+          value={formatCurrency(verifiedAmount)}
+          description={`${t("common.all")} ${verifiedPayments.length} ${t("payment.list")}`}
           icon={Banknote}
           variant="success"
         />
@@ -227,7 +253,8 @@ export default function AdminDashboard() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="border-warning text-warning hover:bg-warning hover:text-warning-foreground">
+                      className="border-warning text-warning hover:bg-warning hover:text-warning-foreground"
+                    >
                       {t("common.view")}
                     </Button>
                   </Link>

@@ -33,6 +33,7 @@ import {
   Calendar,
   DoorClosed,
   Receipt,
+  Download,
 } from "lucide-react";
 import { PaymentStatusBadge } from "@/components/common/status-badge";
 import { paymentAPI } from "@/lib/api/payment.api";
@@ -78,6 +79,7 @@ export default function PaymentsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const fetchPayments = useCallback(async () => {
     try {
@@ -182,6 +184,44 @@ export default function PaymentsPage() {
     setDetailsDialogOpen(true);
   };
 
+  // ── Export Excel ─────────────────────────────────────────────
+  // ย้ายมา generate ที่ backend แล้ว (GET /api/reports/payments) แทน
+  // การสร้างไฟล์ในเบราว์เซอร์ — ส่ง filter เดียวกับที่ตั้งอยู่บนหน้าจอ
+  // (status, method, search) ไปให้ backend กรองแทน ได้ข้อมูลตรงจาก DB
+  // เสมอ + sanitize กัน Formula Injection ให้แล้วที่ backend (excelSafe)
+  // ไม่ต้องทำซ้ำฝั่ง client — เตือนถ้ายังไม่ได้กรองเฉพาะ "verified"
+  // เพราะรายการ pending/rejected ไม่ควรถูกนับเป็นรายได้จริงทางบัญชี
+  const handleExport = async () => {
+    if (filteredPayments.length === 0) {
+      toast.error(t("common.noData"));
+      return;
+    }
+    if (filterStatus !== "verified") {
+      toast.warning(
+        t("payment.exportUnverifiedWarning") ??
+          "รายการที่ export รวมสถานะที่ยังไม่ตรวจสอบ/ถูกปฏิเสธด้วย แนะนำกรองเฉพาะ 'ชำระแล้ว' ก่อน export เพื่อความถูกต้องทางบัญชี",
+      );
+    }
+
+    try {
+      setExporting(true);
+
+      const params: Record<string, string> = {};
+      if (filterStatus !== "all") params.status = filterStatus;
+      if (filterMethod !== "all") params.payment_method = filterMethod;
+      if (searchTerm.trim()) params.search = searchTerm.trim();
+
+      const dateStamp = new Date().toISOString().split("T")[0];
+      await paymentAPI.exportExcel(params, `payments_${dateStamp}.xlsx`);
+
+      toast.success(t("payment.exportSuccess") ?? "Export สำเร็จ");
+    } catch {
+      toast.error(t("payment.exportError") ?? "Export ไม่สำเร็จ");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const statCards = [
     {
       labelKey: "paymentVerify.statsTotal",
@@ -215,11 +255,25 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-balance">
-          {t("payments.title")}
-        </h1>
-        <p className="text-muted-foreground mt-1">{t("payments.subtitle")}</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-balance">
+            {t("payments.title")}
+          </h1>
+          <p className="text-muted-foreground mt-1">{t("payments.subtitle")}</p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={handleExport}
+          disabled={exporting || loading || filteredPayments.length === 0}
+        >
+          {exporting ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="mr-2 h-4 w-4" />
+          )}
+          {t("payment.exportExcel") ?? "Export Excel"}
+        </Button>
       </div>
 
       {/* Stats: 2x2 on mobile, 4-up on desktop */}

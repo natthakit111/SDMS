@@ -313,81 +313,158 @@ const getSystemExport = async (req, res, next) => {
       }))
     }
 
+    // ── Sheet 0: ข้อมูลการ Export (metadata) ──────────────────────
+    // เพิ่มใหม่: สร้างเมื่อไหร่, ใครสร้าง, สรุปว่าแต่ละ sheet คืออะไร —
+    // สำคัญสำหรับไฟล์ backup/system export ที่อาจถูกเปิดดูภายหลังนาน ๆ
+    // โดยคนละคนกับที่ export ตอนแรก
+    const exportedByLabel = req.user?.username
+      ? `${req.user.username}${req.user.role ? ` (${req.user.role})` : ''}`
+      : (req.user?.user_id ? `user_id ${req.user.user_id}` : 'ไม่ทราบผู้ export')
+    const infoWs = wb.addWorksheet('ข้อมูลการ Export')
+    infoWs.columns = [{ width: 22 }, { width: 60 }]
+    infoWs.addRow(['สร้างไฟล์เมื่อ', new Date().toLocaleString('th-TH')])
+    infoWs.addRow(['สร้างโดย', exportedByLabel])
+    infoWs.addRow([])
+    infoWs.addRow(['Sheet', 'คำอธิบาย']).font = { bold: true }
+    ;[
+      ['ห้องพัก', 'สถานะห้องพักทั้งหมดในระบบ ณ เวลา export'],
+      ['ผู้เช่า', 'รายชื่อผู้เช่าทั้งหมด (ไม่เฉพาะที่ active)'],
+      ['สัญญาเช่า', 'สัญญาเช่าทั้งหมด เรียงตามรหัสสัญญาล่าสุดก่อน'],
+      ['บิลค่าเช่า', 'บิลค่าเช่าทั้งหมด เรียงตามปี/เดือนล่าสุดก่อน'],
+      ['การชำระเงิน', 'ทุก payment record ทุกสถานะ เรียงตามวันที่ชำระล่าสุดก่อน'],
+    ].forEach(row => infoWs.addRow(row))
+    infoWs.eachRow(row => row.eachCell(cell => {
+      cell.border = { top: {style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} }
+    }))
+
     // ── ห้องพัก ──
-    // ⚠️ FIX: เพิ่ม excelSafe() ครอบทุกฟิลด์ที่มาจาก user input
-    // (room_number, room_type, tenant_name) — เดิมไม่มีเลย ต่างจาก
-    // getRoomsReport/getPaymentsReport ด้านบนที่ทำไว้แล้ว ทำให้ค่าที่
-    // ขึ้นต้นด้วย = + - @ ถูก Excel ตีความเป็นสูตรตอนเปิดไฟล์
-    // (ดูปัญหาจริงจากคอลัมน์ "ผู้เช่าปัจจุบัน" ที่กลายเป็น =1+1)
+    // ⚠️ FIX: excelSafe() ครอบทุกฟิลด์ที่มาจาก user input (room_number,
+    // room_type, tenant_name, phone) — ป้องกัน Formula Injection
+    // ⚠️ เพิ่ม: พื้นที่ (area_sqm), เบอร์โทรผู้เช่าปัจจุบัน (เดิมต้องข้าม
+    // ไปเปิด sheet ผู้เช่าแล้วจับคู่ชื่อเอาเอง), วันที่สร้างห้อง
     const [rooms] = await pool.query(`
-      SELECT r.room_number, r.floor, r.room_type, r.base_rent, r.status,
-             CONCAT(t.first_name,' ',t.last_name) AS tenant_name
+      SELECT r.room_number, r.floor, r.room_type, r.area_sqm, r.base_rent, r.status,
+             r.created_at,
+             CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
+             t.phone AS tenant_phone
       FROM rooms r
       LEFT JOIN contracts c ON c.room_id = r.room_id AND c.status = 'active'
       LEFT JOIN tenants t ON c.tenant_id = t.tenant_id
       ORDER BY r.floor, r.room_number
     `)
-    addSheet('ห้องพัก', ['ห้อง','ชั้น','ประเภท','ค่าเช่าตั้งต้น','สถานะ','ผู้เช่าปัจจุบัน'],
-      [10,8,12,14,12,20],
-      rooms.map(r => [excelSafe(r.room_number), r.floor, excelSafe(r.room_type), fmt(r.base_rent), r.status, excelSafe(r.tenant_name) || '-']))
+    addSheet('ห้องพัก',
+      ['ห้อง','ชั้น','ประเภท','พื้นที่ (ตร.ม.)','ค่าเช่าตั้งต้น','สถานะ','ผู้เช่าปัจจุบัน','เบอร์โทรผู้เช่า','สร้างเมื่อ'],
+      [10,8,12,14,14,12,20,16,18],
+      rooms.map(r => [
+        excelSafe(r.room_number), r.floor, excelSafe(r.room_type),
+        r.area_sqm != null ? fmt(r.area_sqm) : '-',
+        fmt(r.base_rent), r.status,
+        excelSafe(r.tenant_name) || '-', excelSafe(r.tenant_phone) || '-',
+        r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-',
+      ]))
 
     // ── ผู้เช่า ──
-    // ⚠️ FIX: excelSafe() สำหรับ first_name, last_name, phone
+    // ⚠️ FIX: excelSafe() สำหรับ first_name, last_name, phone, email
+    // ⚠️ เพิ่ม: room_number (join จากสัญญา active — แก้ปัญหาข้าม sheet
+    // เชื่อมกันไม่ได้ที่เคยพบ), อีเมล, วันที่สมัคร
+    // หมายเหตุ: ตั้งใจไม่ export id_card_number แม้จะมีในตาราง เพราะเป็น
+    // ข้อมูลอ่อนไหวสูง ไม่ควรหลุดออกมาในไฟล์ export ถ้าไม่จำเป็นจริง ๆ
     const [tenants] = await pool.query(`
-      SELECT tenant_id, first_name, last_name, phone FROM tenants ORDER BY tenant_id
+      SELECT t.tenant_id, t.first_name, t.last_name, t.phone, t.email, t.created_at,
+             r.room_number
+      FROM tenants t
+      LEFT JOIN contracts c ON c.tenant_id = t.tenant_id AND c.status = 'active'
+      LEFT JOIN rooms r ON c.room_id = r.room_id
+      ORDER BY t.tenant_id
     `)
-    addSheet('ผู้เช่า', ['รหัส','ชื่อ','นามสกุล','เบอร์โทร'],
-      [8,14,14,14],
-      tenants.map(t => [t.tenant_id, excelSafe(t.first_name), excelSafe(t.last_name), excelSafe(t.phone) || '-']))
+    addSheet('ผู้เช่า',
+      ['รหัส','ชื่อ','นามสกุล','เบอร์โทร','อีเมล','ห้องปัจจุบัน','สมัครเมื่อ'],
+      [8,14,14,14,20,12,18],
+      tenants.map(t => [
+        t.tenant_id, excelSafe(t.first_name), excelSafe(t.last_name),
+        excelSafe(t.phone) || '-', excelSafe(t.email) || '-',
+        excelSafe(t.room_number) || '-',
+        t.created_at ? new Date(t.created_at).toLocaleDateString('th-TH') : '-',
+      ]))
 
     // ── สัญญาเช่า ──
     // ⚠️ FIX: excelSafe() สำหรับ room_number, tenant_name
+    // ⚠️ เพิ่ม: ค่ามัดจำ (deposit_amount) ที่หายไปจากของเดิมทั้งที่มีอยู่
+    // ในตารางจริง, วันที่สร้างสัญญา
     const [contracts] = await pool.query(`
       SELECT c.contract_id, r.room_number, CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
-             c.start_date, c.end_date, c.rent_amount, c.status
+             c.start_date, c.end_date, c.rent_amount, c.deposit_amount, c.status, c.created_at
       FROM contracts c
       JOIN rooms r ON c.room_id = r.room_id
       JOIN tenants t ON c.tenant_id = t.tenant_id
       ORDER BY c.contract_id DESC
     `)
-    addSheet('สัญญาเช่า', ['รหัสสัญญา','ห้อง','ผู้เช่า','วันเริ่ม','วันสิ้นสุด','ค่าเช่า','สถานะ'],
-      [10,10,20,14,14,12,12],
-      contracts.map(c => [c.contract_id, excelSafe(c.room_number), excelSafe(c.tenant_name),
+    addSheet('สัญญาเช่า',
+      ['รหัสสัญญา','ห้อง','ผู้เช่า','วันเริ่ม','วันสิ้นสุด','ค่าเช่า','ค่ามัดจำ','สถานะ','ทำสัญญาเมื่อ'],
+      [10,10,20,14,14,12,12,12,18],
+      contracts.map(c => [
+        c.contract_id, excelSafe(c.room_number), excelSafe(c.tenant_name),
         c.start_date ? new Date(c.start_date).toLocaleDateString('th-TH') : '-',
         c.end_date ? new Date(c.end_date).toLocaleDateString('th-TH') : '-',
-        fmt(c.rent_amount), c.status]))
+        fmt(c.rent_amount), fmt(c.deposit_amount), c.status,
+        c.created_at ? new Date(c.created_at).toLocaleDateString('th-TH') : '-',
+      ]))
 
     // ── บิลค่าเช่า ──
     // ⚠️ FIX: excelSafe() สำหรับ room_number, tenant_name
+    // ⚠️ เพิ่ม: แยกยอดค่าเช่า/ค่าไฟ/ค่าน้ำ/ค่าอื่น ๆ (เดิมมีแค่ยอดรวม
+    // ยอดเดียว ไม่พอสำหรับตรวจสอบย้อนหลังว่าแต่ละก้อนเท่าไหร่)
     const [bills] = await pool.query(`
       SELECT b.bill_id, r.room_number, CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
-             b.bill_month, b.bill_year, b.total_amount, b.status, b.due_date
+             b.bill_month, b.bill_year,
+             b.rent_amount, b.electric_amount, b.water_amount, b.other_amount,
+             b.total_amount, b.status, b.due_date, b.created_at
       FROM bills b
       JOIN rooms r ON b.room_id = r.room_id
       JOIN contracts c ON b.contract_id = c.contract_id
       JOIN tenants t ON c.tenant_id = t.tenant_id
       ORDER BY b.bill_year DESC, b.bill_month DESC
     `)
-    addSheet('บิลค่าเช่า', ['รหัสบิล','ห้อง','ผู้เช่า','เดือน','ปี(พ.ศ.)','ยอดรวม','สถานะ','กำหนดชำระ'],
-      [10,10,20,10,10,12,12,14],
-      bills.map(b => [b.bill_id, excelSafe(b.room_number), excelSafe(b.tenant_name), THAI_MONTHS[b.bill_month], b.bill_year + 543,
-        fmt(b.total_amount), b.status, b.due_date ? new Date(b.due_date).toLocaleDateString('th-TH') : '-']))
+    addSheet('บิลค่าเช่า',
+      ['รหัสบิล','ห้อง','ผู้เช่า','เดือน','ปี(พ.ศ.)','ค่าเช่า','ค่าไฟ','ค่าน้ำ','ค่าอื่นๆ','ยอดรวม','สถานะ','กำหนดชำระ','ออกบิลเมื่อ'],
+      [10,10,20,10,10,12,12,12,12,12,12,14,18],
+      bills.map(b => [
+        b.bill_id, excelSafe(b.room_number), excelSafe(b.tenant_name),
+        THAI_MONTHS[b.bill_month], b.bill_year + 543,
+        fmt(b.rent_amount), fmt(b.electric_amount), fmt(b.water_amount), fmt(b.other_amount),
+        fmt(b.total_amount), b.status,
+        b.due_date ? new Date(b.due_date).toLocaleDateString('th-TH') : '-',
+        b.created_at ? new Date(b.created_at).toLocaleDateString('th-TH') : '-',
+      ]))
 
     // ── การชำระเงิน ──
-    // ⚠️ FIX: excelSafe() สำหรับ room_number, tenant_name
+    // ⚠️ FIX: excelSafe() สำหรับ room_number, tenant_name, verified_by
+    // ⚠️ เพิ่ม: ผู้ตรวจสอบ (join users.username เหมือนที่ getPaymentsReport
+    // ทำไว้แล้ว แต่ตัวนี้เดิมไม่มี), หมายเหตุการปฏิเสธ (remark)
+    // หมายเหตุ: ตาราง payments ไม่มี created_at ในสคีมา (มีแค่ paid_at,
+    // verified_at) จึงไม่ต้องเพิ่มคอลัมน์ timestamp เกินจากที่มีจริง
     const [payments] = await pool.query(`
       SELECT p.payment_id, r.room_number, CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
-             p.amount_paid, p.payment_method, p.status, p.paid_at
+             p.amount_paid, p.payment_method, p.status, p.paid_at, p.verified_at,
+             u.username AS verified_by, p.remark
       FROM payments p
       JOIN bills b ON p.bill_id = b.bill_id
       JOIN rooms r ON b.room_id = r.room_id
       JOIN tenants t ON p.tenant_id = t.tenant_id
+      LEFT JOIN users u ON p.verified_by = u.user_id
       ORDER BY p.paid_at DESC
     `)
-    addSheet('การชำระเงิน', ['รหัส','ห้อง','ผู้เช่า','จำนวนเงิน','วิธีชำระ','สถานะ','วันที่ชำระ'],
-      [10,10,20,14,14,14,16],
-      payments.map(p => [p.payment_id, excelSafe(p.room_number), excelSafe(p.tenant_name), fmt(p.amount_paid),
-        p.payment_method, p.status, p.paid_at ? new Date(p.paid_at).toLocaleString('th-TH') : '-']))
+    addSheet('การชำระเงิน',
+      ['รหัส','ห้อง','ผู้เช่า','จำนวนเงิน','วิธีชำระ','สถานะ','วันที่ชำระ','วันที่ตรวจสอบ','ผู้ตรวจสอบ','หมายเหตุ'],
+      [10,10,20,14,14,14,18,18,16,24],
+      payments.map(p => [
+        p.payment_id, excelSafe(p.room_number), excelSafe(p.tenant_name), fmt(p.amount_paid),
+        p.payment_method, p.status,
+        p.paid_at ? new Date(p.paid_at).toLocaleString('th-TH') : '-',
+        p.verified_at ? new Date(p.verified_at).toLocaleString('th-TH') : '-',
+        excelSafe(p.verified_by) || '-',
+        excelSafe(p.remark) || '-',
+      ]))
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     res.setHeader('Content-Disposition', `attachment; filename=system_export_${new Date().toISOString().slice(0,10)}.xlsx`)

@@ -26,6 +26,7 @@ const { sendResetPasswordEmail } = require('../services/email.service');
 const {
   sendSuccess, sendCreated, sendBadRequest, sendUnauthorized,
 } = require('../utils/response');
+const { hasMxRecord } = require('../utils/emailValidator');
 
 // frontend และ backend อยู่คนละโดเมนกันแน่ๆ ตอน production (เช่น
 // frontend บน Vercel, backend บน Railway/Render) ตั้ง COOKIE_CROSS_SITE=true
@@ -94,6 +95,11 @@ const register = async (req, res, next) => {
     const { password, name, email, phone } = req.body;
     const autoUsername = phone;
 
+    const emailValid = await hasMxRecord(email);
+    if (!emailValid) {
+      return sendBadRequest(res, 'ไม่พบ mail server ของอีเมลนี้ กรุณาตรวจสอบว่าพิมพ์อีเมลถูกต้อง');
+    }
+
     const existing = await UserModel.findByUsername(autoUsername);
     if (existing) return sendBadRequest(res, 'เบอร์โทรศัพท์นี้ถูกใช้สมัครสมาชิกไปแล้ว');
 
@@ -150,18 +156,18 @@ const login = async (req, res, next) => {
     const identifier = (username || '').trim();
 
     if (!identifier) {
-      return sendBadRequest(res, "กรุณากรอกข้อมูลเข้าสู่ระบบ");
+      return sendBadRequest(res, "กรุณากรอกข้อมูลเข้าสู่ระบบ", null, 'AUTH_MISSING_CREDENTIALS');
     }
 
     const user = await UserModel.findByIdentifier(identifier);
 
-    if (!user) return sendUnauthorized(res, "ไม่พบข้อมูลเบอร์โทรศัพท์ อีเมล หรือชื่อผู้ใช้นี้");
-    if (!user.is_active) return sendUnauthorized(res, "บัญชีนี้ถูกปิดการใช้งาน");
+    if (!user) return sendUnauthorized(res, "ไม่พบข้อมูลเบอร์โทรศัพท์ อีเมล หรือชื่อผู้ใช้นี้", 'AUTH_USER_NOT_FOUND');
+    if (!user.is_active) return sendUnauthorized(res, "บัญชีนี้ถูกปิดการใช้งาน", 'AUTH_ACCOUNT_DISABLED');
 
-    if (!user.password_hash) return sendUnauthorized(res, "บัญชีนี้ใช้การเข้าสู่ระบบด้วย Google หรือ Telegram");
+    if (!user.password_hash) return sendUnauthorized(res, "บัญชีนี้ใช้การเข้าสู่ระบบด้วย Google", 'AUTH_NO_PASSWORD_SET');
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) return sendUnauthorized(res, "รหัสผ่านไม่ถูกต้อง");
+    if (!isMatch) return sendUnauthorized(res, "รหัสผ่านไม่ถูกต้อง", 'AUTH_INVALID_PASSWORD');
 
     const { token, csrfToken } = signToken(user, rememberMe);
     setAuthCookies(res, token, csrfToken, rememberMe);
@@ -206,6 +212,15 @@ const updateProfile = async (req, res, next) => {
     if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
     const { firstName, lastName, email, phone } = req.body;
+
+    //เช็ค MX record เฉพาะตอนอีเมลถูกเปลี่ยน (ไม่ต้องเช็คซ้ำถ้าไม่แก้)
+    const currentProfile = await UserModel.getProfileById(req.user.user_id);
+    if (email && email !== currentProfile.email) {
+      const emailValid = await hasMxRecord(email);
+      if (!emailValid) {
+        return sendBadRequest(res, 'ไม่พบ mail server ของอีเมลนี้ กรุณาตรวจสอบว่าพิมพ์อีเมลถูกต้อง');
+      }
+    }
 
     await UserModel.updateProfileFields(req.user.user_id, { firstName, lastName, email, phone });
     const profile = await UserModel.getProfileById(req.user.user_id);

@@ -175,13 +175,31 @@ const getMonthlyReport = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// ── ข้อมูลบริษัท — ปรับผ่าน env ได้ ไม่ต้องแก้โค้ด ──
-const COMPANY = {
-  name: process.env.COMPANY_NAME || 'Smart Dormitory',
-  sub: process.env.COMPANY_SUB || 'Smart Dormitory Management System',
-  address: process.env.COMPANY_ADDRESS || '123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110',
-  taxId: process.env.COMPANY_TAX_ID || '0-1055-12345-67-8',
-  phone: process.env.COMPANY_PHONE || '02-123-4567',
+// ── ข้อมูลบริษัทสำหรับใบแจ้งหนี้ ─────────────────────────────
+// FIX: เดิมเป็น hardcoded constant อ่านจาก process.env.COMPANY_* ที่ค่า
+// build-time เท่านั้น — แก้จากหน้า Settings แล้วไม่มีผลกับ PDF ที่ export
+// ออกมาจริง (ต้องแก้ .env + restart server) ตอนนี้ดึงจาก dorm_settings
+// สดๆ ทุกครั้งที่ export แทน ให้ตรงกับพฤติกรรมของ getBillQR/calculateBill
+// ที่แก้ไปแล้วก่อนหน้า ค่า fallback ด้านล่างใช้เฉพาะตอนแอดมินยังไม่ได้
+// กรอกอะไรเลยในหน้า Settings เท่านั้น
+const getCompanyInfo = async () => {
+  const s = await SettingsModel.getByKeys([
+    'dorm_name', 'dorm_address', 'company_tax_id', 'admin_phone', 'admin_email',
+    'bank_name', 'bank_account', 'bank_account_name', 'promptpay_id',
+  ]);
+
+  return {
+    name: s.dorm_name || 'Smart Dormitory',
+    sub: 'Smart Dormitory Management System',
+    address: s.dorm_address || null,
+    taxId: s.company_tax_id || null,
+    phone: s.admin_phone || null,
+    email: s.admin_email || null,
+    bankName: s.bank_name || null,
+    bankAccountNumber: s.bank_account || null,
+    bankAccountName: s.bank_account_name || null,
+    promptpayId: s.promptpay_id || null,
+  };
 };
 
 // ── Export single bill as PDF invoice (HTML/CSS → Puppeteer, โทนขาว-ฟ้า) ──
@@ -202,21 +220,9 @@ const exportBillInvoice = async (req, res, next) => {
       } catch (_) { /* ข้าม QR ถ้าสร้างรูปไม่สำเร็จ */ }
     }
 
-    const financialInfo = await SettingsModel.getByKeys([
-      'bank_name', 'bank_account', 'bank_account_name', 'promptpay_id',
-    ]);
+    const company = await getCompanyInfo();
 
-    const html = renderInvoiceHtml({
-      bill,
-      qrDataUrl,
-      company: {
-        ...COMPANY,
-        bankName: financialInfo.bank_name || null,
-        bankAccountNumber: financialInfo.bank_account || null,
-        bankAccountName: financialInfo.bank_account_name || null,
-        promptpayId: financialInfo.promptpay_id || null,
-      },
-    });
+    const html = renderInvoiceHtml({ bill, qrDataUrl, company });
     const pdfBuffer = await htmlToPdfBuffer(html);
     const buffer = Buffer.from(pdfBuffer);
 

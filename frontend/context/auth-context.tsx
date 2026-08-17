@@ -11,6 +11,8 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api/axiosInstance";
+import { useLanguage } from "@/context/language-context";
+import { getErrorMessage } from "@/lib/errorMessages";
 
 export type UserRole = "admin" | "tenant";
 
@@ -85,6 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  // ⚠️ ใหม่: ใช้แปล error message จาก backend (code) ให้ตรงกับภาษาที่
+  // ผู้ใช้เลือกไว้ ณ ขณะนั้น — ต้องให้ LanguageProvider ครอบ AuthProvider
+  // อยู่ใน layout.tsx เท่านั้น ไม่งั้น useLanguage() จะหา context ไม่เจอ
+  const { language } = useLanguage();
 
   // ดึงข้อมูล user ปัจจุบันจาก /auth/me แล้ว sync เข้า state — ใช้ทั้งตอน
   // init ครั้งแรก และตอน OAuth callback เรียกหลัง exchange สำเร็จ
@@ -142,16 +148,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const backendUser = res.data.data?.user;
 
       if (!backendUser) {
-        return { success: false, error: "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่" };
+        return {
+          success: false,
+          error:
+            language === "th"
+              ? "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่"
+              : "Login failed, please try again",
+        };
       }
 
       const mappedUser = mapUser(backendUser);
       setUser(mappedUser);
       return { success: true, user: mappedUser };
     } catch (err: any) {
-      const message =
-        err.response?.data?.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่";
-      return { success: false, error: message };
+      // ⚠️ ใหม่: ใช้ getErrorMessage แทนการอ่าน err.response.data.message
+      // ตรงๆ — ถ้า backend ส่ง `code` มาด้วย (เช่น AUTH_INVALID_PASSWORD)
+      // จะแปลตามภาษาที่เลือกได้ ถ้ายังไม่มี code (controller เก่าที่ยัง
+      // ไม่ได้แก้) จะ fallback ไปใช้ message ภาษาไทยจาก backend เหมือนเดิม
+      return { success: false, error: getErrorMessage(err, language) };
     }
   };
 
@@ -166,9 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       return { success: true };
     } catch (err: any) {
-      const message =
-        err.response?.data?.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่";
-      return { success: false, error: message };
+      return { success: false, error: getErrorMessage(err, language) };
     }
   };
 

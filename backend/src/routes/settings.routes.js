@@ -18,6 +18,16 @@ const updateValidation = [
   body('admin_email').optional({ checkFalsy: true }).isEmail().withMessage('EMAIL_FORMAT'),
   body('admin_phone').optional({ checkFalsy: true }).trim().isLength({ max: 20 }),
 
+  // เลขประจำตัวผู้เสียภาษี — แสดงบนใบแจ้งหนี้/ใบเสร็จ (เดิมอ่านจาก
+  // process.env.COMPANY_TAX_ID ตรงๆ ใน billController, ย้ายมาตั้งค่าผ่าน
+  // หน้า Settings แทน เพื่อให้ใช้ได้กับหอพักไหนก็ได้โดยไม่ต้อง redeploy)
+  body('company_tax_id')
+    .optional({ checkFalsy: true })
+    .trim()
+    .customSanitizer((val) => val.replace(/[-\s]/g, ''))
+    .matches(/^\d{10}$|^\d{13}$/)
+    .withMessage('COMPANY_TAX_ID_FORMAT'),
+
   body('currency').optional().trim().isLength({ max: 10 }),
   body('tax_rate').optional().isFloat({ min: 0, max: 100 }).withMessage('TAX_RATE_RANGE'),
 
@@ -81,6 +91,7 @@ router.put('/', authenticate, authorizeRoles('admin'), updateValidation, async (
     const allowed = [
       'dorm_name', 'dorm_address', 'admin_email', 'admin_phone',
       'num_floors',
+      'company_tax_id',
       'currency', 'tax_rate',
       'bank_name', 'bank_account', 'bank_account_name',
       'promptpay_type', 'promptpay_id',

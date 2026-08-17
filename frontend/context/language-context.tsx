@@ -557,7 +557,7 @@ const translations: Record<string, { th: string; en: string }> = {
   },
   "bills.totalAmount": {
     th: "ยอดเงินรวม",
-    en: "Total Amount"
+    en: "Total Amount",
   },
 
   // ── Bill Errors ─────────────────────────────────────────────────────────
@@ -1082,7 +1082,6 @@ const translations: Record<string, { th: string; en: string }> = {
     en: "Create a new account to get started",
   },
   "register.fullName": { th: "ชื่อ-นามสกุล", en: "Full Name" },
-  "register.fullNamePlaceholder": { th: "สมชาย ใจดี", en: "John Doe" },
   "register.usernamePlaceholder": {
     th: "ชื่อผู้ใช้สำหรับล็อกอิน",
     en: "Login username",
@@ -1118,6 +1117,18 @@ const translations: Record<string, { th: string; en: string }> = {
   "register.errorNameLength": {
     th: "กรุณากรอกชื่ออย่างน้อย 2 ตัวอักษร",
     en: "Name must be at least 2 characters",
+  },
+  "register.fullNamePlaceholder": {
+    th: "กรอกชื่อและนามสกุลของคุณ",
+    en: "Enter your full name",
+  },
+  "register.emailPlaceholder": {
+    th: "กรอกอีเมลของคุณ",
+    en: "Enter your email",
+  },
+  "register.phonePlaceholder": {
+    th: "กรอกเบอร์โทรศัพท์ของคุณ",
+    en: "Enter your phone number",
   },
 
   PHONE_ALREADY_REGISTERED: {

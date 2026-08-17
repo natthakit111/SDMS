@@ -167,7 +167,7 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-xl font-bold sm:text-2xl">{t("menu.dashboard")}</h1>
+        <h1 className="text-2xl font-bold">{t("menu.dashboard")}</h1>
         <p className="text-sm text-muted-foreground sm:text-base">
           {t("rooms.subtitle")}
         </p>

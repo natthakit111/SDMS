@@ -164,7 +164,7 @@ export default function RegisterPage() {
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="your@email.com"
+                  placeholder={t("register.emailPlaceholder")}
                   value={formData.email}
                   onChange={handleChange}
                   required
@@ -177,7 +177,7 @@ export default function RegisterPage() {
                   id="phone"
                   name="phone"
                   type="tel"
-                  placeholder="081-234-5678"
+                  placeholder={t("register.phonePlaceholder")}
                   value={formData.phone}
                   onChange={handleChange}
                   required

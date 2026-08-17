@@ -44,6 +44,12 @@ import { DatePickerField } from "@/components/common/date-picker-field";
 // เพิ่มฟิลด์ PromptPay (promptpay_type, promptpay_id) เข้าไปในแท็บการเงิน
 // แทนที่การอ่านจาก process.env.PROMPTPAY_ID เดิม — เพื่อให้ระบบใช้ได้กับ
 // หอพักไหนก็ได้โดยไม่ต้องแก้โค้ด/redeploy ตามที่ต้องออกแบบไว้
+//
+// ── FIX ──────────────────────────────────────────────────────────
+// เพิ่มฟิลด์ "เลขประจำตัวผู้เสียภาษี" (company_tax_id) ในแท็บหอพัก —
+// เดิม billController.js อ่านค่านี้จาก process.env.COMPANY_TAX_ID ตรงๆ
+// ทำให้ใบแจ้งหนี้ที่ export ออกมาแสดง placeholder ค้างไว้เสมอ ไม่ว่า
+// แอดมินจะกรอกอะไรในหน้านี้ก็ตาม ตอนนี้ผูกกับ dorm_settings แล้ว
 // ────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -60,6 +66,7 @@ export default function SettingsPage() {
   const [adminPhone, setAdminPhone] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [numFloors, setNumFloors] = useState("5");
+  const [companyTaxId, setCompanyTaxId] = useState("");
   const [savingDorm, setSavingDorm] = useState(false);
 
   /* ── Financial: bank info (แสดงผลในใบแจ้งหนี้เท่านั้น ไม่ใช้สร้าง QR) ── */
@@ -106,6 +113,7 @@ export default function SettingsPage() {
         setAdminPhone(s.admin_phone ?? "");
         setAdminEmail(s.admin_email ?? "");
         setNumFloors(String(s.num_floors ?? "5"));
+        setCompanyTaxId(s.company_tax_id ?? "");
         setBankName(s.bank_name ?? "");
         setBankAccount(s.bank_account ?? "");
         setBankAccountName(s.bank_account_name ?? "");
@@ -163,6 +171,7 @@ export default function SettingsPage() {
         admin_phone: adminPhone,
         admin_email: adminEmail,
         num_floors: numFloors,
+        company_tax_id: companyTaxId,
       });
       toast.success(
         language === "th" ? "บันทึกข้อมูลหอพักแล้ว" : "Dorm info saved",
@@ -189,7 +198,11 @@ export default function SettingsPage() {
         promptpay_id: promptpayId,
       });
       if (promptpayId && !/^\d+$/.test(promptpayId)) {
-        toast.error(language === "th" ? "หมายเลข PromptPay ต้องเป็นตัวเลขเท่านั้น" : "PromptPay ID must contain only numbers");
+        toast.error(
+          language === "th"
+            ? "หมายเลข PromptPay ต้องเป็นตัวเลขเท่านั้น"
+            : "PromptPay ID must contain only numbers",
+        );
         return;
       }
       toast.success(
@@ -242,7 +255,8 @@ export default function SettingsPage() {
         );
       }
       await Promise.all(promises);
-      toast.error( // หมายเหตุ: อย่าลืมเช็กตรงนี้ ถ้าโค้ดเดิมเป็น toast.success ก็ใช้ .success นะครับ
+      toast.error(
+        // หมายเหตุ: อย่าลืมเช็กตรงนี้ ถ้าโค้ดเดิมเป็น toast.success ก็ใช้ .success นะครับ
         language === "th"
           ? "บันทึกอัตราค่าสาธารณูปโภคแล้ว"
           : "Utility rates saved",
@@ -372,6 +386,22 @@ export default function SettingsPage() {
                     }
                     rows={2}
                   />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-sm font-medium">
+                    {language === "th" ? "เลขประจำตัวผู้เสียภาษี" : "Tax ID"}
+                  </label>
+                  <Input
+                    value={companyTaxId}
+                    onChange={(e) => setCompanyTaxId(e.target.value)}
+                    placeholder="0-1234-56789-01-2"
+                    maxLength={17}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {language === "th"
+                      ? "ใช้แสดงบนใบแจ้งหนี้ / ใบเสร็จ (เลข 13 หลัก หรือเลขนิติบุคคล 10 หลัก)"
+                      : "Shown on invoices/receipts (13-digit ID or 10-digit corporate ID)"}
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium">

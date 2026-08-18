@@ -68,28 +68,28 @@ export default function TenantPaymentHistoryPage() {
   > = {
     pending_verify: {
       label: t("status.pending_verify"),
-      badgeColor: "bg-yellow-500/10 text-yellow-600",
-      amountColor: "text-yellow-600",
+      badgeColor: "bg-warning/10 text-warning",
+      amountColor: "text-warning",
     },
     verified: {
       label: t("status.verified"),
-      badgeColor: "bg-green-500/10 text-green-600",
-      amountColor: "text-green-500",
+      badgeColor: "bg-success/10 text-success",
+      amountColor: "text-success",
     },
     rejected: {
       label: t("status.rejected"),
-      badgeColor: "bg-red-500/10 text-red-600",
-      amountColor: "text-red-600",
+      badgeColor: "bg-destructive/10 text-destructive",
+      amountColor: "text-destructive",
     },
     partial: {
       label: t("status.partial") ?? "Partial",
-      badgeColor: "bg-indigo-500/10 text-indigo-600",
-      amountColor: "text-indigo-600",
+      badgeColor: "bg-info/10 text-info",
+      amountColor: "text-info",
     },
     reserved: {
       label: t("status.reserved") ?? "Reserved",
-      badgeColor: "bg-sky-500/10 text-sky-600",
-      amountColor: "text-sky-600",
+      badgeColor: "bg-info/10 text-info",
+      amountColor: "text-info",
     },
   };
 
@@ -197,7 +197,7 @@ export default function TenantPaymentHistoryPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-3 sm:px-6">
-                <div className="text-lg sm:text-2xl font-bold text-green-500 truncate">
+                <div className="text-lg sm:text-2xl font-bold text-success truncate">
                   {fmt(totalPaid)}
                 </div>
               </CardContent>
@@ -315,18 +315,18 @@ export default function TenantPaymentHistoryPage() {
                             <div
                               className={`p-3 rounded-lg h-fit ${
                                 p.status === "verified"
-                                  ? "bg-green-500/10"
+                                  ? "bg-success/10"
                                   : p.status === "rejected"
-                                    ? "bg-red-500/10"
+                                    ? "bg-destructive/10"
                                     : "bg-muted"
                               }`}
                             >
                               <FileText
                                 className={`w-6 h-6 ${
                                   p.status === "verified"
-                                    ? "text-green-500"
+                                    ? "text-success"
                                     : p.status === "rejected"
-                                      ? "text-red-600"
+                                      ? "text-destructive"
                                       : "text-muted-foreground"
                                 }`}
                               />

@@ -664,7 +664,7 @@ export default function TenantProfilePage() {
                 <Send className="h-5 w-5 text-[#2AABEE] shrink-0" />
                 <span className="truncate">{t("tenant.profile.telegram")}</span>
                 {tgLinked && (
-                  <span className="text-xs font-normal text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full shrink-0">
+                  <span className="text-xs font-normal text-success bg-success/10 px-2 py-0.5 rounded-full shrink-0">
                     {t("tenant.profile.telegramLinked")}
                   </span>
                 )}
@@ -676,10 +676,10 @@ export default function TenantProfilePage() {
               </CardDescription>
               {tgLinked ? (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-3 p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                  <div className="flex items-center gap-3 p-4 rounded-lg bg-success/10 border border-success/20">
+                    <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
                     <div className="flex-1">
-                      <p className="font-medium text-green-600 dark:text-green-400">
+                      <p className="font-medium text-success">
                         {t("tenant.profile.telegramLinked")}
                       </p>
                       {tgChatId && (
@@ -771,7 +771,7 @@ export default function TenantProfilePage() {
                 </div>
               ) : tgDeepLink ? (
                 <div className="space-y-4">
-                  <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 space-y-3">
+                  <div className="p-4 rounded-lg bg-info/10 border border-info/20 space-y-3">
                     <p className="text-sm font-medium">
                       {language === "th" ? "วิธีเชื่อมต่อ:" : "How to connect:"}
                     </p>
@@ -1081,7 +1081,7 @@ export default function TenantProfilePage() {
                       </>
                     ) : passwordSuccess ? (
                       <>
-                        <CheckCircle2 className="mr-2 h-4 w-4 text-green-500" />
+                        <CheckCircle2 className="mr-2 h-4 w-4 text-success" />
                         {language === "th" ? "สำเร็จ!" : "Done!"}
                       </>
                     ) : hasPassword ? (

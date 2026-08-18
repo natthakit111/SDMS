@@ -200,19 +200,19 @@ export default function TenantBillsPage() {
                   <div
                     className={`p-3 rounded-lg shrink-0 ${
                       bill.status === "paid"
-                        ? "bg-green-500/20"
+                        ? "bg-success/20"
                         : bill.status === "overdue"
                           ? "bg-destructive/20"
-                          : "bg-yellow-500/20"
+                          : "bg-warning/20"
                     }`}
                   >
                     <Receipt
                       className={`h-6 w-6 ${
                         bill.status === "paid"
-                          ? "text-green-500"
+                          ? "text-success"
                           : bill.status === "overdue"
                             ? "text-destructive"
-                            : "text-yellow-600"
+                            : "text-warning"
                       }`}
                     />
                   </div>

@@ -229,17 +229,17 @@ export default function TenantMaintenancePage() {
     {
       key: "pending",
       label: t("status.pending"),
-      color: "text-orange-500",
+      color: "text-warning",
     },
     {
       key: "in_progress",
       label: t("status.in_progress"),
-      color: "text-blue-500",
+      color: "text-primary",
     },
     {
       key: "resolved",
       label: t("status.resolved"),
-      color: "text-green-500",
+      color: "text-success",
     },
   ];
 
@@ -289,7 +289,7 @@ export default function TenantMaintenancePage() {
 
             {done ? (
               <div className="text-center py-8">
-                <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                <CheckCircle className="w-12 h-12 text-success mx-auto mb-4" />
                 <p className="font-medium">{t("tenant.maintenance.success")}</p>
               </div>
             ) : (

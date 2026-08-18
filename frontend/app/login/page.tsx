@@ -127,8 +127,20 @@ export default function LoginPage() {
   const isAnyLoading = isLoading || oauthLoading !== null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md relative">
+    <div className="min-h-screen flex items-center justify-center bg-primary p-4">
+      <div className="w-full max-w-md flex flex-col items-center">
+        {/* Brand */}
+        <div className="mb-6 flex flex-col items-center text-center">
+          <div className="mb-3 p-3 rounded-full bg-accent/15">
+            <Building2 className="h-8 w-8 text-accent" />
+          </div>
+          <h1 className="text-2xl font-bold text-primary-foreground">SDMS</h1>
+          <p className="text-sm text-primary-foreground/50 mt-1">
+            {t("login.subtitle")}
+          </p>
+        </div>
+
+      <Card className="w-full relative shadow-2xl">
         {/* Language Switcher */}
         <div className="absolute top-3 right-3">
           <div className="flex items-center rounded-full border bg-muted p-0.5">
@@ -136,7 +148,7 @@ export default function LoginPage() {
               onClick={() => setLanguage("th")}
               className={`px-2 py-1 text-xs rounded-full transition ${
                 language === "th"
-                  ? "bg-primary text-white"
+                  ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground hover:bg-muted"
               }`}
             >
@@ -146,7 +158,7 @@ export default function LoginPage() {
               onClick={() => setLanguage("en")}
               className={`px-2 py-1 text-xs rounded-full transition ${
                 language === "en"
-                  ? "bg-primary text-white"
+                  ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground hover:bg-muted"
               }`}
             >
@@ -155,17 +167,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="p-3 rounded-full bg-primary/10">
-              <Building2 className="h-8 w-8 text-primary" />
-            </div>
-          </div>
-          <CardTitle className="text-2xl">SDMS</CardTitle>
-          <CardDescription>{t("login.subtitle")}</CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-6">
           <div className="space-y-4">
             <Button
               type="button"
@@ -223,6 +225,7 @@ export default function LoginPage() {
                   onChange={(e) => setUsername(e.target.value)}
                   required
                   disabled={isAnyLoading}
+                  className="bg-muted border-0 focus-visible:ring-accent/50"
                 />
               </Field>
 
@@ -239,7 +242,7 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     disabled={isAnyLoading}
-                    className="pr-10"
+                    className="bg-muted border-0 focus-visible:ring-accent/50 pr-10"
                   />
                   <button
                     type="button"
@@ -257,18 +260,19 @@ export default function LoginPage() {
               </Field>
 
               <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <label className="flex items-center gap-2 text-sm cursor-pointer text-muted-foreground">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
                     disabled={isAnyLoading}
+                    className="accent-accent"
                   />
                   {t("login.rememberMe")}
                 </label>
                 <Link
                   href="/forgot-password"
-                  className="text-sm text-primary hover:underline"
+                  className="text-sm text-accent hover:underline"
                 >
                   {t("login.forgotPassword")}
                 </Link>
@@ -280,7 +284,11 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full" disabled={isAnyLoading}>
+              <Button
+                type="submit"
+                className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                disabled={isAnyLoading}
+              >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -295,12 +303,17 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-muted-foreground">
             {t("login.noAccount")}{" "}
-            <Link href="/register" className="text-primary hover:underline">
+            <Link href="/register" className="text-accent hover:underline">
               {t("login.register")}
             </Link>
           </p>
         </CardContent>
       </Card>
+
+        <p className="mt-6 text-center text-xs text-primary-foreground/40">
+          SDMS v1.0 — Web
+        </p>
+      </div>
     </div>
   );
 }

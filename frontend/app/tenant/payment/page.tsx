@@ -313,7 +313,7 @@ export default function TenantPaymentPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-3 sm:px-6">
-                <div className="text-lg sm:text-2xl font-bold text-green-500">
+                <div className="text-lg sm:text-2xl font-bold text-success">
                   {bills.filter((b) => b.status === "paid").length}
                 </div>
               </CardContent>
@@ -513,7 +513,7 @@ export default function TenantPaymentPage() {
                                       }
                                     >
                                       {copiedAccount ? (
-                                        <Check className="h-4 w-4 text-green-500" />
+                                        <Check className="h-4 w-4 text-success" />
                                       ) : (
                                         <Copy className="h-4 w-4" />
                                       )}
@@ -575,7 +575,7 @@ export default function TenantPaymentPage() {
                         </DialogHeader>
                         {uploadDone ? (
                           <div className="text-center py-8">
-                            <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                            <CheckCircle className="w-12 h-12 text-success mx-auto mb-4" />
                             <p className="font-medium">
                               {t("payment.success.submitted")}
                             </p>
@@ -632,9 +632,9 @@ export default function TenantPaymentPage() {
                 </Card>
               ) : (
                 // ทุกบิลมีสลิปรอตรวจสอบแล้ว
-                <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20">
+                <Card className="border-warning/30 bg-warning/5">
                   <CardContent className="py-6 text-center">
-                    <CheckCircle className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
+                    <CheckCircle className="h-8 w-8 text-warning mx-auto mb-2" />
                     <p className="font-medium">{t("status.pending_verify")}</p>
                     <p className="text-sm text-muted-foreground mt-1">
                       {t("payment.error.pendingVerify")}

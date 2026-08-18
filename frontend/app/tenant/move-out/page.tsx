@@ -122,12 +122,12 @@ export default function MoveOutPage() {
     pending: {
       label: t("status.pending"),
       icon: Clock,
-      color: "text-yellow-500",
+      color: "text-warning",
     },
     approved: {
       label: t("status.approved"),
       icon: CheckCircle,
-      color: "text-green-500",
+      color: "text-success",
     },
     rejected: {
       label: t("status.rejected"),
@@ -202,8 +202,8 @@ export default function MoveOutPage() {
     color: string;
   }[] = [
     { key: "all", label: t("common.all"), color: "" },
-    { key: "pending", label: t("status.pending"), color: "text-yellow-500" },
-    { key: "approved", label: t("status.approved"), color: "text-green-500" },
+    { key: "pending", label: t("status.pending"), color: "text-warning" },
+    { key: "approved", label: t("status.approved"), color: "text-success" },
     { key: "rejected", label: t("status.rejected"), color: "text-destructive" },
   ];
 
@@ -248,8 +248,8 @@ export default function MoveOutPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit}>
               <FieldGroup className="space-y-4">
-                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 flex gap-3">
-                  <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 flex gap-3">
+                  <AlertCircle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
                   <div className="text-sm">
                     <p className="font-medium">{t("moveout.notice30")}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -287,7 +287,7 @@ export default function MoveOutPage() {
                     className={`rounded-lg border p-3 flex gap-3 ${
                       isEarlyTermination
                         ? "bg-destructive/10 border-destructive/30"
-                        : "bg-green-500/10 border-green-500/30"
+                        : "bg-success/10 border-success/30"
                     }`}
                   >
                     {isEarlyTermination ? (
@@ -515,10 +515,10 @@ export default function MoveOutPage() {
       </Card>
 
       {/* Info */}
-      <Card className="border-blue-500/30 bg-blue-500/5">
+      <Card className="border-info/30 bg-info/5">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-blue-500" />
+            <AlertCircle className="h-5 w-5 text-info" />
             {t("common.note")}
           </CardTitle>
         </CardHeader>

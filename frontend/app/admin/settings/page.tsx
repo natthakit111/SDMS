@@ -476,7 +476,7 @@ export default function SettingsPage() {
                 </CardTitle>
 
                 {isPromptpayConfigured ? (
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-green-600 dark:text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-success bg-success/10 px-2.5 py-1 rounded-full">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     {language === "th" ? "ตั้งค่าแล้ว" : "Configured"}
                   </span>
@@ -620,7 +620,7 @@ export default function SettingsPage() {
         {/* ── Utilities ── */}
         <TabsContent value="utilities" className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <Card className="border-yellow-500/30 bg-yellow-500/5">
+            <Card className="border-warning/30 bg-warning/5">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Zap className="h-4 w-4 text-yellow-500" />
@@ -638,7 +638,7 @@ export default function SettingsPage() {
                 </p>
               </CardContent>
             </Card>
-            <Card className="border-blue-500/30 bg-blue-500/5">
+            <Card className="border-info/30 bg-info/5">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Droplets className="h-4 w-4 text-blue-500" />

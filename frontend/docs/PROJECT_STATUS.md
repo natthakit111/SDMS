@@ -23,7 +23,7 @@ Smart Dormitory Management System (SDMS) — ระบบจัดการห�
 | มิเตอร์น้ำ-ไฟ | `/admin/meters` | — | ✅ แนบรูปหลักฐาน |
 | บิล | `/admin/bills` | `/tenant/bills` | ✅ generate อัตโนมัติจากมิเตอร์ + คำนวณค่าปรับ |
 | การชำระเงิน | `/admin/payments` | `/tenant/payment` | ✅ QR PromptPay + อัปโหลดสลิป + verify/reject |
-| ประวัติชำระเงิน | `/admin/payment-history` | `/tenant/payment-history` | ✅ |
+| ประวัติชำระเงิน | — | `/tenant/payment-history` | ✅ |
 | แจ้งซ่อม | `/admin/maintenance` | `/tenant/maintenance` | ✅ แนบรูป, ติดตามสถานะ |
 | ประกาศ | `/admin/announcements` | `/tenant/announcements` | ✅ กรองตามชั้น/กลุ่มเป้าหมาย |
 | ย้ายออก + เงินประกัน | `/admin/move-out` | `/tenant/move-out` | ✅ พรีวิวเงินคืน, อนุมัติ/ปฏิเสธ |

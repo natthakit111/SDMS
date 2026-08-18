@@ -32,9 +32,15 @@
 - **Frontend (Presentation Layer):** React.js (Next.js Framework) (Component-based architecture)
 - **Backend (Logic Layer):** Node.js / Express.js (Event-Driven, Non-blocking I/O)
 - **Database (Data Layer):** MySQL (Relational Database)
+- **Auth:** JWT เก็บใน httpOnly cookie + double-submit CSRF token, รองรับ Google OAuth และ Telegram Login Widget
 - **Integrations:**
-  - [Telegram Bot API](https://core.telegram.org/bots/api) - สำหรับระบบแจ้งเตือนอัตโนมัติ
-  - `promptpay-qr` - สำหรับแปลงยอดชำระเป็น Payload สร้าง QR Code
+  - [Telegram Bot API](https://core.telegram.org/bots/api) — แจ้งเตือนอัตโนมัติ + ผูกบัญชีผ่าน deep link
+  - `promptpay-qr` — แปลงยอดชำระเป็น Payload สร้าง QR Code แบบ dynamic (ระบุยอดอัตโนมัติ)
+  - `pdfkit` / `puppeteer` — สร้างใบแจ้งหนี้/ใบเสร็จเป็น PDF
+  - `exceljs` — export รายงานเป็น Excel
+  - `cloudinary` — เก็บไฟล์รูปภาพ/เอกสารที่อัปโหลด (สลิป, รูปมิเตอร์, ไฟล์สัญญา)
+
+📄 ดูรายละเอียด endpoint ทั้งหมดได้ที่ [`backend/docs/API.md`](backend/docs/API.md)
 
 ---
 
@@ -50,12 +56,15 @@
 
 1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/your-username/SDMS.git](https://github.com/your-username/SDMS.git)
+   git clone https://github.com/natthakit111/SDMS.git
    cd SDMS
+   ```
 
 2. **Setup Database (MySQL):**
-   - สร้าง Database ใหม่ใน MySQL (เช่น `SDMS_db`)
-   - นำเข้าไฟล์โครงสร้างฐานข้อมูลจากโฟลเดอร์ `database/schema.sql` (ถ้ามี)
+   - สร้าง Database ใหม่ใน MySQL (ค่า default ที่โค้ดคาดไว้คือ `smart_dormitory` — ดู `.env.example`)
+   - นำเข้าไฟล์โครงสร้างฐานข้อมูล (schema) เข้าไปใน database นั้น
+
+   > ⚠️ **ยังไม่มีไฟล์ schema ใน repo นี้** โฟลเดอร์ `database/` (ที่ควรมี `schema.sql`) ยังไม่ถูก push ขึ้น GitHub — ถ้ามีไฟล์นี้อยู่ในเครื่อง ให้ commit เข้า repo ด้วย (เช็คว่าไม่ได้ติดอยู่ใน `.gitignore` โดยไม่ตั้งใจ) มิฉะนั้นคนอื่น clone ไปแล้วจะสร้างฐานข้อมูลไม่ได้เลย
 
 3. **Install Dependencies:**
 
@@ -72,17 +81,26 @@
    ```
 
 4. **Environment Variables (.env):**
-   สร้างไฟล์ `.env` ในโฟลเดอร์ `backend` และกำหนดค่าตัวแปรต่างๆ ดังนี้:
+   ก็อปไฟล์ตัวอย่างแล้วแก้ค่าตามจริง:
 
-   ```env
-   DB_HOST=localhost
-   DB_USER=root
-   DB_PASS=your_password
-   DB_NAME=SDMS_db
-   JWT_SECRET=your_jwt_secret_key
-   TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-   PROMPTPAY_ID=your_promptpay_number
+   ```bash
+   cd backend
+   cp .env.example .env
    ```
+
+   ตัวแปรหลักที่ต้องตั้งเพื่อให้รันได้ (ดูค่าทั้งหมดพร้อมคำอธิบายใน `backend/.env.example`):
+
+   | ตัวแปร | คำอธิบาย |
+   |---|---|
+   | `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | เชื่อมต่อ MySQL |
+   | `JWT_SECRET` | key เซ็น JWT — ต้องเปลี่ยนเป็นค่าสุ่มยาวๆ ก่อนใช้จริง |
+   | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` | สำหรับ Telegram Bot + Login Widget |
+   | `BOT_INTERNAL_SECRET` | secret ภายในระหว่าง backend กับ bot process |
+   | `CLOUDINARY_*` | เก็บไฟล์รูป/เอกสารที่ผู้ใช้อัปโหลด |
+   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | สำหรับปุ่ม "เข้าสู่ระบบด้วย Google" |
+   | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | ส่งอีเมลลืมรหัสผ่าน (ต้องใช้ App Password ของ Google ไม่ใช่รหัส Gmail จริง) |
+
+   > ตัวแปรที่ไม่ได้ตั้งค่า ระบบจะไม่ error ทันทีแต่ฟีเจอร์ที่เกี่ยวข้องจะถูกปิดเงียบๆ (เช่น ไม่ตั้ง `TELEGRAM_BOT_TOKEN` → บอทจะไม่ทำงานแต่เว็บยังใช้ได้ปกติ)
 
 5. **Run the Application:**
 
@@ -102,9 +120,12 @@
 
 ## 🔒 Security Measures
 
-- **Authentication:** ใช้งาน JSON Web Token (JWT) ในการยืนยันตัวตนและจัดการ Session แบบ Stateless
-- **Authorization:** มีระบบ Role-Based Access Control แยกสิทธิ์ Admin และ Tenant ชัดเจน
-- **Data Protection:** เข้ารหัสผ่าน (Password Hashing) ก่อนบันทึกลงฐานข้อมูล
+- **Authentication:** JWT เก็บใน **httpOnly cookie** (ไม่ใช่ localStorage) ป้องกัน token หลุดผ่าน XSS, รองรับ login ด้วย username/password, Google OAuth, และ Telegram Login Widget
+- **CSRF Protection:** double-submit cookie pattern (`csrf_token` cookie + header `X-CSRF-Token`) จำเป็นเพราะ frontend/backend อยู่คนละโดเมนกันตอน production เลยต้องใช้ `SameSite=None`
+- **Authorization:** Role-Based Access Control แยกสิทธิ์ Admin และ Tenant ในทุก endpoint
+- **Data Protection:** เข้ารหัสรหัสผ่านด้วย bcrypt ก่อนบันทึกลงฐานข้อมูล
+- **OAuth Token Handling:** ไม่ส่ง JWT เต็มผ่าน URL query string ตอน OAuth callback (ป้องกันหลุดผ่าน browser history/server log) ใช้ short-lived exchange code แทน
+- **Audit Log:** การแก้ไขค่าตั้งค่าระบบ (Settings) ทุกครั้งถูกบันทึกไว้ใน `settings_audit_log` พร้อมค่าเก่า/ใหม่และผู้แก้ไข
 
 ---
 

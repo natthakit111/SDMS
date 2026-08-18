@@ -32,7 +32,7 @@ Smart Dormitory Management System (SDMS) — ระบบจัดการห�
 | Telegram integration | (ผูกผ่านหน้า profile) | ✅ | ✅ ผูกบัญชีจริง + broadcast |
 | Reports | (เฉพาะ backend endpoint, ยังไม่มีหน้า UI) | — | ✅ `/api/reports/*` — export Excel/PDF |
 
-> ดู endpoint ทั้งหมดที่ [`backend/docs/API.md`](../../backend/docs/API.md)
+> ดู endpoint ทั้งหมดที่ [`backend/docs/API.md`](../backend/docs/API.md)
 
 ## สิ่งที่เปลี่ยนไปจากแผนเดิม (เอกสารเก่าพูดถึงแต่ไม่มีในระบบปัจจุบัน)
 
@@ -44,13 +44,13 @@ Smart Dormitory Management System (SDMS) — ระบบจัดการห�
 | รายการ | สถานะ |
 |---|---|
 | CI/CD pipeline | ยังไม่มี |
-| Docker / containerization | ยังไม่มี — ดูวิธี deploy แบบ manual ที่ [`docs/DEPLOYMENT.md`](../../docs/DEPLOYMENT.md) |
-| Database schema ใน repo | เพิ่งเพิ่มเข้ามา — ดู [`database/DATABASE.md`](../../database/DATABASE.md) และ `database/sdms.sql` |
+| Docker / containerization | ยังไม่มี — ดูวิธี deploy แบบ manual ที่ [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md) |
+| Database schema ใน repo | เพิ่งเพิ่มเข้ามา — ดู [`database/DATABASE.md`](../database/DATABASE.md) และ `database/sdms.sql` |
 
 ## เอกสารที่เกี่ยวข้อง
 
-- [`backend/docs/API.md`](../../backend/docs/API.md) — API endpoints ทั้งหมด
-- [`database/DATABASE.md`](../../database/DATABASE.md) — โครงสร้างตาราง/ERD
-- [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) — system flow diagrams
-- [`docs/DEPLOYMENT.md`](../../docs/DEPLOYMENT.md) — วิธี deploy
+- [`backend/docs/API.md`](../backend/docs/API.md) — API endpoints ทั้งหมด
+- [`database/DATABASE.md`](../database/DATABASE.md) — โครงสร้างตาราง/ERD
+- [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) — system flow diagrams
+- [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md) — วิธี deploy
 - [`CRON_SETUP.md`](./CRON_SETUP.md) — cron jobs ที่ทำงานอยู่จริง

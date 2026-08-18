@@ -13,7 +13,7 @@
 const express = require('express');
 const { body } = require('express-validator');
 const router = express.Router();
-const ctrl = require('../controllers/tenantController');
+const ctrl = require('../controllers/tenant.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
 const notificationPrefController = require('../controllers/notificationPreference.controller')

@@ -4,7 +4,7 @@
 
 ## ทำไม Railway ถึงเหมาะกับ backend ตัวนี้
 
-Backend มี **cron job ทำงานอยู่ในตัว process เอง** (`node-cron`, ดู [`CRON_SETUP.md`](../frontend/docs/CRON_SETUP.md)) — ต้องการ process ที่รันค้างตลอดเวลา ซึ่ง Railway รองรับได้ตรงๆ (ต่างจาก Vercel ที่เป็น serverless functions อายุสั้น ใช้รัน cron ในตัวแบบนี้ไม่ได้)
+Backend มี **cron job ทำงานอยู่ในตัว process เอง** (`node-cron`, ดู [`CRON_SETUP.md`](./CRON_SETUP.md)) — ต้องการ process ที่รันค้างตลอดเวลา ซึ่ง Railway รองรับได้ตรงๆ (ต่างจาก Vercel ที่เป็น serverless functions อายุสั้น ใช้รัน cron ในตัวแบบนี้ไม่ได้)
 
 ```
 Vercel (Next.js frontend)  ──HTTPS + cookie──→  Railway (Express backend)
@@ -96,7 +96,7 @@ Vercel (Next.js frontend)  ──HTTPS + cookie──→  Railway (Express backe
 - [ ] Google OAuth redirect URI + Telegram BotFather domain อัปเดตเป็นโดเมนจริงแล้ว
 - [ ] ทดสอบ login ทั้ง 3 แบบ (username/password, Google, Telegram) บน production จริง — เช็คว่า cookie ถูกตั้งและอ่านข้ามโดเมนได้ (เปิด DevTools → Application → Cookies เช็คว่ามี `token`, `auth_hint`, `csrf_token`)
 - [ ] ทดสอบ flow ครบวงจร: สร้างห้อง/สัญญา → จดมิเตอร์ → ออกบิล → จ่ายเงิน → แจ้งเตือน Telegram มาจริง
-- [ ] รอดูวันถัดไปว่า cron รันตามเวลาจริงไหม (เช็ค Railway deploy logs ตอน 00:05 / 01:00 / 08:00 / 08:30 / 09:00 เวลาไทย) หรือเรียกทดสอบทันทีผ่าน `__test__` helper ตามที่อธิบายไว้ใน [`CRON_SETUP.md`](../frontend/docs/CRON_SETUP.md)
+- [ ] รอดูวันถัดไปว่า cron รันตามเวลาจริงไหม (เช็ค Railway deploy logs ตอน 00:05 / 01:00 / 08:00 / 08:30 / 09:00 เวลาไทย) หรือเรียกทดสอบทันทีผ่าน `__test__` helper ตามที่อธิบายไว้ใน [`CRON_SETUP.md`](./CRON_SETUP.md)
 - [ ] ตั้งการสำรองฐานข้อมูล — Railway มี backup ให้ในบาง plan แต่ควรเช็ค/ตั้งเพิ่มเองด้วย (`mysqldump` ผ่าน scheduled job ภายนอก) เผื่อไว้
 
 ---

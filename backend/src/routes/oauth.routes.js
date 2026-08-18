@@ -49,7 +49,7 @@ const { sendSuccess, sendBadRequest } = require('../utils/response');
 // ห้ามเขียน logic sign JWT / set cookie ซ้ำอีกที่ ไม่งั้นถ้าแก้ค่า (เช่น
 // เพิ่ม csrf claim, เปลี่ยน sameSite) ทีหลังแล้วลืมแก้ให้ครบทุกจุด จะมี
 // behavior ไม่ตรงกันระหว่าง regular login กับ OAuth login
-const { signToken, setAuthCookies } = require('../controllers/authController');
+const { signToken, setAuthCookies } = require('../controllers/auth.controller');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const BACKEND_URL  = process.env.BACKEND_URL  || 'http://localhost:5000/api';

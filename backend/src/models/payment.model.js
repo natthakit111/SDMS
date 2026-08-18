@@ -11,7 +11,7 @@ const findAll = async ({ tenant_id, bill_id, status, payment_method, } = {}) => 
            b.bill_month, b.bill_year, b.total_amount AS bill_total,
            r.room_number,
            CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
-           u.username AS verified_by_username
+           u.username AS verified_by_name
     FROM payments p
     JOIN bills    b  ON p.bill_id   = b.bill_id
     JOIN rooms    r  ON b.room_id   = r.room_id
@@ -36,7 +36,7 @@ const findById = async (paymentId) => {
            r.room_number,
            CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
            t.tenant_id, u_t.telegram_chat_id,
-           u_v.username AS verified_by_username
+           u_v.username AS verified_by_name
     FROM payments p
     JOIN bills    b   ON p.bill_id    = b.bill_id
     JOIN rooms    r   ON b.room_id    = r.room_id

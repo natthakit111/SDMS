@@ -43,6 +43,7 @@ const jwt      = require('jsonwebtoken');
 const router   = express.Router();
 const { pool } = require('../config/db');
 const OAuthCodeModel = require('../models/oauthCode.model');
+const logger   = require('../utils/logger');
 const { sendSuccess, sendBadRequest } = require('../utils/response');
 // ⚠️ ใช้ signToken + setAuthCookies ตัวเดียวกับ authController.js เสมอ —
 // ห้ามเขียน logic sign JWT / set cookie ซ้ำอีกที่ ไม่งั้นถ้าแก้ค่า (เช่น
@@ -196,51 +197,63 @@ router.post('/oauth/exchange', async (req, res, next) => {
 
 /* ═════════════════════════════════════════
    GOOGLE OAUTH
+   ⚠️ ลงทะเบียนเฉพาะตอนตั้งค่า GOOGLE_CLIENT_ID/SECRET ไว้เท่านั้น — เดิม
+   new GoogleStrategy() ถูกสร้างแบบ unconditional ทำให้ทั้งเซิร์ฟเวอร์
+   crash ตั้งแต่ require('./app') ถ้าไม่ได้ตั้งค่าไว้ (throw จาก
+   passport-oauth2 เพราะ clientID ว่าง) ซึ่งขัดกับที่ README สัญญาไว้ว่า
+   ตัวแปรที่ไม่ได้ตั้งค่าควรแค่ปิดฟีเจอร์นั้นเงียบๆ ไม่ควร crash ทั้งแอป
 ═════════════════════════════════════════ */
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID:     process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL:  `${BACKEND_URL}/auth/google/callback`,
-    },
-    async (_accessToken, _refreshToken, profile, done) => {
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID:     process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL:  `${BACKEND_URL}/auth/google/callback`,
+      },
+      async (_accessToken, _refreshToken, profile, done) => {
+        try {
+          const user = await upsertOAuthUser({
+            provider:    'google',
+            providerId:  profile.id,
+            email:       profile.emails?.[0]?.value,
+            displayName: profile.displayName,
+          });
+          done(null, user);
+        } catch (err) {
+          done(err, null);
+        }
+      }
+    )
+  );
+
+  router.get('/google',
+    passport.authenticate('google', { scope: ['profile', 'email'], session: false })
+  );
+
+  router.get('/google/callback',
+    passport.authenticate('google', { session: false, failureRedirect: `${FRONTEND_URL}/login` }),
+    async (req, res) => {
       try {
-        const user = await upsertOAuthUser({
-          provider:    'google',
-          providerId:  profile.id,
-          email:       profile.emails?.[0]?.value,
-          displayName: profile.displayName,
-        });
-        done(null, user);
+        // ⚠️ FIX: เดิม sign JWT เต็มแล้วฝังใน query ตรงๆ (?token=...)
+        // เปลี่ยนเป็นสร้าง exchange code สั้นๆ อายุ 60 วิ ใช้ครั้งเดียวแทน
+        const code = await OAuthCodeModel.createCode(req.user.user_id);
+        res.redirect(`${FRONTEND_URL}/auth/google/callback?code=${code}`);
       } catch (err) {
-        done(err, null);
+        // ⚠️ เดิม catch เฉยๆ ไม่ log อะไรเลย ทำให้ debug ไม่ได้ว่าพังเพราะอะไร
+        // เพิ่ม log ไว้ชั่วคราวเพื่อเห็นสาเหตุจริง (เช่น ตาราง
+        // oauth_exchange_codes ยังไม่ถูกสร้าง จาก migration ที่ยังไม่ได้รัน)
+        console.error('[OAuth] Failed to create exchange code:', err);
+        res.redirect(`${FRONTEND_URL}/auth/google/callback?error=${encodeURIComponent('เกิดข้อผิดพลาด')}`);
       }
     }
-  )
-);
-
-router.get('/google',
-  passport.authenticate('google', { scope: ['profile', 'email'], session: false })
-);
-
-router.get('/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: `${FRONTEND_URL}/login` }),
-  async (req, res) => {
-    try {
-      // ⚠️ FIX: เดิม sign JWT เต็มแล้วฝังใน query ตรงๆ (?token=...)
-      // เปลี่ยนเป็นสร้าง exchange code สั้นๆ อายุ 60 วิ ใช้ครั้งเดียวแทน
-      const code = await OAuthCodeModel.createCode(req.user.user_id);
-      res.redirect(`${FRONTEND_URL}/auth/google/callback?code=${code}`);
-    } catch (err) {
-      // ⚠️ เดิม catch เฉยๆ ไม่ log อะไรเลย ทำให้ debug ไม่ได้ว่าพังเพราะอะไร
-      // เพิ่ม log ไว้ชั่วคราวเพื่อเห็นสาเหตุจริง (เช่น ตาราง
-      // oauth_exchange_codes ยังไม่ถูกสร้าง จาก migration ที่ยังไม่ได้รัน)
-      console.error('[OAuth] Failed to create exchange code:', err);
-      res.redirect(`${FRONTEND_URL}/auth/google/callback?error=${encodeURIComponent('เกิดข้อผิดพลาด')}`);
-    }
-  }
-);
+  );
+} else {
+  logger.warn('[OAuth] GOOGLE_CLIENT_ID/SECRET not set — Google login disabled');
+  router.get('/google', (req, res) => {
+    res.status(503).json({ success: false, message: 'Google login is not configured' });
+  });
+}
 
 /* ═════════════════════════════════════════
    TELEGRAM LOGIN WIDGET

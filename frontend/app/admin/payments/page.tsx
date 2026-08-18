@@ -177,7 +177,7 @@ export default function PaymentsPage() {
     return `${process.env.NEXT_PUBLIC_API_URL ?? ""}/${path}`;
   };
 
-  const paidDate = (p: Payment) => p.paid_at ?? p.created_at;
+  const paidDate = (p: Payment) => p.paid_at;
 
   const openDetails = (payment: Payment) => {
     setSelectedPayment(payment);

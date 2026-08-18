@@ -40,7 +40,11 @@
   - `exceljs` — export รายงานเป็น Excel
   - `cloudinary` — เก็บไฟล์รูปภาพ/เอกสารที่อัปโหลด (สลิป, รูปมิเตอร์, ไฟล์สัญญา)
 
-📄 ดูรายละเอียด endpoint ทั้งหมดได้ที่ [`backend/docs/API.md`](backend/docs/API.md)
+📄 เอกสารเพิ่มเติม:
+- [`backend/docs/API.md`](backend/docs/API.md) — endpoint ทั้งหมด, role ที่ต้องใช้
+- [`database/DATABASE.md`](database/DATABASE.md) — โครงสร้างตาราง + ERD
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — flow diagram (ออกบิล, สัญญา/ย้ายออก, telegram)
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — ขั้นตอน deploy จริง (PM2 + Nginx)
 
 ---
 

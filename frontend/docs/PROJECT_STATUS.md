@@ -43,8 +43,6 @@ Smart Dormitory Management System (SDMS) — ระบบจัดการห�
 
 | รายการ | สถานะ |
 |---|---|
-| หน้า UI สำหรับ Reports (`/admin/reports`) | ยังไม่มี — backend endpoint พร้อมแล้ว รอแค่ต่อ UI |
-| Automated tests (unit/integration) | ยังไม่มีในโค้ดที่ตรวจสอบ |
 | CI/CD pipeline | ยังไม่มี |
 | Docker / containerization | ยังไม่มี — ดูวิธี deploy แบบ manual ที่ [`docs/DEPLOYMENT.md`](../../docs/DEPLOYMENT.md) |
 | Database schema ใน repo | เพิ่งเพิ่มเข้ามา — ดู [`database/DATABASE.md`](../../database/DATABASE.md) และ `database/sdms.sql` |

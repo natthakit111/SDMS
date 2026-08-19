@@ -15,17 +15,19 @@ Base URL: http://localhost:5000/api   (dev)
 { "success": true, "message": "...", "data": { } }
 
 // ผิดพลาด
-{ "success": false, "message": "...", "errors": [ ], "code": "..." }
+{ "success": false, "message": "...", "errors": [ ], "error_code": "..." }
 ```
+
+⚠️ **`error_code`** มีเฉพาะบาง endpoint เท่านั้น (เช่น bills, meters, payments) ใช้สำหรับให้ frontend แปลเป็นข้อความภาษาไทยผ่าน `t(error_code)` — endpoint อื่นอาจส่ง error message เป็น string ธรรมดาใน `message` โดยไม่มี `error_code` เลย (เช่น `roomController.js` ส่ง `'ROOM_DUPLICATE'` ตรงๆ ใน `message`) frontend ควร fallback ไปแสดง `message` เสมอถ้าไม่เจอ `error_code`
 
 | Status | ความหมาย |
 |---|---|
 | 200 | สำเร็จ |
 | 201 | สร้างข้อมูลสำเร็จ |
 | 400 | ข้อมูลที่ส่งมาไม่ถูกต้อง (validation) |
-| 401 | ไม่ได้ login / token หมดอายุ / ไม่ถูกต้อง |
-| 403 | login แล้วแต่ role ไม่มีสิทธิ์ |
-| 404 | ไม่พบข้อมูล |
+| 401 | ไม่ได้ login / token หมดอายุ / ไม่ถูกต้อง / **บัญชีถูกปิดใช้งาน** (เช็ค `is_active` จาก DB ทุก request ที่ authenticate — admin deactivate/ลบ tenant แล้วมีผลทันทีในการยิง request ครั้งถัดไป ไม่ต้องรอ JWT หมดอายุเอง) |
+| 403 | login แล้วแต่ role ไม่มีสิทธิ์ / เข้าถึงข้อมูลของคนอื่น (ownership check ไม่ผ่าน) |
+| 404 | ไม่พบข้อมูล (บาง endpoint จงใจคืน 404 แทน 403 เวลา ownership check ไม่ผ่าน เพื่อไม่ยืนยันด้วยซ้ำว่า record นั้นมีอยู่จริง — ดูรายละเอียดต่อ endpoint) |
 | 500 | server error |
 
 ## Authentication
@@ -37,6 +39,8 @@ Base URL: http://localhost:5000/api   (dev)
 - Cookie `csrf_token` — readable โดย JS, ต้องแนบกลับมาใน header `X-CSRF-Token` ทุก request ที่แก้ข้อมูล (double-submit CSRF protection เพราะ frontend/backend คนละโดเมนกันตอน production เลยต้องใช้ `SameSite=None`)
 
 Middleware ยังรองรับ `Authorization: Bearer <token>` เป็น fallback ชั่วคราวไว้ด้วย
+
+⚠️ **ทุก request ที่ authenticate จะเช็ค `is_active` จาก DB เสมอ** (ไม่ใช่แค่ verify JWT signature/expiry) — ถ้า admin deactivate/ลบ user คนนั้นจะถูกเด้งออก (`401`) พร้อม cookie ถูกล้างทันทีในการยิง request ครั้งถัดไป ไม่ต้องรอ token หมดอายุ
 
 **Role ที่มีในระบบ:** `admin`, `tenant` — คุมด้วย `authorizeRoles('admin' | 'tenant')` แยกจาก `authenticate` (ตรวจแค่ login) เสมอ
 
@@ -110,12 +114,12 @@ Middleware ยังรองรับ `Authorization: Bearer <token>` เป็
 | GET | `/contracts/my` (alias `/contracts/my/active`) | tenant | สัญญาของตัวเอง |
 | GET | `/contracts` | admin | รายการสัญญาทั้งหมด |
 | POST | `/contracts` | admin | สร้างสัญญาใหม่ — `tenant_id`, `room_id`, `start_date`, `end_date` |
-| GET | `/contracts/:id` | any (เจ้าของหรือ admin) | รายละเอียดสัญญา |
+| GET | `/contracts/:id` | any (เจ้าของหรือ admin) | รายละเอียดสัญญา — ถ้า tenant ไม่ใช่เจ้าของ คืน `404` (ไม่ยืนยันว่า record มีอยู่จริง) |
 | PUT | `/contracts/:id` | admin | แก้ไขสัญญา |
 | PUT | `/contracts/:id/renew` | admin | ต่อสัญญา — ต้องส่ง `end_date` ใหม่ |
-| PUT | `/contracts/:id/terminate` | admin, tenant | ยกเลิกสัญญา |
+| PUT | `/contracts/:id/terminate` | admin, tenant | ยกเลิกสัญญา (tenant ยกเลิกได้เฉพาะสัญญาของตัวเอง) |
 | POST | `/contracts/:id/upload` | admin | อัปโหลดไฟล์สัญญา (PDF/Word) |
-| GET | `/contracts/:id/file` | any (สิทธิ์เช็คใน controller) | ดาวน์โหลดไฟล์สัญญา |
+| GET | `/contracts/:id/file` | any (เจ้าของหรือ admin) | ดาวน์โหลดไฟล์สัญญา — ownership check ใน controller |
 
 ---
 
@@ -141,9 +145,9 @@ Middleware ยังรองรับ `Authorization: Bearer <token>` เป็
 | POST | `/bills/generate` | admin | ออกบิลใหม่ — `room_id`, `month` (1-12), `year` |
 | GET | `/bills` | admin | รายการบิลทั้งหมด |
 | GET | `/bills/available-rooms` | admin | ห้องที่ยังไม่ได้ออกบิลเดือนนี้ |
-| GET | `/bills/:id/qr` | any (login) | QR Code PromptPay สำหรับจ่ายบิลนี้ |
-| GET | `/bills/:id/invoice-pdf` | any (login) | ดาวน์โหลดใบแจ้งหนี้เป็น PDF |
-| GET | `/bills/:id` | any (login) | รายละเอียดบิล |
+| GET | `/bills/:id/qr` | any (เจ้าของหรือ admin) | QR Code PromptPay สำหรับจ่ายบิลนี้ — ownership check ก่อนเปิดเผยข้อมูล |
+| GET | `/bills/:id/invoice-pdf` | any (เจ้าของหรือ admin) | ดาวน์โหลดใบแจ้งหนี้เป็น PDF |
+| GET | `/bills/:id` | any (เจ้าของหรือ admin) | รายละเอียดบิล — tenant ที่ไม่ใช่เจ้าของ คืน `404` |
 | PUT | `/bills/:id/cancel` | admin | ยกเลิกบิล |
 
 ---
@@ -153,9 +157,9 @@ Middleware ยังรองรับ `Authorization: Bearer <token>` เป็
 | Method | Path | Role | คำอธิบาย |
 |---|---|---|---|
 | GET | `/payments/my` | tenant | ประวัติการชำระเงินของตัวเอง |
-| POST | `/payments` | tenant | แจ้งชำระเงิน (multipart, แนบสลิป) — `bill_id`, `payment_method` (`qr_promptpay`/`cash`/`bank_transfer`) |
+| POST | `/payments` | tenant | แจ้งชำระเงิน (multipart, แนบสลิป) — `bill_id`, `payment_method` (`qr_promptpay`/`cash`/`bank_transfer`) — เช็ค ownership ของ `bill_id` **ก่อน** เปิดเผยสถานะบิล (คืน `404` ถ้าไม่ใช่บิลของตัวเอง) |
 | GET | `/payments` | admin | รายการชำระเงินทั้งหมด (รอตรวจสอบ/อนุมัติแล้ว) |
-| GET | `/payments/:id` | any (login) | รายละเอียดการชำระเงิน |
+| GET | `/payments/:id` | any (เจ้าของหรือ admin) | รายละเอียดการชำระเงิน |
 | PUT | `/payments/:id/verify` | admin | อนุมัติสลิป |
 | PUT | `/payments/:id/reject` | admin | ปฏิเสธสลิป |
 
@@ -179,7 +183,7 @@ Middleware ยังรองรับ `Authorization: Bearer <token>` เป็
 | GET | `/maintenance/stats` | admin | สถิติคำร้อง |
 | POST | `/maintenance` | tenant | แจ้งซ่อมใหม่ (multipart, แนบรูป) — `category`, `description` (≥10 ตัวอักษร), `priority` optional |
 | GET | `/maintenance` | admin | รายการคำร้องทั้งหมด |
-| GET | `/maintenance/:id` | any (login) | รายละเอียดคำร้อง |
+| GET | `/maintenance/:id` | any (เจ้าของหรือ admin) | รายละเอียดคำร้อง — tenant ที่ไม่ใช่เจ้าของถูกบล็อก |
 | PUT | `/maintenance/:id/status` | admin | อัปเดตสถานะ — `pending`/`in_progress`/`resolved`/`cancelled` |
 | PUT | `/maintenance/:id/cancel` | tenant | ยกเลิกคำร้องของตัวเอง |
 
@@ -189,8 +193,8 @@ Middleware ยังรองรับ `Authorization: Bearer <token>` เป็
 
 | Method | Path | Role | คำอธิบาย |
 |---|---|---|---|
-| GET | `/announcements` | any (login) | รายการประกาศ (กรองตาม floor ของ tenant อัตโนมัติ) |
-| GET | `/announcements/:id` | any (login) | รายละเอียดประกาศ |
+| GET | `/announcements` | any (login) | รายการประกาศ (กรองตาม `target_audience`/floor ของ tenant อัตโนมัติ) |
+| GET | `/announcements/:id` | any (login) | รายละเอียดประกาศ — กรองสิทธิ์เดียวกับ list: tenant เข้าประกาศ `target_audience: admin` หรือคนละชั้นไม่ได้ (คืน `404`) |
 | POST | `/announcements` | admin | สร้างประกาศ — `title`, `content`, `target_audience` (`all`/`admin`/`tenant`) optional |
 | PUT | `/announcements/:id` | admin | แก้ไขประกาศ (partial update) |
 | DELETE | `/announcements/:id` | admin | ลบประกาศ |
@@ -202,10 +206,10 @@ Middleware ยังรองรับ `Authorization: Bearer <token>` เป็
 | Method | Path | Role | คำอธิบาย |
 |---|---|---|---|
 | GET | `/move-out` | any (login) | รายการคำร้องย้ายออก (admin เห็นทั้งหมด, tenant เห็นของตัวเอง) |
-| POST | `/move-out` | tenant | แจ้งขอย้ายออก — `move_out_date`, `reason` |
-| GET | `/move-out/:id/deposit-preview` | admin | พรีวิวยอดคืนเงินประกันก่อนอนุมัติ |
-| PUT | `/move-out/:id/approve` | admin | อนุมัติการย้ายออก |
-| PUT | `/move-out/:id/reject` | admin | ปฏิเสธคำร้อง |
+| POST | `/move-out` | tenant | แจ้งขอย้ายออก — `move_out_date`, `reason` (⚠️ `move_out_date` เป็นแค่วันที่ tenant *เสนอ* ไม่ใช้คำนวณเงินคืน) |
+| GET | `/move-out/:id/deposit-preview` | admin | พรีวิวยอดคืนเงินประกันก่อนอนุมัติ — query param `checkout_date` (optional, default = วันนี้) |
+| PUT | `/move-out/:id/approve` | admin | อนุมัติการย้ายออก — body: `admin_note`, `actual_checkout_date` (optional, default = วันนี้, format `YYYY-MM-DD`), `deduction_extra` (บาท, ค่าเสียหายเพิ่มเติมที่ admin กรอกเอง), `deduction_extra_note` — ⚠️ **ใช้ `actual_checkout_date` คำนวณค่าปรับ/เงินคืนเสมอ ไม่ใช้ `move_out_date` ที่ tenant เสนอตอนสมัคร** (tenant ควบคุมค่านั้นได้เอง ห้ามใช้เป็นฐานคำนวณเงิน มิฉะนั้น tenant จะเลือกวันที่เพื่อเลี่ยงค่าปรับได้) |
+| PUT | `/move-out/:id/reject` | admin | ปฏิเสธคำร้อง — body: `admin_note` |
 
 ---
 
@@ -215,7 +219,7 @@ Middleware ยังรองรับ `Authorization: Bearer <token>` เป็
 |---|---|---|---|
 | GET | `/telegram/status` | ✅ | เช็คว่าผูกบัญชี Telegram อยู่หรือไม่ |
 | POST | `/telegram/generate-link` | ✅ | สร้าง deep link สำหรับผูกบัญชีกับ Telegram Bot (อายุ 10 นาที) |
-| POST | `/telegram/link` | Internal secret เท่านั้น (header `X-Internal-Secret`) | เรียกโดย bot process หลัง user กด deep link ยืนยัน |
+| POST | `/telegram/link` | Internal secret เท่านั้น (header `X-Internal-Secret`, ตรงกับ `BOT_INTERNAL_SECRET` ใน `.env`) | เรียกโดย bot process หลัง user กด deep link ยืนยัน — **ไม่มี user auth**, ป้องกันด้วย shared secret ระหว่าง backend กับ bot process แทน เพราะ caller คือ internal service ไม่ใช่ user ที่ login อยู่ |
 | DELETE | `/telegram/unlink` | ✅ | ยกเลิกการผูกบัญชี |
 | POST | `/telegram/broadcast` | admin | ส่งข้อความ broadcast ไปหา tenant ที่ผูก Telegram ทุกคน |
 
@@ -229,6 +233,8 @@ Middleware ยังรองรับ `Authorization: Bearer <token>` เป็
 | GET | `/reports/rooms` | `format` | รายงานสถานะห้องพัก |
 | GET | `/reports/payments` | `month`, `year`, `format` | รายงานการชำระเงิน |
 | GET | `/reports/system-export` | - | Export ข้อมูลทั้งระบบเป็น Excel หลาย sheet |
+
+⚠️ **ทุก field ที่มาจาก user input** (ชื่อ tenant, เบอร์โทร ฯลฯ) ผ่าน `excelSafe()` ก่อนเขียนลง cell เสมอ (`utils/excelSafe.js`) — ป้องกัน Excel/CSV Formula Injection (CWE-1236) ถ้าเพิ่ม field ใหม่ที่ดึงจาก user input เข้า report ต้อง wrap ด้วย `excelSafe()` ทุกครั้ง
 
 ---
 
@@ -249,3 +255,7 @@ Middleware ยังรองรับ `Authorization: Bearer <token>` เป็
 ## Validation pattern — ข้อควรระวังเวลาแก้ไข
 
 `express-validator` chain object เป็น **mutable** — ห้ามสร้าง `updateValidation` ด้วยการ `.map(v => v.optional())` จาก `createValidation` เด็ดขาด เพราะจะไป mutate ตัวต้นทางที่ POST ใช้อยู่ด้วย (เคยเป็นบั๊กจริงในโปรเจกต์นี้มาแล้วหลายจุด) ให้สร้าง array ใหม่แยกต่างหากเสมอเวลาต้องการ partial-update validation
+
+## Ownership check pattern — ข้อควรระวังเวลาแก้ไข
+
+Endpoint ที่ดึงข้อมูลรายชิ้นด้วย `:id` (bills, contracts, payments, maintenance, announcements) ต้องเช็ค ownership **ในทุก endpoint ที่เข้าถึงข้อมูลนั้นได้** ไม่ใช่แค่ endpoint หลัก — เคยเกิดบั๊กจริงที่ `list` endpoint กรองสิทธิ์ถูกต้อง แต่ `getById` ของข้อมูลเดียวกันลืมเช็ค ownership ทำให้ tenant เดา ID แล้วเห็นข้อมูลของคนอื่นได้ (IDOR) ถ้าเพิ่ม endpoint ใหม่ที่ดึงข้อมูลตาม `:id` ให้เช็ค pattern เดียวกับ endpoint ที่มีอยู่แล้วเสมอ และคืน `404` (ไม่ใช่ `403`) เมื่อ tenant พยายามเข้าถึงข้อมูลที่ไม่ใช่ของตัวเอง เพื่อไม่ยืนยันด้วยซ้ำว่า record นั้นมีอยู่จริงหรือไม่

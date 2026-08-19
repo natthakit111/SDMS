@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { PaymentStatusBadge } from "@/components/common/status-badge";
 import { paymentAPI } from "@/lib/api/payment.api";
+import { getMediaUrl } from "@/lib/media-url";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 import { Payment } from "@/types/index";
@@ -171,11 +172,7 @@ export default function PaymentsPage() {
     }
   };
 
-  const slipUrl = (path: string | null) => {
-    if (!path) return null;
-    if (path.startsWith("http")) return path;
-    return `${process.env.NEXT_PUBLIC_API_URL ?? ""}/${path}`;
-  };
+  const slipUrl = (path: string | null) => getMediaUrl(path, "detail");
 
   const paidDate = (p: Payment) => p.paid_at ?? p.created_at;
 

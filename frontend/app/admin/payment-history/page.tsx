@@ -29,11 +29,11 @@ import {
 } from "lucide-react";
 import { PaymentStatusBadge } from "@/components/common/status-badge";
 import { paymentAPI } from "@/lib/api/payment.api";
+import { getMediaUrl } from "@/lib/media-url";
 import { reportAPI } from "@/lib/api/report.api";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 import { Payment } from "@/types/index";
-
 
 const formatDate = (dateStr: string | null) => {
   if (!dateStr) return "-";
@@ -125,11 +125,7 @@ export default function PaymentHistoryPage() {
     }
   };
 
-  const slipUrl = (path: string | null) => {
-    if (!path) return null;
-    if (path.startsWith("http")) return path;
-    return `${process.env.NEXT_PUBLIC_API_URL ?? ""}/${path}`;
-  };
+  const slipUrl = (path: string | null) => getMediaUrl(path, "detail");
 
   const years = Array.from({ length: 5 }, (_, i) =>
     String(now.getFullYear() - i),

@@ -1,12 +1,15 @@
 -- =============================================================================
 --  Smart Dormitory Management System (SDMS)
 --  Database : sdms
-
 --  Engine   : InnoDB | Charset : utf8mb4 | Collation : utf8mb4_unicode_ci
 --
 --  ไฟล์นี้จัดเรียงตารางใหม่ตามลำดับความสัมพันธ์ (FK dependency order) จริง
 --  จึงสามารถรันสร้างฐานข้อมูลได้ตั้งแต่ต้นจนจบโดยไม่ต้องปิด FOREIGN_KEY_CHECKS
 --  (แต่ยังคง SET ไว้เพื่อความปลอดภัยเวลารันซ้ำ/deploy ทับของเดิม)
+--
+--  รวม migration add_performance_indexes.sql เข้ามาแล้ว (index บน status,
+--  bill_month/bill_year, payment_method, priority) — ไม่ต้องรันไฟล์ migration
+--  แยกอีกถ้า deploy จากไฟล์นี้ตั้งแต่ต้น
 --
 --  วิธี deploy:
 --    mysql -u <user> -p < sdms.sql
@@ -20,21 +23,16 @@ SET UNIQUE_CHECKS = 0;
 SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';
 SET TIME_ZONE = '+00:00';
 
-CREATE DATABASE IF NOT EXISTS `sdms
-`
+CREATE DATABASE IF NOT EXISTS `sdms`
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
-USE `sdms
-`;
+USE `sdms`;
 
 -- =============================================================================
 -- 1) ผู้ใช้งานระบบ / ผู้เช่า
 -- =============================================================================
 
--- ---------------------------------------------------------------------------
--- users : บัญชีผู้ใช้ทั้งหมด (แอดมิน + ผู้เช่า)
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `user_id`              int unsigned NOT NULL AUTO_INCREMENT,
@@ -63,9 +61,6 @@ CREATE TABLE `users` (
   KEY `idx_users_oauth` (`oauth_provider`,`oauth_provider_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ---------------------------------------------------------------------------
--- rooms : ห้องพัก
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `rooms`;
 CREATE TABLE `rooms` (
   `room_id`      int unsigned NOT NULL AUTO_INCREMENT,
@@ -82,9 +77,6 @@ CREATE TABLE `rooms` (
   UNIQUE KEY `uq_rooms_room_number` (`room_number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ---------------------------------------------------------------------------
--- tenants : ข้อมูลผู้เช่า (ผูกกับ users แบบ 1:1)
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `tenants`;
 CREATE TABLE `tenants` (
   `tenant_id`                int unsigned NOT NULL AUTO_INCREMENT,
@@ -111,9 +103,6 @@ CREATE TABLE `tenants` (
 -- 2) สัญญาเช่า / การย้ายออก / เงินประกัน
 -- =============================================================================
 
--- ---------------------------------------------------------------------------
--- contracts : สัญญาเช่า
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `contracts`;
 CREATE TABLE `contracts` (
   `contract_id`      int unsigned NOT NULL AUTO_INCREMENT,
@@ -135,9 +124,6 @@ CREATE TABLE `contracts` (
   CONSTRAINT `fk_contracts_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`tenant_id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ---------------------------------------------------------------------------
--- move_out_requests : คำขอย้ายออก
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `move_out_requests`;
 CREATE TABLE `move_out_requests` (
   `request_id`             int unsigned NOT NULL AUTO_INCREMENT,
@@ -163,9 +149,6 @@ CREATE TABLE `move_out_requests` (
   CONSTRAINT `fk_moveout_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`tenant_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ---------------------------------------------------------------------------
--- deposits : เงินประกัน / เงินคืนประกัน
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `deposits`;
 CREATE TABLE `deposits` (
   `deposit_id`            int unsigned NOT NULL AUTO_INCREMENT,
@@ -196,9 +179,7 @@ CREATE TABLE `deposits` (
 -- 3) บิล / การชำระเงิน / มิเตอร์ / ค่าน้ำค่าไฟ
 -- =============================================================================
 
--- ---------------------------------------------------------------------------
--- bills : บิลรายเดือน
--- ---------------------------------------------------------------------------
+-- bills : รวม index จาก migration: idx_bills_status, idx_bills_month_year
 DROP TABLE IF EXISTS `bills`;
 CREATE TABLE `bills` (
   `bill_id`           int unsigned NOT NULL AUTO_INCREMENT,
@@ -226,13 +207,13 @@ CREATE TABLE `bills` (
   UNIQUE KEY `uq_bill_room_month_active` (`active_key`),
   KEY `fk_bills_contract` (`contract_id`),
   KEY `idx_bills_room` (`room_id`),
+  KEY `idx_bills_status` (`status`),
+  KEY `idx_bills_month_year` (`bill_year`,`bill_month`),
   CONSTRAINT `fk_bills_contract` FOREIGN KEY (`contract_id`) REFERENCES `contracts` (`contract_id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_bills_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`room_id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ---------------------------------------------------------------------------
--- payments : การชำระเงิน / สลิปโอนเงิน
--- ---------------------------------------------------------------------------
+-- payments : รวม index จาก migration: idx_payments_status, idx_payments_method
 DROP TABLE IF EXISTS `payments`;
 CREATE TABLE `payments` (
   `payment_id`       int unsigned NOT NULL AUTO_INCREMENT,
@@ -250,14 +231,13 @@ CREATE TABLE `payments` (
   KEY `fk_payments_bill` (`bill_id`),
   KEY `fk_payments_tenant` (`tenant_id`),
   KEY `fk_payments_verifier` (`verified_by`),
+  KEY `idx_payments_status` (`status`),
+  KEY `idx_payments_method` (`payment_method`),
   CONSTRAINT `fk_payments_bill` FOREIGN KEY (`bill_id`) REFERENCES `bills` (`bill_id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_payments_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`tenant_id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_payments_verifier` FOREIGN KEY (`verified_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ---------------------------------------------------------------------------
--- meter_readings : ค่ามิเตอร์น้ำ/ไฟรายเดือน
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `meter_readings`;
 CREATE TABLE `meter_readings` (
   `reading_id`      int unsigned NOT NULL AUTO_INCREMENT,
@@ -279,9 +259,6 @@ CREATE TABLE `meter_readings` (
   CONSTRAINT `fk_meter_user` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ---------------------------------------------------------------------------
--- utility_rates : อัตราค่าน้ำ/ค่าไฟต่อหน่วย
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `utility_rates`;
 CREATE TABLE `utility_rates` (
   `rate_id`          int unsigned NOT NULL AUTO_INCREMENT,
@@ -298,9 +275,7 @@ CREATE TABLE `utility_rates` (
 -- 4) แจ้งซ่อม / ประกาศ / แจ้งเตือน
 -- =============================================================================
 
--- ---------------------------------------------------------------------------
--- maintenance_requests : คำขอแจ้งซ่อม
--- ---------------------------------------------------------------------------
+-- maintenance_requests : รวม index จาก migration: idx_maintenance_status, idx_maintenance_priority
 DROP TABLE IF EXISTS `maintenance_requests`;
 CREATE TABLE `maintenance_requests` (
   `request_id`    int unsigned NOT NULL AUTO_INCREMENT,
@@ -320,13 +295,12 @@ CREATE TABLE `maintenance_requests` (
   KEY `fk_maint_tenant` (`tenant_id`),
   KEY `fk_maint_room` (`room_id`),
   KEY `fk_maint_assigned` (`assigned_to`),
+  KEY `idx_maintenance_status` (`status`),
+  KEY `idx_maintenance_priority` (`priority`),
   CONSTRAINT `fk_maint_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`room_id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_maint_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`tenant_id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ---------------------------------------------------------------------------
--- announcements : ประกาศจากแอดมิน
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `announcements`;
 CREATE TABLE `announcements` (
   `announcement_id`   int unsigned NOT NULL AUTO_INCREMENT,
@@ -344,9 +318,6 @@ CREATE TABLE `announcements` (
   CONSTRAINT `fk_announce_user` FOREIGN KEY (`published_by`) REFERENCES `users` (`user_id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ---------------------------------------------------------------------------
--- notifications_log : ประวัติการส่งแจ้งเตือน (Telegram/Email/ฯลฯ)
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `notifications_log`;
 CREATE TABLE `notifications_log` (
   `log_id`              int unsigned NOT NULL AUTO_INCREMENT,
@@ -367,9 +338,6 @@ CREATE TABLE `notifications_log` (
 -- 5) ระบบยืนยันตัวตน / ความปลอดภัย
 -- =============================================================================
 
--- ---------------------------------------------------------------------------
--- oauth_exchange_codes : รหัสแลกเปลี่ยนสำหรับ OAuth login (อายุสั้น)
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `oauth_exchange_codes`;
 CREATE TABLE `oauth_exchange_codes` (
   `code`         varchar(64) NOT NULL,
@@ -381,9 +349,6 @@ CREATE TABLE `oauth_exchange_codes` (
   CONSTRAINT `fk_oauth_exchange_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ---------------------------------------------------------------------------
--- password_resets : โทเคนสำหรับรีเซ็ตรหัสผ่าน
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `password_resets`;
 CREATE TABLE `password_resets` (
   `id`           int unsigned NOT NULL AUTO_INCREMENT,
@@ -397,9 +362,6 @@ CREATE TABLE `password_resets` (
   CONSTRAINT `fk_password_resets_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ---------------------------------------------------------------------------
--- telegram_link_tokens : โทเคนสำหรับเชื่อมบัญชี Telegram
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `telegram_link_tokens`;
 CREATE TABLE `telegram_link_tokens` (
   `id`           int unsigned NOT NULL AUTO_INCREMENT,
@@ -417,9 +379,6 @@ CREATE TABLE `telegram_link_tokens` (
 -- 6) การตั้งค่าระบบ
 -- =============================================================================
 
--- ---------------------------------------------------------------------------
--- dorm_settings : การตั้งค่าทั่วไปของหอพัก (key-value)
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `dorm_settings`;
 CREATE TABLE `dorm_settings` (
   `setting_key`     varchar(100) NOT NULL,
@@ -428,9 +387,6 @@ CREATE TABLE `dorm_settings` (
   PRIMARY KEY (`setting_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ---------------------------------------------------------------------------
--- settings_audit_log : ประวัติการแก้ไขการตั้งค่า
--- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS `settings_audit_log`;
 CREATE TABLE `settings_audit_log` (
   `log_id`        int unsigned NOT NULL AUTO_INCREMENT,

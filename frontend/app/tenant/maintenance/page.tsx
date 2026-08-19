@@ -37,6 +37,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { maintenanceAPI } from "@/lib/api/maintenance.api";
+import { getMediaUrl } from "@/lib/media-url";
 import { useLanguage } from "@/context/language-context";
 import { toast } from "sonner";
 
@@ -65,11 +66,7 @@ type StatusFilter = "all" | "pending" | "in_progress" | "resolved";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const imgUrl = (path: string | null) => {
-  if (!path) return null;
-  if (path.startsWith("http")) return path;
-  return `${process.env.NEXT_PUBLIC_API_URL ?? ""}/${path}`;
-};
+const imgUrl = (path: string | null) => getMediaUrl(path, "detail");
 
 // ── Component ──────────────────────────────────────────────────────────────────
 

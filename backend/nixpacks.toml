@@ -1,0 +1,35 @@
+# nixpacks.toml — ให้ Railway ติดตั้ง system library ที่ Puppeteer/Chromium
+# ต้องการเพิ่มเติม โดยไม่ต้องเขียน Dockerfile เอง
+#
+# ปัญหา: Puppeteer เรียก Chromium ซึ่งเป็นโปรแกรมที่ต้องการ shared library
+# ของ OS หลายตัว (สำหรับ render font, GUI toolkit, sandbox ฯลฯ) ที่ image
+# พื้นฐานของ Nixpacks (ใช้รัน Node.js เฉยๆ) ไม่มีมาให้ครบ ถ้าไม่เติมส่วนนี้
+# จะได้ error ตอน puppeteer.launch() ทำนอง "error while loading shared
+# libraries: libnss3.so: cannot open shared object file"
+#
+# วิธีใช้: วางไฟล์นี้ไว้ที่ backend/nixpacks.toml (root ของ backend service
+# ที่ตั้งไว้ใน Railway) Railway จะอ่านไฟล์นี้เองอัตโนมัติตอน build ไม่ต้อง
+# ตั้งค่าอะไรเพิ่มในหน้า dashboard
+
+[phases.setup]
+aptPkgs = [
+  'fonts-liberation',
+  'libappindicator3-1',
+  'libasound2',
+  'libatk-bridge2.0-0',
+  'libatk1.0-0',
+  'libgbm1',
+  'libgtk-3-0',
+  'libnspr4',
+  'libnss3',
+  'libx11-xcb1',
+  'libxcomposite1',
+  'libxcursor1',
+  'libxdamage1',
+  'libxfixes3',
+  'libxi6',
+  'libxrandr2',
+  'libxss1',
+  'libxtst6',
+  'xdg-utils'
+]

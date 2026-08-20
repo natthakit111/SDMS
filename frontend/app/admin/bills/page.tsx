@@ -56,6 +56,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { billAPI } from "@/lib/api/bill.api";
+import { getMediaUrl } from "@/lib/media-url";
 import { roomAPI } from "@/lib/api/room.api";
 import { useLanguage } from "@/context/language-context";
 import { toast } from "sonner";
@@ -122,11 +123,7 @@ const emptyForm: FormData = {
   due_date: "",
 };
 
-const imgUrl = (path: string | null) => {
-  if (!path) return null;
-  if (path.startsWith("http")) return path;
-  return `${process.env.NEXT_PUBLIC_API_URL ?? ""}/${path}`;
-};
+const imgUrl = (path: string | null) => getMediaUrl(path, "detail");
 
 // 💡 2. ลบ MONTHS_TH, MONTHS_EN, DAYS_TH, DAYS_EN, toISODate และ DatePickerField ของเดิมทิ้งไปแล้ว
 

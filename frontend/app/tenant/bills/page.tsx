@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { billAPI } from "@/lib/api/bill.api";
+import { getMediaUrl } from "@/lib/media-url";
 import { useLanguage } from "@/context/language-context";
 import { toast } from "sonner";
 
@@ -66,11 +67,7 @@ const fmt = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-const imgUrl = (path: string | null) => {
-  if (!path) return null;
-  if (path.startsWith("http")) return path;
-  return `${process.env.NEXT_PUBLIC_API_URL ?? ""}/${path}`;
-};
+const imgUrl = (path: string | null) => getMediaUrl(path, "detail");
 
 export default function TenantBillsPage() {
   const { t, language } = useLanguage();
@@ -396,7 +393,7 @@ export default function TenantBillsPage() {
                   </div>
                 )}
               </div>
-              
+
               {/* Total */}
               <div className="flex justify-between pt-4 border-t text-xl font-bold">
                 <span>{t("common.total")}</span>

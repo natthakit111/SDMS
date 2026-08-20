@@ -52,6 +52,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { meterAPI } from "@/lib/api/meter.api";
+import { getMediaUrl } from "@/lib/media-url";
 import { roomAPI } from "@/lib/api/room.api";
 import { utilityRateAPI } from "@/lib/api/utilityRate.api";
 import { toast } from "sonner";
@@ -70,11 +71,7 @@ interface GroupedReading {
   water: Reading | null;
 }
 
-const imgUrl = (path: string | null) => {
-  if (!path) return null;
-  if (path.startsWith("http")) return path;
-  return `${process.env.NEXT_PUBLIC_API_URL ?? ""}/${path}`;
-};
+const imgUrl = (path: string | null) => getMediaUrl(path, "detail");
 
 const formatDate = (d: string) =>
   new Date(d).toLocaleDateString("th-TH", {

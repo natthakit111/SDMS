@@ -43,6 +43,7 @@ import {
 } from "@/components/common/status-badge";
 import { Search, Wrench, Eye, CheckCircle, Loader2 } from "lucide-react";
 import { maintenanceAPI } from "@/lib/api/maintenance.api";
+import { getMediaUrl } from "@/lib/media-url";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 import { MaintenanceRequest } from "@/types/index";
@@ -60,11 +61,7 @@ const formatDate = (d: string) =>
     day: "numeric",
   });
 
-const imgUrl = (path: string | null) => {
-  if (!path) return null;
-  if (path.startsWith("http")) return path;
-  return `${process.env.NEXT_PUBLIC_API_URL ?? ""}/${path}`;
-};
+const imgUrl = (path: string | null) => getMediaUrl(path, "detail");
 
 // ── กฎการเรียงลำดับ ──────────────────────────────────────────────────────────
 // กลุ่ม "รอดำเนินการ / กำลังดำเนินการ" อยู่บนเสมอ เรียงตามความสำคัญ (ด่วนก่อน)

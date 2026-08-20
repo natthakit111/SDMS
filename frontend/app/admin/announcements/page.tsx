@@ -216,7 +216,7 @@ export default function AnnouncementsPage() {
   const getPriorityIcon = (ann: Announcement) => {
     if (ann.is_urgent)
       return <AlertTriangle className="h-5 w-5 text-destructive" />;
-    if (ann.is_pinned) return <Pin className="h-5 w-5 text-yellow-500" />;
+    if (ann.is_pinned) return <Pin className="h-5 w-5 text-accent" />;
     if (ann.target_audience === "admin")
       return <AlertCircle className="h-5 w-5 text-destructive" />;
     return <Info className="h-5 w-5 text-primary" />;
@@ -378,7 +378,7 @@ export default function AnnouncementsPage() {
 
                       <div className="flex items-center justify-between rounded-md border p-3">
                         <div className="flex items-center gap-2">
-                          <Pin className="h-4 w-4 text-yellow-500" />
+                          <Pin className="h-4 w-4 text-accent" />
                           <div>
                             <p className="text-sm font-medium">
                               {t("announcements.pinTitle")}

@@ -140,8 +140,8 @@ function ResetPasswordForm() {
     return (
       <div className="space-y-4">
         <div className="flex flex-col items-center gap-3 py-4 text-center">
-          <div className="p-3 rounded-full bg-green-100 dark:bg-green-900/30">
-            <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
+          <div className="p-3 rounded-full bg-success/20">
+            <CheckCircle2 className="h-8 w-8 text-success" />
           </div>
           <p className="font-medium">{t("resetPassword.success")}</p>
           <p className="text-sm text-muted-foreground">

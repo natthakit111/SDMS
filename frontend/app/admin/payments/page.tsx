@@ -174,7 +174,7 @@ export default function PaymentsPage() {
 
   const slipUrl = (path: string | null) => getMediaUrl(path, "detail");
 
-  const paidDate = (p: Payment) => p.paid_at ?? p.created_at;
+  const paidDate = (p: Payment) => p.paid_at;
 
   const openDetails = (payment: Payment) => {
     setSelectedPayment(payment);

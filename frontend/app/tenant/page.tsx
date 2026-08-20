@@ -4,23 +4,18 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/auth-context";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  BillStatusBadge,
-  MaintenanceStatusBadge,
-} from "@/components/common/status-badge";
 import {
   DoorOpen,
   Bell,
-  ArrowRight,
   AlertTriangle,
+  CheckCircle2,
+  Receipt,
+  FileText,
+  Wrench,
+  UserCircle2,
+  ChevronRight,
   Loader2,
 } from "lucide-react";
 import Link from "next/link";
@@ -124,6 +119,11 @@ export default function TenantDashboard() {
   const pendingBill = bills.find(
     (b) => b.status === "pending" || b.status === "overdue",
   );
+  const latestBill = bills[0];
+  const openMaintenanceCount = maintenance.filter(
+    (m) => m.status !== "resolved" && m.status !== "cancelled",
+  ).length;
+  const latestMaintenance = maintenance[0];
 
   // ── Render ─────────────────────────────────────────────────────────────────
   if (loading) {
@@ -135,6 +135,40 @@ export default function TenantDashboard() {
     );
   }
 
+  const quickLinks = [
+    {
+      href: "/tenant/bills",
+      icon: Receipt,
+      title: t("bills.list"),
+      subtitle: latestBill
+        ? `${t(`month.${latestBill.bill_month}`)} ${latestBill.bill_year} • ${t("bills.dueDate")} ${formatDate(latestBill.due_date, language)}`
+        : t("common.noData"),
+    },
+    {
+      href: "/tenant/contract",
+      icon: FileText,
+      title: t("tenant.myContract"),
+      subtitle: contract
+        ? `${t("contracts.endDate")} ${formatDate(contract.end_date, language)}`
+        : t("common.noData"),
+    },
+    {
+      href: "/tenant/maintenance",
+      icon: Wrench,
+      title: t("menu.maintenance"),
+      subtitle: latestMaintenance
+        ? `${t("common.latestStatus")}: ${t(`status.${latestMaintenance.status}`)}`
+        : t("maintenance.subtitle"),
+      badge: openMaintenanceCount > 0 ? openMaintenanceCount : undefined,
+    },
+    {
+      href: "/tenant/profile",
+      icon: UserCircle2,
+      title: `${t("tenant.profile.title")} & Telegram`,
+      subtitle: t("tenant.profileSubtitle"),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -145,218 +179,86 @@ export default function TenantDashboard() {
         <p className="text-muted-foreground mt-2">{t("rooms.subtitle")}</p>
       </div>
 
-      {/* Pending Bill Alert — moved to top: this is the most actionable item
-          a tenant needs to see, so it should not be buried below static
-          room info. */}
-      {pendingBill && (
-        <Card
-          className={
-            pendingBill.status === "overdue"
-              ? "border-destructive/50 bg-destructive/5"
-              : "border-yellow-500/50 bg-yellow-500/5"
-          }
-        >
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-start sm:items-center gap-3 min-w-0">
-                <div
-                  className={`p-2 rounded-lg shrink-0 ${
-                    pendingBill.status === "overdue"
-                      ? "bg-destructive/20"
-                      : "bg-yellow-500/20"
-                  }`}
-                >
-                  <AlertTriangle
-                    className={`h-5 w-5 ${
-                      pendingBill.status === "overdue"
-                        ? "text-destructive"
-                        : "text-yellow-600"
-                    }`}
-                  />
-                </div>
+      {/* Hero card — room + outstanding balance in one place, matching the
+          reference design's single dark "room" card at the top of the
+          tenant home screen instead of two separate summary cards. */}
+      {contract && (
+        <div className="rounded-2xl bg-primary text-primary-foreground p-5 sm:p-6 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-accent/15 shrink-0">
+              <DoorOpen className="h-6 w-6 text-accent" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-lg font-bold truncate">
+                {t("tenant.room")} {contract.room_number}
+              </p>
+              <p className="text-xs text-primary-foreground/50">
+                {t("tenant.rentPerMonth")}{" "}
+                {formatCurrency(Number(contract.rent_amount))}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-primary-foreground/10 flex items-center justify-between gap-3">
+            {pendingBill ? (
+              <>
                 <div className="min-w-0">
-                  <h3
-                    className={`font-semibold ${
-                      pendingBill.status === "overdue" ? "text-destructive" : ""
-                    }`}
-                  >
+                  <p className="text-xs text-primary-foreground/50 flex items-center gap-1">
+                    {pendingBill.status === "overdue" && (
+                      <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                    )}
                     {pendingBill.status === "overdue"
                       ? t("tenant.overdueBill")
                       : t("tenant.pendingBill")}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {t(`month.${pendingBill.bill_month}`)}{" "}
-                    {pendingBill.bill_year} • {t("bills.totalAmount")}{" "}
+                  </p>
+                  <p className="text-2xl font-bold truncate">
                     {formatCurrency(pendingBill.total_amount)}
                   </p>
                 </div>
-              </div>
-              <Link href="/tenant/payment" className="w-full sm:w-auto">
-                <Button
-                  variant={
-                    pendingBill.status === "overdue" ? "destructive" : "default"
-                  }
-                  className="w-full sm:w-auto"
-                >
-                  {t("tenant.payNow")}
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+                <Link href="/tenant/payment" className="shrink-0">
+                  <Button className="bg-accent text-accent-foreground hover:bg-accent/90">
+                    {t("tenant.payNow")}
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <p className="flex items-center gap-2 text-sm text-primary-foreground/70">
+                <CheckCircle2 className="h-4 w-4 text-accent" />
+                {t("tenant.noOutstandingBalance")}
+              </p>
+            )}
+          </div>
+        </div>
       )}
 
-      {/* Room + Contract summary — merged into a single card so tenants
-          don't have to scroll past duplicate info (room, rent, dates)
-          that used to appear twice on this page. */}
-      {contract && (
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="p-4 sm:p-6 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="p-3 sm:p-4 rounded-xl bg-primary/20 shrink-0">
-                  <DoorOpen className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
+      {/* Quick links — icon-badge list cards mirroring the reference
+          design's home screen menu (bill / contract / maintenance /
+          profile), each showing a live status pulled from real data
+          instead of being a plain static nav shortcut. */}
+      <div className="space-y-3">
+        {quickLinks.map((item) => (
+          <Link key={item.href} href={item.href} className="block">
+            <Card className="hover:border-accent/40 transition-colors">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="p-2.5 rounded-full bg-accent/15 shrink-0">
+                  <item.icon className="h-5 w-5 text-accent" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm text-muted-foreground">
-                    {t("tenant.myRoom")}
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{item.title}</p>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {item.subtitle}
                   </p>
-                  <p className="text-2xl sm:text-3xl font-bold truncate">
-                    {contract.room_number}
-                  </p>
                 </div>
-              </div>
-              <div className="text-left sm:text-right">
-                <p className="text-sm text-muted-foreground">
-                  {t("tenant.rentPerMonth")}
-                </p>
-                <p className="text-xl sm:text-2xl font-bold text-primary">
-                  {formatCurrency(Number(contract.rent_amount))}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm pt-4 border-t border-primary/10">
-              <div>
-                <p className="text-muted-foreground">
-                  {t("contracts.startDate")}
-                </p>
-                <p className="font-medium">
-                  {formatDate(contract.start_date, language)}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">
-                  {t("contracts.endDate")}
-                </p>
-                <p className="font-medium">
-                  {formatDate(contract.end_date, language)}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">
-                  {t("contracts.deposit")}
-                </p>
-                <p className="font-medium">
-                  {formatCurrency(Number(contract.deposit_amount))}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Note: the Quick Actions grid (Bills / Payment / Maintenance / Contract)
-          was removed here — it duplicated the bottom navigation bar 1:1 and
-          added an extra scroll-length of buttons with no new information. */}
-
-      {/* Bills + Maintenance — trimmed to 2 items each; this is a dashboard
-          summary, not the full list page (which is one tap away via
-          "View all"). */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Bills */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">{t("bills.list")}</CardTitle>
-              <CardDescription>{t("bills.subtitle")}</CardDescription>
-            </div>
-            <Link href="/tenant/bills">
-              <Button variant="ghost" size="sm">
-                {t("common.viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {bills.slice(0, 2).map((bill) => (
-                <div
-                  key={bill.bill_id}
-                  className="flex items-center justify-between py-2 border-b last:border-0"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {t(`month.${bill.bill_month}`)} {bill.bill_year}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {t("bills.dueDate")} {formatDate(bill.due_date, language)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">
-                      {formatCurrency(bill.total_amount)}
-                    </p>
-                    <BillStatusBadge status={bill.status} />
-                  </div>
-                </div>
-              ))}
-              {bills.length === 0 && (
-                <p className="text-center text-muted-foreground py-4">
-                  {t("common.noData")}
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Maintenance */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">{t("maintenance.list")}</CardTitle>
-              <CardDescription>{t("maintenance.subtitle")}</CardDescription>
-            </div>
-            <Link href="/tenant/maintenance">
-              <Button variant="ghost" size="sm">
-                {t("common.viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {maintenance.slice(0, 2).map((req) => (
-                <div
-                  key={req.request_id}
-                  className="flex items-center justify-between py-2 border-b last:border-0"
-                >
-                  <div>
-                    <p className="font-medium">{req.category}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {t("common.created")}{" "}
-                      {formatDate(req.created_at, language)}
-                    </p>
-                  </div>
-                  <MaintenanceStatusBadge status={req.status} />
-                </div>
-              ))}
-              {maintenance.length === 0 && (
-                <p className="text-center text-muted-foreground py-4">
-                  {t("common.noData")}
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                {item.badge !== undefined && (
+                  <span className="shrink-0 text-xs font-semibold bg-warning/20 text-warning-foreground px-2 py-1 rounded-full">
+                    {item.badge}
+                  </span>
+                )}
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
       </div>
 
       {/* Announcements */}
@@ -375,7 +277,7 @@ export default function TenantDashboard() {
                   key={ann.announcement_id}
                   className={`p-4 rounded-lg ${
                     ann.is_pinned
-                      ? "bg-yellow-500/10 border border-yellow-500/30"
+                      ? "bg-accent/10 border border-accent/30"
                       : "bg-muted/50"
                   }`}
                 >

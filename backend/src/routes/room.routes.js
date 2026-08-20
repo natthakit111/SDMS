@@ -4,7 +4,7 @@
 const express = require('express');
 const { body } = require('express-validator');
 const router = express.Router();
-const ctrl = require('../controllers/roomController');
+const ctrl = require('../controllers/room.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
 

@@ -87,8 +87,8 @@ const emptyCheckoutForm: CheckoutFormData = {
 };
 
 const statusColors: Record<string, string> = {
-  active: "bg-green-500/10 text-green-500",
-  expired: "bg-red-500/10 text-red-500",
+  active: "bg-success/10 text-success",
+  expired: "bg-destructive/10 text-destructive",
   terminated: "bg-muted text-muted-foreground",
 };
 
@@ -115,7 +115,7 @@ export default function ContractsPage() {
             language === "th"
               ? `คืนบางส่วน ${Number(c.deposit_refund_amount).toLocaleString("th-TH")} (หัก ${deduction.toLocaleString("th-TH")})`
               : `Partially refunded ${Number(c.deposit_refund_amount).toLocaleString("th-TH")} (deducted ${deduction.toLocaleString("th-TH")})`,
-          className: "bg-orange-500/10 text-orange-600",
+          className: "bg-accent/10 text-accent-foreground",
         };
       }
       return {
@@ -123,13 +123,13 @@ export default function ContractsPage() {
           language === "th"
             ? `คืนเงินประกันแล้ว ${Number(c.deposit_refund_amount).toLocaleString("th-TH")}`
             : `Refunded ${Number(c.deposit_refund_amount).toLocaleString("th-TH")}`,
-        className: "bg-green-500/10 text-green-600",
+        className: "bg-success/10 text-success",
       };
     }
 
     return {
       label: language === "th" ? "ถือเงินประกันไว้" : "Deposit held",
-      className: "bg-yellow-500/10 text-yellow-600",
+      className: "bg-warning/10 text-warning",
     };
   };
 
@@ -796,7 +796,7 @@ export default function ContractsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-500">
+            <div className="text-2xl font-bold text-success">
               {contracts.filter((c) => c.status === "active").length}
             </div>
           </CardContent>
@@ -835,7 +835,7 @@ export default function ContractsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-500">
+            <div className="text-2xl font-bold text-info">
               {totalRefunded.toLocaleString("th-TH")} {t("contracts.baht")}
             </div>
           </CardContent>
@@ -956,14 +956,14 @@ export default function ContractsPage() {
                             {formatDate(contract.end_date)}
                           </span>
                           {contract.contract_file ? (
-                            <span className="text-xs bg-green-500/10 text-green-600 px-2 py-1 rounded flex items-center gap-1">
+                            <span className="text-xs bg-success/10 text-success px-2 py-1 rounded flex items-center gap-1">
                               <Paperclip className="h-3 w-3" />
                               {language === "th"
                                 ? "มีไฟล์แนบ"
                                 : "File attached"}
                             </span>
                           ) : (
-                            <span className="text-xs bg-yellow-500/10 text-yellow-600 px-2 py-1 rounded">
+                            <span className="text-xs bg-warning/10 text-warning px-2 py-1 rounded">
                               {language === "th"
                                 ? "ยังไม่มีไฟล์แนบ"
                                 : "No file yet"}

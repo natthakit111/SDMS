@@ -1775,6 +1775,17 @@ const translations: Record<string, { th: string; en: string }> = {
   },
   "tenant.overdueBill": { th: "บิลเกินกำหนดชำระ!", en: "Overdue bill!" },
   "tenant.payNow": { th: "ชำระเงิน", en: "Pay Now" },
+  "tenant.room": { th: "ห้อง", en: "Room" },
+  "tenant.noOutstandingBalance": {
+    th: "ไม่มียอดค้างชำระ",
+    en: "No outstanding balance",
+  },
+  "tenant.myContract": { th: "สัญญาเช่าของฉัน", en: "My Contract" },
+  "tenant.profileSubtitle": {
+    th: "ข้อมูลของฉันและการแจ้งเตือน",
+    en: "My info and notifications",
+  },
+  "common.latestStatus": { th: "สถานะล่าสุด", en: "Latest status" },
   "tenant.bills.title": { th: "บิลของฉัน", en: "My Bills" },
   "tenant.bills.subtitle": {
     th: "ดูรายละเอียดบิลค่าเช่าทั้งหมด",

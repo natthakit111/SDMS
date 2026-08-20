@@ -3,11 +3,21 @@
  */
 
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const { body } = require('express-validator');
 const router = express.Router();
-const authController = require('../controllers/authController');
+const authController = require('../controllers/auth.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
+
+// กัน brute-force บน endpoint ที่อ่อนไหว (login/register/forgot-password)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests, please try again later.' },
+});
 
 const registerValidation = [
   body('phone').trim().notEmpty().withMessage('Phone is required')
@@ -54,11 +64,11 @@ const setPasswordValidation = [
 // ทำงานขัดกับ controller — ถ้า admin login แล้วยิง role:"admin" มาถูกต้อง
 // ตาม guard นี้ ก็ยังได้ tenant account อยู่ดี สร้างความสับสน
 // /auth/register ตอนนี้เป็น self-register สาธารณะสำหรับ tenant เท่านั้น
-router.post('/register', registerValidation, authController.register);
+router.post('/register', authLimiter, registerValidation, authController.register);
 
-router.post('/login', loginValidation, authController.login);
-router.post('/forgot-password', authController.forgotPassword);
-router.post('/reset-password', authController.resetPassword);
+router.post('/login', authLimiter, loginValidation, authController.login);
+router.post('/forgot-password', authLimiter, authController.forgotPassword);
+router.post('/reset-password', authLimiter, authController.resetPassword);
 
 // ⚠️ ใหม่: logout ต้องผ่าน backend เสมอ เพราะ cookie `token` เป็น httpOnly
 // — JS ฝั่ง frontend แตะ/ลบเองไม่ได้อีกต่อไปหลัง migrate จาก localStorage

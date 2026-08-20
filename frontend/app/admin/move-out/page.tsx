@@ -85,14 +85,14 @@ const statusConfig = {
   pending: {
     labelKey: "moveout.statusPending",
     icon: Clock,
-    color: "text-yellow-500",
-    bg: "bg-yellow-500/10",
+    color: "text-warning",
+    bg: "bg-warning/10",
   },
   approved: {
     labelKey: "moveout.statusApproved",
     icon: CheckCircle,
-    color: "text-green-500",
-    bg: "bg-green-500/10",
+    color: "text-success",
+    bg: "bg-success/10",
   },
   rejected: {
     labelKey: "moveout.statusRejected",
@@ -289,12 +289,12 @@ export default function AdminMoveOutPage() {
           {
             labelKey: "moveout.statusPending",
             value: requests.filter((r) => r.status === "pending").length,
-            color: "text-yellow-500",
+            color: "text-warning",
           },
           {
             labelKey: "moveout.statusApproved",
             value: requests.filter((r) => r.status === "approved").length,
-            color: "text-green-500",
+            color: "text-success",
           },
           {
             labelKey: "moveout.statusRejected",

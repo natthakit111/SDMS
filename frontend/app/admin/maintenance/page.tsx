@@ -214,11 +214,11 @@ export default function MaintenancePage() {
 
       {/* Pending Alert */}
       {pendingCount > 0 && (
-        <Card className="border-yellow-500/50 bg-yellow-500/5">
+        <Card className="border-warning/50 bg-warning/5">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-yellow-500/20">
-                <Wrench className="h-5 w-5 text-yellow-600" />
+              <div className="p-2 rounded-lg bg-warning/20">
+                <Wrench className="h-5 w-5 text-warning" />
               </div>
               <div>
                 <h3 className="font-semibold">{t("status.pending")}</h3>

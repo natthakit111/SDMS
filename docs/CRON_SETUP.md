@@ -25,7 +25,7 @@ initCronJobs()
 | 08:30 | `sendOverdueNoticesJob` | แจ้งเตือนบิลค้างชำระ — **เฉพาะวันที่ 1, 3, 7, 14, 30** หลังครบกำหนด (decaying frequency ไม่ใช่ทุกวัน) |
 | 09:00 | `sendFinalRemindersJob` | แจ้งเตือนครั้งสุดท้าย (เหลือ 1 วันก่อนครบกำหนด) |
 
-ดู flow diagram ประกอบที่ [`docs/ARCHITECTURE.md`](./../../docs/ARCHITECTURE.md#flow-2-วงจรบิลจนถึงจ่ายเงิน-รวม-cron-job)
+ดู flow diagram ประกอบที่ [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md#flow-2-วงจรบิลจนถึงจ่ายเงิน-รวม-cron-job)
 
 ## กันการแจ้งเตือนซ้ำ
 

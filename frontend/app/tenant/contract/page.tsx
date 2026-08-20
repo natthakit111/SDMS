@@ -52,11 +52,11 @@ export default function TenantContractPage() {
   const statusConfig: Record<string, { label: string; color: string }> = {
     active: {
       label: t("status.active"),
-      color: "bg-green-500/20 text-green-500",
+      color: "bg-success/20 text-success",
     },
     expired: {
       label: t("status.expired"),
-      color: "bg-red-500/10 text-red-500",
+      color: "bg-destructive/10 text-destructive",
     },
     terminated: {
       label: t("status.terminated"),

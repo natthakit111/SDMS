@@ -90,7 +90,7 @@ export default function PaymentHistoryPage() {
   }, [fetchPayments]);
 
   const filteredPayments = payments.filter((p) => {
-    const d = new Date(p.verified_at ?? p.created_at);
+    const d = new Date(p.verified_at ?? p.paid_at);
     const matchMonth = d.getMonth() + 1 === Number(selectedMonth);
     const matchYear = d.getFullYear() === Number(selectedYear);
     const q = searchTerm.toLowerCase();
@@ -282,7 +282,7 @@ export default function PaymentHistoryPage() {
                             </span>
                             <span className="text-xs bg-muted px-2 py-1 rounded">
                               {t("payment.paidOn")}{" "}
-                              {formatDate(payment.created_at)}
+                              {formatDate(payment.paid_at)}
                             </span>
                             {payment.verified_at && (
                               <span className="text-xs bg-muted px-2 py-1 rounded">
@@ -396,7 +396,7 @@ export default function PaymentHistoryPage() {
                     {t("payment.paidDate")}
                   </p>
                   <p className="font-medium">
-                    {formatDate(selectedPayment.created_at)}
+                    {formatDate(selectedPayment.paid_at)}
                   </p>
                 </div>
                 {selectedPayment.verified_at && (

@@ -544,7 +544,7 @@ export default function MetersPage() {
                               ({g.electric.units_used})
                             </span>
                             {g.electric.image_path && (
-                              <CheckCircle className="h-4 w-4 text-green-500 ml-1" />
+                              <CheckCircle className="h-4 w-4 text-success ml-1" />
                             )}
                           </div>
                         ) : (
@@ -565,7 +565,7 @@ export default function MetersPage() {
                               ({g.water.units_used})
                             </span>
                             {g.water.image_path && (
-                              <CheckCircle className="h-4 w-4 text-green-500 ml-1" />
+                              <CheckCircle className="h-4 w-4 text-success ml-1" />
                             )}
                           </div>
                         ) : (
@@ -639,7 +639,7 @@ export default function MetersPage() {
                               ({g.electric.units_used})
                             </span>
                             {g.electric.image_path && (
-                              <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                              <CheckCircle className="h-3.5 w-3.5 text-success" />
                             )}
                           </span>
                         ) : (
@@ -658,7 +658,7 @@ export default function MetersPage() {
                               ({g.water.units_used})
                             </span>
                             {g.water.image_path && (
-                              <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                              <CheckCircle className="h-3.5 w-3.5 text-success" />
                             )}
                           </span>
                         ) : (
@@ -811,7 +811,7 @@ export default function MetersPage() {
                   )
                 </span>
                 {(elecImage || elecPreview) && (
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <CheckCircle className="h-4 w-4 text-success" />
                 )}
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -879,11 +879,11 @@ export default function MetersPage() {
             </div>
             {/* Water */}
             {waterBillingType === "flat" ? (
-              <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-400">
+              <div className="p-4 bg-info/10 border border-info/30 rounded-lg">
+                <div className="flex items-center gap-2 text-sm font-medium text-info">
                   <Droplets className="h-4 w-4" />
                   {t("meters.waterMeter")}
-                  <span className="ml-auto text-xs bg-blue-100 dark:bg-blue-900 px-2 py-0.5 rounded-full">
+                  <span className="ml-auto text-xs bg-info/20 px-2 py-0.5 rounded-full">
                     {t("meters.flatRate")}
                   </span>
                 </div>
@@ -907,7 +907,7 @@ export default function MetersPage() {
                     ({t("meters.rate")} {rates.water} {t("meters.bahtPerUnit")})
                   </span>
                   {(waterImage || waterPreview) && (
-                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <CheckCircle className="h-4 w-4 text-success" />
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">

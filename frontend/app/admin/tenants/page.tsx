@@ -749,7 +749,7 @@ export default function TenantsPage() {
                       </TableCell>
                       <TableCell>
                         {showInactive ? (
-                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                          <span className="inline-flex items-center rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
                             {t("tenants.deleted")}
                           </span>
                         ) : (
@@ -811,7 +811,7 @@ export default function TenantsPage() {
                         </p>
                       </div>
                       {showInactive ? (
-                        <span className="shrink-0 inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                        <span className="shrink-0 inline-flex items-center rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
                           {t("tenants.deleted")}
                         </span>
                       ) : (

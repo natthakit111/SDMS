@@ -6,7 +6,7 @@
 const express = require('express');
 const { body } = require('express-validator');
 const router = express.Router();
-const ctrl = require('../controllers/contractController');
+const ctrl = require('../controllers/contract.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
 const { uploadContractFile: uploadContractMiddleware } = require('../middlewares/upload.middleware');

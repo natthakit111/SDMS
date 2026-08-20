@@ -25,8 +25,8 @@ const typeEmoji: Record<string, string> = {
 };
 
 const typeColors: Record<string, string> = {
-  bill: "bg-blue-500/20 text-blue-400",
-  maintenance: "bg-yellow-500/20 text-yellow-400",
+  bill: "bg-info/20 text-info",
+  maintenance: "bg-warning/20 text-warning",
   announcement: "bg-purple-500/20 text-purple-400",
 };
 

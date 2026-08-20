@@ -6,6 +6,7 @@ require('dotenv').config();
 
 const express = require('express');
 const cors    = require('cors');
+const helmet  = require('helmet');
 const morgan  = require('morgan');
 const path    = require('path');
 const cookieParser = require('cookie-parser');
@@ -14,6 +15,8 @@ const routes       = require('./src/routes/index');
 const errorHandler = require('./src/middlewares/errorHandler');
 
 const app = express();
+
+app.use(helmet());
 
 /* =========================
    CORS CONFIG (FINAL)

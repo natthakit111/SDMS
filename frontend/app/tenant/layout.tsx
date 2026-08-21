@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { TenantSidebar } from "@/components/layout/tenant-sidebar";
@@ -17,6 +17,14 @@ export default function TenantLayout({
 }: {
   children: React.ReactNode;
 }) {
+  return (
+    <Suspense fallback={null}>
+      <TenantLayoutInner>{children}</TenantLayoutInner>
+    </Suspense>
+  );
+}
+
+function TenantLayoutInner({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();

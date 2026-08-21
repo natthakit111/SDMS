@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -92,6 +92,14 @@ const formatBankAccount = (acc: string) => {
 };
 
 export default function TenantPaymentPage() {
+  return (
+    <Suspense fallback={null}>
+      <TenantPaymentPageInner />
+    </Suspense>
+  );
+}
+
+function TenantPaymentPageInner() {
   const { t, language } = useLanguage();
   const searchParams = useSearchParams();
   const billIdFromUrl = searchParams.get("bill");

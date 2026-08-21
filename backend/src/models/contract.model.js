@@ -5,17 +5,25 @@
 
 const { pool } = require('../config/db');
 
-const buildListWhere = ({ status = null, tenant_id = null, room_id = null } = {}) => {
+const buildListWhere = ({ status = null, tenant_id = null, room_id = null, search = null } = {}) => {
   const conditions = [];
   const params = [];
   if (status)    { conditions.push('c.status = ?');    params.push(status); }
   if (tenant_id) { conditions.push('c.tenant_id = ?'); params.push(tenant_id); }
   if (room_id)   { conditions.push('c.room_id = ?');   params.push(room_id); }
+  // ⚠️ เดิม frontend ค้นหา tenant_name/room_number/contract_id เองฝั่ง
+  // client จากข้อมูลทั้งก้อน — ย้ายมาทำที่ query เพื่อให้ค้นหาได้ถูกต้อง
+  // ข้ามทุกหน้า
+  if (search) {
+    conditions.push("(CONCAT(t.first_name,' ',t.last_name) LIKE ? OR r.room_number LIKE ? OR CAST(c.contract_id AS CHAR) LIKE ?)");
+    const s = `%${search}%`;
+    params.push(s, s, s);
+  }
   return { where: conditions.length ? 'WHERE ' + conditions.join(' AND ') : '', params };
 };
 
-const findAll = async ({ status = null, tenant_id = null, room_id = null, limit = null, offset = 0 } = {}) => {
-  const { where, params } = buildListWhere({ status, tenant_id, room_id });
+const findAll = async ({ status = null, tenant_id = null, room_id = null, search = null, limit = null, offset = 0 } = {}) => {
+  const { where, params } = buildListWhere({ status, tenant_id, room_id, search });
   let sql = `
     SELECT
       c.*,
@@ -42,10 +50,14 @@ const findAll = async ({ status = null, tenant_id = null, room_id = null, limit 
   return rows;
 };
 
-const countAll = async ({ status = null, tenant_id = null, room_id = null } = {}) => {
-  const { where, params } = buildListWhere({ status, tenant_id, room_id });
+const countAll = async ({ status = null, tenant_id = null, room_id = null, search = null } = {}) => {
+  const { where, params } = buildListWhere({ status, tenant_id, room_id, search });
   const [rows] = await pool.query(
-    `SELECT COUNT(*) AS total FROM contracts c ${where}`,
+    `SELECT COUNT(*) AS total
+     FROM contracts c
+     JOIN tenants t ON c.tenant_id = t.tenant_id
+     JOIN rooms   r ON c.room_id   = r.room_id
+     ${where}`,
     params
   );
   return rows[0].total;

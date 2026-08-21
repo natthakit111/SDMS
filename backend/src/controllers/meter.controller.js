@@ -37,13 +37,13 @@ const getAllReadings = async (req, res, next) => {
     if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
     const { room_id, meter_type, month, year } = req.query;
-    const { page, limit, offset } = parsePagination(req.query);
+    const { page, limit, offset, isPaginated } = parsePagination(req.query);
+    const filters = { room_id, meter_type, month, year };
 
-    const [readings, total] = await Promise.all([
-      MeterModel.findAll({ room_id, meter_type, month, year, limit, offset }),
-      MeterModel.countAll({ room_id, meter_type, month, year }),
-    ]);
+    const readings = await MeterModel.findAll({ ...filters, limit, offset });
+    if (!isPaginated) return sendSuccess(res, readings);
 
+    const total = await MeterModel.countAll(filters);
     return sendSuccess(res, { items: readings, pagination: buildPaginationMeta(page, limit, total) });
   } catch (err) { next(err); }
 };

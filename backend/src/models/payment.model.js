@@ -5,18 +5,25 @@
 
 const { pool } = require('../config/db');
 
-const buildListWhere = ({ tenant_id, bill_id, status, payment_method } = {}) => {
+const buildListWhere = ({ tenant_id, bill_id, status, payment_method, search = null } = {}) => {
   const clauses = ['1=1'];
   const params = [];
   if (tenant_id) { clauses.push('p.tenant_id = ?'); params.push(tenant_id); }
   if (bill_id)   { clauses.push('p.bill_id = ?');   params.push(bill_id); }
   if (status)    { clauses.push('p.status = ?');    params.push(status); }
   if (payment_method) { clauses.push('p.payment_method = ?'); params.push(payment_method); }
+  // ⚠️ เดิม frontend ค้นหา tenant_name/room_number/bill_id เองฝั่ง client
+  // จากข้อมูลทั้งก้อน — ย้ายมาทำที่ query เพื่อให้ค้นหาได้ถูกต้องข้ามทุกหน้า
+  if (search) {
+    clauses.push("(CONCAT(t.first_name,' ',t.last_name) LIKE ? OR r.room_number LIKE ? OR CAST(p.bill_id AS CHAR) LIKE ?)");
+    const s = `%${search}%`;
+    params.push(s, s, s);
+  }
   return { where: clauses.join(' AND '), params };
 };
 
-const findAll = async ({ tenant_id, bill_id, status, payment_method, limit = null, offset = 0 } = {}) => {
-  const { where, params } = buildListWhere({ tenant_id, bill_id, status, payment_method });
+const findAll = async ({ tenant_id, bill_id, status, payment_method, search = null, limit = null, offset = 0 } = {}) => {
+  const { where, params } = buildListWhere({ tenant_id, bill_id, status, payment_method, search });
   let sql = `
     SELECT p.*,
            b.bill_month, b.bill_year, b.total_amount AS bill_total,
@@ -40,17 +47,39 @@ const findAll = async ({ tenant_id, bill_id, status, payment_method, limit = nul
   return rows;
 };
 
-const countAll = async ({ tenant_id, bill_id, status, payment_method } = {}) => {
-  const { where, params } = buildListWhere({ tenant_id, bill_id, status, payment_method });
+const countAll = async ({ tenant_id, bill_id, status, payment_method, search = null } = {}) => {
+  const { where, params } = buildListWhere({ tenant_id, bill_id, status, payment_method, search });
   const [rows] = await pool.query(
     `SELECT COUNT(*) AS total
      FROM payments p
      JOIN bills   b ON p.bill_id   = b.bill_id
+     JOIN rooms   r ON b.room_id   = r.room_id
      JOIN tenants t ON p.tenant_id = t.tenant_id
      WHERE ${where}`,
     params
   );
   return rows[0].total;
+};
+
+// ── นับจำนวนแยกตาม status (ไม่กรอง status เองแต่ยังกรอง filter อื่นเหมือน
+// เดิม) — ใช้แสดง stat card บนหน้า admin/payments ให้ตัวเลขถูกต้องแม้
+// list หลักจะแบ่งหน้าแล้ว (เดิมนับจาก array ที่โหลดมาทั้งหมด พอแบ่งหน้า
+// จะนับได้แค่ในหน้าปัจจุบัน ไม่ใช่ยอดรวมจริง) ──
+const countByStatus = async ({ tenant_id, bill_id, payment_method, search = null } = {}) => {
+  const { where, params } = buildListWhere({ tenant_id, bill_id, status: null, payment_method, search });
+  const [rows] = await pool.query(
+    `SELECT p.status, COUNT(*) AS count
+     FROM payments p
+     JOIN bills   b ON p.bill_id   = b.bill_id
+     JOIN rooms   r ON b.room_id   = r.room_id
+     JOIN tenants t ON p.tenant_id = t.tenant_id
+     WHERE ${where}
+     GROUP BY p.status`,
+    params
+  );
+  const counts = { pending_verify: 0, verified: 0, rejected: 0 };
+  for (const row of rows) counts[row.status] = row.count;
+  return counts;
 };
 
 const findById = async (paymentId) => {
@@ -116,4 +145,4 @@ const updateSlipImage = async (paymentId, slipImage) => {
   await pool.query('UPDATE payments SET slip_image = ? WHERE payment_id = ?', [slipImage, paymentId]);
 };
 
-module.exports = { findAll, countAll, findById, findByBillId, findPendingByTenant, create, verify, updateSlipImage };
+module.exports = { findAll, countAll, countByStatus, findById, findByBillId, findPendingByTenant, create, verify, updateSlipImage };

@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Field, FieldLabel, FieldGroup } from "@/components/ui/field";
 import { BillStatusBadge } from "@/components/common/status-badge";
+import { PaginationFooter } from "@/components/common/pagination-footer";
 import {
   Plus,
   Search,
@@ -144,6 +145,10 @@ export default function BillsPage() {
   const [formData, setFormData] = useState<FormData>(emptyForm);
   const [exportingId, setExportingId] = useState<number | null>(null);
 
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
+
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString(language === "th" ? "th-TH" : "en-GB", {
       year: "numeric",
@@ -155,16 +160,26 @@ export default function BillsPage() {
   const fetchBills = useCallback(async () => {
     try {
       setLoading(true);
-      const params: any = {};
+      const params: any = { page, limit: PAGE_SIZE };
       if (statusFilter !== "all") params.status = statusFilter;
+      if (searchQuery) params.search = searchQuery;
       const res = await billAPI.getAll(params);
-      setBills(res.data ?? []);
+      setBills(res.data?.items ?? []);
+      setPageMeta({
+        total: res.data?.pagination?.total ?? 0,
+        totalPages: res.data?.pagination?.totalPages ?? 0,
+      });
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? t("common.noData"));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, searchQuery, page]);
+
+  // เปลี่ยน filter/search แล้วต้องกลับไปหน้า 1 เสมอ
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, searchQuery]);
 
   const fetchOccupiedRooms = async () => {
     try {
@@ -186,7 +201,8 @@ export default function BillsPage() {
   );
 
   useEffect(() => {
-    fetchBills();
+    const timer = setTimeout(fetchBills, 300);
+    return () => clearTimeout(timer);
   }, [fetchBills]);
   useEffect(() => {
     fetchOccupiedRooms();
@@ -236,14 +252,9 @@ export default function BillsPage() {
     }
   };
 
-  // ── Filter ────────────────────────────────────────────────────────────────
-  const filteredBills = bills.filter((b) => {
-    const q = searchQuery.toLowerCase();
-    return (
-      b.room_number?.toLowerCase().includes(q) ||
-      b.tenant_name?.toLowerCase().includes(q)
-    );
-  });
+  // ⚠️ search ย้ายไปทำที่ backend แล้ว (ดู bill.model.js) เพื่อให้ค้นหาได้
+  // ถูกต้องข้ามทุกหน้า ไม่ใช่แค่ในหน้าที่โหลดมาแล้ว — ตัวแปรนี้เก็บชื่อเดิมไว้
+  const filteredBills = bills;
 
   const router = useRouter();
   // ── Generate bill ─────────────────────────────────────────────────────────
@@ -592,7 +603,7 @@ export default function BillsPage() {
             {t("bills.list")}
           </CardTitle>
           <CardDescription>
-            {t("common.all")} {filteredBills.length} {t("bills.list")}
+            {t("common.all")} {pageMeta.total} {t("bills.list")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -762,6 +773,14 @@ export default function BillsPage() {
                   </div>
                 ))}
               </div>
+
+              <PaginationFooter
+                page={page}
+                limit={PAGE_SIZE}
+                total={pageMeta.total}
+                totalPages={pageMeta.totalPages}
+                onPageChange={setPage}
+              />
             </>
           )}
         </CardContent>

@@ -36,6 +36,7 @@ import {
   Download,
 } from "lucide-react";
 import { PaymentStatusBadge } from "@/components/common/status-badge";
+import { PaginationFooter } from "@/components/common/pagination-footer";
 import { paymentAPI } from "@/lib/api/payment.api";
 import { getMediaUrl } from "@/lib/media-url";
 import { toast } from "sonner";
@@ -82,24 +83,54 @@ export default function PaymentsPage() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
+  const [statusCounts, setStatusCounts] = useState({
+    pending_verify: 0,
+    verified: 0,
+    rejected: 0,
+  });
+
   const fetchPayments = useCallback(async () => {
     try {
       setLoading(true);
-      const params: Record<string, string> = {};
+      const params: Record<string, string | number> = {
+        page,
+        limit: PAGE_SIZE,
+      };
       if (filterStatus !== "all") params.status = filterStatus;
       if (filterMethod !== "all") params.payment_method = filterMethod;
+      if (searchTerm.trim()) params.search = searchTerm.trim();
       const res = await paymentAPI.getAll(params);
-      setPayments(res?.data ?? res ?? []);
+      setPayments(res?.data?.items ?? []);
+      setPageMeta({
+        total: res?.data?.pagination?.total ?? 0,
+        totalPages: res?.data?.pagination?.totalPages ?? 0,
+      });
+      setStatusCounts(
+        res?.data?.statusCounts ?? {
+          pending_verify: 0,
+          verified: 0,
+          rejected: 0,
+        },
+      );
     } catch {
       toast.error(t("payment.loadError"));
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, filterMethod]);
+  }, [filterStatus, filterMethod, searchTerm, page]);
 
   useEffect(() => {
-    fetchPayments();
+    const timer = setTimeout(fetchPayments, 300);
+    return () => clearTimeout(timer);
   }, [fetchPayments]);
+
+  // เปลี่ยน filter/search แล้วต้องกลับไปหน้า 1 เสมอ
+  useEffect(() => {
+    setPage(1);
+  }, [filterStatus, filterMethod, searchTerm]);
 
   const handleVerify = async () => {
     if (!selectedPayment) return;
@@ -138,27 +169,19 @@ export default function PaymentsPage() {
     }
   };
 
-  const filteredPayments = payments.filter((p) => {
-    // safety net: กรองวิธีชำระเงินซ้ำฝั่ง client
-    if (filterMethod !== "all" && p.payment_method !== filterMethod)
-      return false;
-    // safety net: กรองสถานะซ้ำด้วย
-    if (filterStatus !== "all" && p.status !== filterStatus) return false;
+  // ⚠️ filter/search ย้ายไปทำที่ backend แล้ว (ดู payment.model.js) เพื่อให้
+  // ถูกต้องข้ามทุกหน้า — ตัวแปรนี้เก็บชื่อเดิมไว้
+  const filteredPayments = payments;
 
-    const q = searchTerm.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      p.tenant_name?.toLowerCase().includes(q) ||
-      p.room_number?.toLowerCase().includes(q) ||
-      String(p.bill_id).includes(q)
-    );
-  });
-
+  // ⚠️ เดิมนับจาก payments array ที่โหลดมาทั้งหมด พอแบ่งหน้าแล้วจะนับได้แค่
+  // ในหน้าปัจจุบัน ไม่ใช่ยอดรวมจริง — ใช้ statusCounts จาก backend แทน
+  // (นับรวมทุกหน้า ตาม filter อื่นที่ตั้งไว้ ยกเว้น filterStatus เอง)
   const stats = {
-    total: payments.length,
-    pending: payments.filter((p) => p.status === "pending_verify").length,
-    verified: payments.filter((p) => p.status === "verified").length,
-    rejected: payments.filter((p) => p.status === "rejected").length,
+    total:
+      statusCounts.pending_verify + statusCounts.verified + statusCounts.rejected,
+    pending: statusCounts.pending_verify,
+    verified: statusCounts.verified,
+    rejected: statusCounts.rejected,
   };
 
   const statusIcon = (status: string) => {
@@ -462,6 +485,14 @@ export default function PaymentsPage() {
               </Card>
             ))}
           </div>
+
+          <PaginationFooter
+            page={page}
+            limit={PAGE_SIZE}
+            total={pageMeta.total}
+            totalPages={pageMeta.totalPages}
+            onPageChange={setPage}
+          />
         </>
       )}
 

@@ -19,14 +19,14 @@ const getAllRequests = async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
-    const { status, priority, room_id, tenant_id } = req.query;
-    const { page, limit, offset } = parsePagination(req.query);
+    const { status, priority, room_id, tenant_id, search } = req.query;
+    const { page, limit, offset, isPaginated } = parsePagination(req.query);
+    const filters = { status, priority, room_id, tenant_id, search: search || null };
 
-    const [requests, total] = await Promise.all([
-      MaintenanceModel.findAll({ status, priority, room_id, tenant_id, limit, offset }),
-      MaintenanceModel.countAll({ status, priority, room_id, tenant_id }),
-    ]);
+    const requests = await MaintenanceModel.findAll({ ...filters, limit, offset });
+    if (!isPaginated) return sendSuccess(res, requests);
 
+    const total = await MaintenanceModel.countAll(filters);
     return sendSuccess(res, { items: requests, pagination: buildPaginationMeta(page, limit, total) });
   } catch (err) { next(err); }
 };

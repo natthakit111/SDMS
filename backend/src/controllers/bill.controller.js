@@ -24,14 +24,14 @@ const getAllBills = async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
-    const { room_id, status, month, year, tenant_id } = req.query;
-    const { page, limit, offset } = parsePagination(req.query);
+    const { room_id, status, month, year, tenant_id, search } = req.query;
+    const { page, limit, offset, isPaginated } = parsePagination(req.query);
+    const filters = { room_id, status, month, year, tenant_id, search: search || null };
 
-    const [bills, total] = await Promise.all([
-      BillModel.findAll({ room_id, status, month, year, tenant_id, limit, offset }),
-      BillModel.countAll({ room_id, status, month, year, tenant_id }),
-    ]);
+    const bills = await BillModel.findAll({ ...filters, limit, offset });
+    if (!isPaginated) return sendSuccess(res, bills);
 
+    const total = await BillModel.countAll(filters);
     return sendSuccess(res, { items: bills, pagination: buildPaginationMeta(page, limit, total) });
   } catch (err) { next(err); }
 };

@@ -9,16 +9,25 @@ const { query } = require('express-validator');
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
-// แปลง req.query เป็น { page, limit, offset } ที่ปลอดภัยเสมอ (กัน limit
-// ใหญ่เกินไปที่จะดึงทั้งตารางออกมาทีเดียว ต่อให้ query param ส่งมาแปลกๆ)
+// แปลง req.query เป็น { page, limit, offset, isPaginated } ที่ปลอดภัยเสมอ
+// (กัน limit ใหญ่เกินไปที่จะดึงทั้งตารางออกมาทีเดียว ต่อให้ query param
+// ส่งมาแปลกๆ)
+//
+// ⚠️ isPaginated=false เมื่อไม่มีทั้ง page และ limit ใน query เลย — endpoint
+// เดียวกันนี้ถูกเรียกจากที่อื่นด้วย (dashboard aggregation, dropdown เลือก
+// ผู้เช่า/มิเตอร์ ฯลฯ) ที่ต้องการข้อมูลทั้งหมดแบบเดิม ไม่รู้จัก pagination
+// เลย ถ้าบังคับ LIMIT เริ่มต้นเสมอจะไปตัดข้อมูลของจุดเหล่านั้นแบบเงียบๆ
+// (เช่น dropdown เหลือแค่ 20 รายการแรก) — ต้อง opt-in ชัดเจนด้วยการส่ง
+// page หรือ limit มาเองเท่านั้นถึงจะเปิด pagination จริง
 const parsePagination = (reqQuery = {}) => {
+  const isPaginated = reqQuery.page !== undefined || reqQuery.limit !== undefined;
   let page = parseInt(reqQuery.page, 10);
   let limit = parseInt(reqQuery.limit, 10);
   if (!Number.isInteger(page) || page < 1) page = 1;
   if (!Number.isInteger(limit) || limit < 1) limit = DEFAULT_LIMIT;
   if (limit > MAX_LIMIT) limit = MAX_LIMIT;
   const offset = (page - 1) * limit;
-  return { page, limit, offset };
+  return { page, limit: isPaginated ? limit : null, offset, isPaginated };
 };
 
 const buildPaginationMeta = (page, limit, total) => ({

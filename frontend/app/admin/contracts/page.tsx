@@ -43,6 +43,7 @@ import { roomAPI } from "@/lib/api/room.api";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 import { DatePickerField } from "@/components/common/date-picker-field";
+import { PaginationFooter } from "@/components/common/pagination-footer";
 import { toISODate, formatDate, formatCurrency } from "@/lib/utils";
 import { Contract } from "@/types/index";
 
@@ -162,19 +163,33 @@ export default function ContractsPage() {
     useState<CheckoutFormData>(emptyCheckoutForm);
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
 
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
+
   const fetchContracts = useCallback(async () => {
     try {
       setLoading(true);
-      const params: any = {};
+      const params: any = { page, limit: PAGE_SIZE };
       if (filterStatus !== "all") params.status = filterStatus;
+      if (searchTerm) params.search = searchTerm;
       const res = await contractAPI.getAll(params);
-      setContracts(res.data ?? []);
+      setContracts(res.data?.items ?? []);
+      setPageMeta({
+        total: res.data?.pagination?.total ?? 0,
+        totalPages: res.data?.pagination?.totalPages ?? 0,
+      });
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? t("contracts.loadError"));
     } finally {
       setLoading(false);
     }
-  }, [filterStatus]);
+  }, [filterStatus, searchTerm, page]);
+
+  // เปลี่ยน filter/search แล้วต้องกลับไปหน้า 1 เสมอ
+  useEffect(() => {
+    setPage(1);
+  }, [filterStatus, searchTerm]);
 
   const fetchFormOptions = async () => {
     try {
@@ -190,7 +205,8 @@ export default function ContractsPage() {
   };
 
   useEffect(() => {
-    fetchContracts();
+    const timer = setTimeout(fetchContracts, 300);
+    return () => clearTimeout(timer);
   }, [fetchContracts]);
   useEffect(() => {
     fetchFormOptions();
@@ -208,14 +224,9 @@ export default function ContractsPage() {
     return tenant?.id_card_number || "";
   };
 
-  const filteredContracts = contracts.filter((c) => {
-    const q = searchTerm.toLowerCase();
-    return (
-      c.tenant_name?.toLowerCase().includes(q) ||
-      c.room_number?.toLowerCase().includes(q) ||
-      String(c.contract_id).includes(q)
-    );
-  });
+  // ⚠️ search ย้ายไปทำที่ backend แล้ว (ดู contract.model.js) เพื่อให้
+  // ค้นหาได้ถูกต้องข้ามทุกหน้า — ตัวแปรนี้เก็บชื่อเดิมไว้
+  const filteredContracts = contracts;
 
   const totalDeposit = contracts
     .filter((c) => c.status === "active")
@@ -1040,6 +1051,14 @@ export default function ContractsPage() {
               </CardContent>
             </Card>
           )}
+
+          <PaginationFooter
+            page={page}
+            limit={PAGE_SIZE}
+            total={pageMeta.total}
+            totalPages={pageMeta.totalPages}
+            onPageChange={setPage}
+          />
         </div>
       )}
 

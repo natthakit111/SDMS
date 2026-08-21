@@ -16,15 +16,22 @@ const getAllPayments = async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
-    const { tenant_id, bill_id, status, payment_method } = req.query;
-    const { page, limit, offset } = parsePagination(req.query);
+    const { tenant_id, bill_id, status, payment_method, search } = req.query;
+    const { page, limit, offset, isPaginated } = parsePagination(req.query);
+    const filters = { tenant_id, bill_id, status, payment_method, search: search || null };
 
-    const [payments, total] = await Promise.all([
-      PaymentModel.findAll({ tenant_id, bill_id, status, payment_method, limit, offset }),
-      PaymentModel.countAll({ tenant_id, bill_id, status, payment_method }),
+    const payments = await PaymentModel.findAll({ ...filters, limit, offset });
+    if (!isPaginated) return sendSuccess(res, payments);
+
+    const [total, statusCounts] = await Promise.all([
+      PaymentModel.countAll(filters),
+      PaymentModel.countByStatus(filters),
     ]);
-
-    return sendSuccess(res, { items: payments, pagination: buildPaginationMeta(page, limit, total) });
+    return sendSuccess(res, {
+      items: payments,
+      pagination: buildPaginationMeta(page, limit, total),
+      statusCounts,
+    });
   } catch (err) { next(err); }
 };
 

@@ -10,18 +10,25 @@
 
 const { pool } = require('../config/db');
 
-const buildListWhere = ({ status, priority, room_id, tenant_id } = {}) => {
+const buildListWhere = ({ status, priority, room_id, tenant_id, search = null } = {}) => {
   const clauses = ['1=1'];
   const params = [];
   if (status)    { clauses.push('mr.status = ?');    params.push(status); }
   if (priority)  { clauses.push('mr.priority = ?');  params.push(priority); }
   if (room_id)   { clauses.push('mr.room_id = ?');   params.push(room_id); }
   if (tenant_id) { clauses.push('mr.tenant_id = ?'); params.push(tenant_id); }
+  // ⚠️ เดิม frontend ค้นหา room_number/category/tenant_name เองฝั่ง client
+  // จากข้อมูลทั้งก้อน — ย้ายมาทำที่ query เพื่อให้ค้นหาได้ถูกต้องข้ามทุกหน้า
+  if (search) {
+    clauses.push("(r.room_number LIKE ? OR mr.category LIKE ? OR CONCAT(t.first_name,' ',t.last_name) LIKE ?)");
+    const s = `%${search}%`;
+    params.push(s, s, s);
+  }
   return { where: clauses.join(' AND '), params };
 };
 
-const findAll = async ({ status, priority, room_id, tenant_id, limit = null, offset = 0 } = {}) => {
-  const { where, params } = buildListWhere({ status, priority, room_id, tenant_id });
+const findAll = async ({ status, priority, room_id, tenant_id, search = null, limit = null, offset = 0 } = {}) => {
+  const { where, params } = buildListWhere({ status, priority, room_id, tenant_id, search });
   let sql = `
     SELECT mr.*,
            r.room_number,
@@ -44,10 +51,14 @@ const findAll = async ({ status, priority, room_id, tenant_id, limit = null, off
   return rows;
 };
 
-const countAll = async ({ status, priority, room_id, tenant_id } = {}) => {
-  const { where, params } = buildListWhere({ status, priority, room_id, tenant_id });
+const countAll = async ({ status, priority, room_id, tenant_id, search = null } = {}) => {
+  const { where, params } = buildListWhere({ status, priority, room_id, tenant_id, search });
   const [rows] = await pool.query(
-    `SELECT COUNT(*) AS total FROM maintenance_requests mr WHERE ${where}`,
+    `SELECT COUNT(*) AS total
+     FROM maintenance_requests mr
+     JOIN rooms   r ON mr.room_id   = r.room_id
+     JOIN tenants t ON mr.tenant_id = t.tenant_id
+     WHERE ${where}`,
     params
   );
   return rows[0].total;

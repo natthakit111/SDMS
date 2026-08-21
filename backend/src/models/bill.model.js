@@ -5,7 +5,7 @@
 
 const { pool } = require('../config/db');
 
-const buildListWhere = ({ room_id, status, month, year, tenant_id } = {}) => {
+const buildListWhere = ({ room_id, status, month, year, tenant_id, search = null } = {}) => {
   const clauses = ['1=1'];
   const params = [];
   if (room_id)   { clauses.push('b.room_id = ?');    params.push(room_id); }
@@ -13,11 +13,18 @@ const buildListWhere = ({ room_id, status, month, year, tenant_id } = {}) => {
   if (month)     { clauses.push('b.bill_month = ?'); params.push(month); }
   if (year)      { clauses.push('b.bill_year = ?');  params.push(year); }
   if (tenant_id) { clauses.push('t.tenant_id = ?');  params.push(tenant_id); }
+  // ⚠️ เดิม frontend ค้นหา room_number/tenant_name เองฝั่ง client จาก
+  // ข้อมูลทั้งก้อน — ย้ายมาทำที่ query เพื่อให้ค้นหาได้ถูกต้องข้ามทุกหน้า
+  if (search) {
+    clauses.push("(r.room_number LIKE ? OR CONCAT(t.first_name,' ',t.last_name) LIKE ?)");
+    const s = `%${search}%`;
+    params.push(s, s);
+  }
   return { where: clauses.join(' AND '), params };
 };
 
-const findAll = async ({ room_id, status, month, year, tenant_id, limit = null, offset = 0 } = {}) => {
-  const { where, params } = buildListWhere({ room_id, status, month, year, tenant_id });
+const findAll = async ({ room_id, status, month, year, tenant_id, search = null, limit = null, offset = 0 } = {}) => {
+  const { where, params } = buildListWhere({ room_id, status, month, year, tenant_id, search });
   let sql = `
     SELECT b.*,
            r.room_number,
@@ -39,8 +46,8 @@ const findAll = async ({ room_id, status, month, year, tenant_id, limit = null, 
   return rows;
 };
 
-const countAll = async ({ room_id, status, month, year, tenant_id } = {}) => {
-  const { where, params } = buildListWhere({ room_id, status, month, year, tenant_id });
+const countAll = async ({ room_id, status, month, year, tenant_id, search = null } = {}) => {
+  const { where, params } = buildListWhere({ room_id, status, month, year, tenant_id, search });
   const [rows] = await pool.query(
     `SELECT COUNT(*) AS total
      FROM bills b

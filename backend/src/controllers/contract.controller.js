@@ -18,14 +18,14 @@ const getAllContracts = async (req, res, next) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array())
 
-    const { status, tenant_id, room_id } = req.query
-    const { page, limit, offset } = parsePagination(req.query)
+    const { status, tenant_id, room_id, search } = req.query
+    const { page, limit, offset, isPaginated } = parsePagination(req.query)
+    const filters = { status, tenant_id, room_id, search: search || null }
 
-    const [contracts, total] = await Promise.all([
-      ContractModel.findAll({ status, tenant_id, room_id, limit, offset }),
-      ContractModel.countAll({ status, tenant_id, room_id }),
-    ])
+    const contracts = await ContractModel.findAll({ ...filters, limit, offset })
+    if (!isPaginated) return sendSuccess(res, contracts)
 
+    const total = await ContractModel.countAll(filters)
     return sendSuccess(res, { items: contracts, pagination: buildPaginationMeta(page, limit, total) })
   } catch (err) { next(err) }
 }

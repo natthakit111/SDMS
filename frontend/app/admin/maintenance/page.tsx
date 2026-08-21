@@ -47,6 +47,7 @@ import { getMediaUrl } from "@/lib/media-url";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 import { MaintenanceRequest } from "@/types/index";
+import { PaginationFooter } from "@/components/common/pagination-footer";
 
 interface UpdateData {
   status: string;
@@ -106,39 +107,58 @@ export default function MaintenancePage() {
     admin_note: "",
   });
 
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
+  const [pendingCount, setPendingCount] = useState(0);
+
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchRequests = useCallback(async () => {
     try {
       setLoading(true);
-      const params: any = {};
+      const params: any = { page, limit: PAGE_SIZE };
       if (statusFilter !== "all") params.status = statusFilter;
+      if (searchQuery) params.search = searchQuery;
       const res = await maintenanceAPI.getAll(params);
-      setRequests(res.data ?? []);
+      setRequests(res.data?.items ?? []);
+      setPageMeta({
+        total: res.data?.pagination?.total ?? 0,
+        totalPages: res.data?.pagination?.totalPages ?? 0,
+      });
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? t("maintenance.loadError"));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, searchQuery, page]);
 
   useEffect(() => {
-    fetchRequests();
+    const timer = setTimeout(fetchRequests, 300);
+    return () => clearTimeout(timer);
   }, [fetchRequests]);
 
-  // ── Filter client-side ────────────────────────────────────────────────────
-  const filteredRequests = requests.filter((r) => {
-    const q = searchQuery.toLowerCase();
-    return (
-      r.room_number?.toLowerCase().includes(q) ||
-      r.category?.toLowerCase().includes(q) ||
-      r.tenant_name?.toLowerCase().includes(q)
-    );
-  });
+  // เปลี่ยน filter/search แล้วต้องกลับไปหน้า 1 เสมอ
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, searchQuery]);
+
+  // ⚠️ เดิมนับ pending จาก requests array ที่โหลดมาทั้งหมด พอแบ่งหน้าแล้วจะ
+  // นับได้แค่ในหน้าปัจจุบัน — ใช้ endpoint /maintenance/stats ที่มีอยู่แล้ว
+  // (นับจริงจาก DB ไม่ขึ้นกับ pagination) แทน
+  useEffect(() => {
+    maintenanceAPI
+      .getStats()
+      .then((res: any) => setPendingCount(res.data?.pending ?? 0))
+      .catch(() => {});
+  }, [requests]);
+
+  // ⚠️ search ย้ายไปทำที่ backend แล้ว (ดู maintenance.model.js) เพื่อให้
+  // ค้นหาได้ถูกต้องข้ามทุกหน้า — ตัวแปรนี้เก็บชื่อเดิมไว้
+  const filteredRequests = requests;
 
   // ── เรียงลำดับ: งานค้างอยู่บน (ตามความสำคัญ), งานจบแล้วอยู่ล่าง (ใหม่สุดก่อน) ──
+  // ⚠️ เรียงแค่ภายในหน้าปัจจุบันเท่านั้น (20 รายการ) ไม่ใช่ข้ามทุกหน้า
   const sortedRequests = sortRequests(filteredRequests);
-
-  const pendingCount = requests.filter((r) => r.status === "pending").length;
 
   // ── Update status ─────────────────────────────────────────────────────────
   const handleUpdate = async () => {
@@ -244,7 +264,7 @@ export default function MaintenancePage() {
           <CardDescription>
             {t("maintenance.totalItems").replace(
               "{n}",
-              String(filteredRequests.length),
+              String(pageMeta.total),
             )}
           </CardDescription>
         </CardHeader>
@@ -365,6 +385,14 @@ export default function MaintenancePage() {
                   </button>
                 ))}
               </div>
+
+              <PaginationFooter
+                page={page}
+                limit={PAGE_SIZE}
+                total={pageMeta.total}
+                totalPages={pageMeta.totalPages}
+                onPageChange={setPage}
+              />
             </>
           )}
         </CardContent>

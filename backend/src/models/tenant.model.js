@@ -6,7 +6,7 @@
 const { pool } = require('../config/db');
 
 // ── WHERE clause ที่ findAll/count ใช้ร่วมกัน กันสองจุดเขียนเงื่อนไขไม่ตรงกัน ──
-const buildListWhere = ({ search = null, isActive = true } = {}) => {
+const buildListWhere = ({ search = null, isActive = true, contractStatus = null } = {}) => {
   const clauses = ['u.is_active = ?'];
   const params = [isActive ? 1 : 0];
   if (search) {
@@ -14,11 +14,19 @@ const buildListWhere = ({ search = null, isActive = true } = {}) => {
     const s = `%${search}%`;
     params.push(s, s, s, s);
   }
+  // ⚠️ เดิม frontend กรอง contract_status (active/no_contract) เองฝั่ง
+  // client จากข้อมูลทั้งก้อนที่ดึงมาทีเดียว — ตอนนี้ดึงทีละหน้าแล้ว ต้อง
+  // ย้าย filter นี้มาทำที่ query เพื่อให้ total/pagination ถูกต้องจริง
+  if (contractStatus === 'active') {
+    clauses.push("c.status = 'active'");
+  } else if (contractStatus === 'no_contract') {
+    clauses.push('c.contract_id IS NULL');
+  }
   return { where: clauses.join(' AND '), params };
 };
 
-const findAll = async ({ search = null, isActive = true, limit = null, offset = 0 } = {}) => {
-  const { where, params } = buildListWhere({ search, isActive });
+const findAll = async ({ search = null, isActive = true, contractStatus = null, limit = null, offset = 0 } = {}) => {
+  const { where, params } = buildListWhere({ search, isActive, contractStatus });
   let sql = `
     SELECT
       t.*,
@@ -40,12 +48,13 @@ const findAll = async ({ search = null, isActive = true, limit = null, offset = 
   return rows;
 };
 
-const countAll = async ({ search = null, isActive = true } = {}) => {
-  const { where, params } = buildListWhere({ search, isActive });
+const countAll = async ({ search = null, isActive = true, contractStatus = null } = {}) => {
+  const { where, params } = buildListWhere({ search, isActive, contractStatus });
   const [rows] = await pool.query(
     `SELECT COUNT(*) AS total
      FROM tenants t
      JOIN users u ON t.user_id = u.user_id
+     LEFT JOIN contracts c ON c.tenant_id = t.tenant_id AND c.status = 'active'
      WHERE ${where}`,
     params
   );

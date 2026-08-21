@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { TenantStatusBadge } from "@/components/common/status-badge";
+import { PaginationFooter } from "@/components/common/pagination-footer";
 import {
   Plus,
   Search,
@@ -219,32 +220,47 @@ export default function TenantsPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [showPassword, setShowPassword] = useState(false);
 
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
+
   const fetchTenants = useCallback(async () => {
     try {
       setLoading(true);
       const res = await tenantAPI.getAll({
         search: searchQuery || undefined,
         inactive: showInactive ? "true" : undefined,
+        contract_status: statusFilter !== "all" ? statusFilter : undefined,
+        page,
+        limit: PAGE_SIZE,
       });
-      setTenants(res.data ?? []);
+      setTenants(res.data?.items ?? []);
+      setPageMeta({
+        total: res.data?.pagination?.total ?? 0,
+        totalPages: res.data?.pagination?.totalPages ?? 0,
+      });
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? t("common.error"));
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, showInactive, t]);
+  }, [searchQuery, showInactive, statusFilter, page, t]);
 
   useEffect(() => {
     const timer = setTimeout(fetchTenants, 300);
     return () => clearTimeout(timer);
   }, [fetchTenants]);
 
-  const filteredTenants = tenants.filter((tn) => {
-    if (statusFilter === "all") return true;
-    if (statusFilter === "active") return tn.contract_status === "active";
-    if (statusFilter === "no_contract") return !tn.contract_status;
-    return true;
-  });
+  // เปลี่ยน filter/search แล้วต้องกลับไปหน้า 1 เสมอ — ไม่งั้นอาจค้างอยู่หน้า
+  // ที่ filter ใหม่ไม่มีข้อมูลถึง (เช่น filter เหลือ 2 หน้า แต่ค้างอยู่หน้า 5 เดิม)
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, showInactive, statusFilter]);
+
+  // ⚠️ filter contract_status ย้ายไปทำที่ backend แล้ว (ดู tenant.model.js)
+  // เพื่อให้ total/pagination ถูกต้องตามหน้าที่แบ่งจริง — ตัวแปรนี้เก็บชื่อ
+  // เดิมไว้เพื่อไม่ต้องเปลี่ยน JSX ด้านล่างทั้งหมด
+  const filteredTenants = tenants;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -682,7 +698,7 @@ export default function TenantsPage() {
             {t("tenants.list")}
           </CardTitle>
           <CardDescription>
-            {t("common.total")} {filteredTenants.length}
+            {t("common.total")} {pageMeta.total}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -875,6 +891,14 @@ export default function TenantsPage() {
                   </div>
                 ))}
               </div>
+
+              <PaginationFooter
+                page={page}
+                limit={PAGE_SIZE}
+                total={pageMeta.total}
+                totalPages={pageMeta.totalPages}
+                onPageChange={setPage}
+              />
             </>
           )}
         </CardContent>

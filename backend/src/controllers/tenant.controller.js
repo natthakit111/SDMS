@@ -20,15 +20,15 @@ const getAllTenants = async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
-    const { search, inactive } = req.query;
+    const { search, inactive, contract_status } = req.query;
     const isActive = inactive === 'true' ? false : true;
-    const { page, limit, offset } = parsePagination(req.query);
+    const { page, limit, offset, isPaginated } = parsePagination(req.query);
+    const filters = { search: search || null, isActive, contractStatus: contract_status || null };
 
-    const [tenants, total] = await Promise.all([
-      TenantModel.findAll({ search: search || null, isActive, limit, offset }),
-      TenantModel.countAll({ search: search || null, isActive }),
-    ]);
+    const tenants = await TenantModel.findAll({ ...filters, limit, offset });
+    if (!isPaginated) return sendSuccess(res, tenants);
 
+    const total = await TenantModel.countAll(filters);
     return sendSuccess(res, { items: tenants, pagination: buildPaginationMeta(page, limit, total) });
   } catch (err) { next(err); }
 };

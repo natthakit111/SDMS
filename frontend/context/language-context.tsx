@@ -15,7 +15,7 @@ type Language = "th" | "en";
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: string) => string;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(
@@ -62,6 +62,15 @@ const translations: Record<string, { th: string; en: string }> = {
   "common.date": { th: "วันที่", en: "Date" },
   "common.note": { th: "หมายเหตุ", en: "Note" },
   "common.total": { th: "รวม", en: "Total" },
+
+  // ── Pagination (ใช้ร่วมกันทุกหน้าตารางที่แบ่งหน้า) ──────────────────────────
+  "pagination.showing": {
+    th: "แสดง {from}–{to} จาก {total} รายการ",
+    en: "Showing {from}–{to} of {total}",
+  },
+  "pagination.pageOf": { th: "หน้า {page} / {totalPages}", en: "Page {page} of {totalPages}" },
+  "pagination.previous": { th: "ก่อนหน้า", en: "Previous" },
+  "pagination.next": { th: "ถัดไป", en: "Next" },
   "common.amount": { th: "จำนวนเงิน", en: "Amount" },
   "common.name": { th: "ชื่อ", en: "Name" },
   "common.phone": { th: "เบอร์โทรศัพท์", en: "Phone" },
@@ -2007,10 +2016,18 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("language", lang);
   };
 
-  const t = (key: string): string => {
+  // ⚠️ ใหม่: เพิ่ม params (optional) สำหรับ key ที่มี placeholder แบบ {name}
+  // เช่น "แสดง {from}–{to} จาก {total} รายการ" — เดิม t(key) รับแค่ key
+  // เดียว ยังเรียกแบบเดิมได้ปกติทุกจุด เพราะ params เป็น optional
+  const t = (key: string, params?: Record<string, string | number>): string => {
     const trans = translations[key];
-    if (!trans) return key;
-    return trans[language] || key;
+    let str = trans ? trans[language] || key : key;
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        str = str.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+      }
+    }
+    return str;
   };
 
   return (
@@ -2029,7 +2046,7 @@ export function useLanguage() {
     return {
       language: "th" as const,
       setLanguage: (_lang: "th" | "en") => {},
-      t: (key: string) => key,
+      t: (key: string, _params?: Record<string, string | number>) => key,
     };
   }
   return context;

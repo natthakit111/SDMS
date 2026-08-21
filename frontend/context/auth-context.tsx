@@ -178,7 +178,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phone: data.phone,
         role: "tenant",
       });
-      return { success: true };
+      // สมัครสำเร็จแล้ว แต่ backend ไม่ set session ให้อัตโนมัติ — ต้อง login
+      // ต่อทันทีด้วย username ที่ backend สร้างให้ (= เบอร์โทร) ไม่งั้นหน้า
+      // /tenant ที่ redirect ไปจะเช็คแล้วไม่พบ session แล้วเด้งกลับ /login
+      return await login(data.phone ?? "", data.password, false);
     } catch (err: any) {
       return { success: false, error: getErrorMessage(err, language) };
     }

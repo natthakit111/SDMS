@@ -5,18 +5,19 @@
 
 const { pool } = require('../config/db');
 
-const buildListWhere = ({ room_id, meter_type, month, year } = {}) => {
+const buildListWhere = ({ room_id, meter_type, month, year, search } = {}) => {
   const clauses = ['1=1'];
   const params = [];
   if (room_id)    { clauses.push('mr.room_id = ?');    params.push(room_id); }
   if (meter_type) { clauses.push('mr.meter_type = ?'); params.push(meter_type); }
   if (month)      { clauses.push('mr.reading_month = ?'); params.push(month); }
   if (year)       { clauses.push('mr.reading_year = ?');  params.push(year); }
+  if (search)     { clauses.push('r.room_number LIKE ?'); params.push(`%${search}%`); }
   return { where: clauses.join(' AND '), params };
 };
 
-const findAll = async ({ room_id, meter_type, month, year, limit = null, offset = 0 } = {}) => {
-  const { where, params } = buildListWhere({ room_id, meter_type, month, year });
+const findAll = async ({ room_id, meter_type, month, year, search, limit = null, offset = 0 } = {}) => {
+  const { where, params } = buildListWhere({ room_id, meter_type, month, year, search });
   let sql = `
     SELECT mr.*, r.room_number
     FROM meter_readings mr
@@ -33,10 +34,16 @@ const findAll = async ({ room_id, meter_type, month, year, limit = null, offset 
   return rows;
 };
 
-const countAll = async ({ room_id, meter_type, month, year } = {}) => {
-  const { where, params } = buildListWhere({ room_id, meter_type, month, year });
+const countAll = async ({ room_id, meter_type, month, year, search } = {}) => {
+  const { where, params } = buildListWhere({ room_id, meter_type, month, year, search });
+  // ⚠️ FIX: ต้อง JOIN rooms เหมือน findAll เสมอ — buildListWhere ใช้ r.room_number
+  // ในเงื่อนไข search ถ้าไม่ join จะพัง 500 ทุกครั้งที่มี search (เจอบั๊กนี้
+  // ตอนทดสอบสดผ่านเบราว์เซอร์จริงก่อน commit)
   const [rows] = await pool.query(
-    `SELECT COUNT(*) AS total FROM meter_readings mr WHERE ${where}`,
+    `SELECT COUNT(*) AS total
+     FROM meter_readings mr
+     JOIN rooms r ON mr.room_id = r.room_id
+     WHERE ${where}`,
     params
   );
   return rows[0].total;

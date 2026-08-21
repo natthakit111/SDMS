@@ -59,6 +59,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 import { settingsAPI } from "@/lib/api/settings.api";
 import { Room, Reading } from "@/types/index";
+import { PaginationFooter } from "@/components/common/pagination-footer";
 
 // จัดกลุ่ม readings ตาม room+month+year
 interface GroupedReading {
@@ -138,6 +139,10 @@ export default function MetersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [monthFilter, setMonthFilter] = useState("all");
 
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
+
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -165,16 +170,15 @@ export default function MetersPage() {
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
   const [viewingGroup, setViewingGroup] = useState<GroupedReading | null>(null);
 
-  const fetchAll = useCallback(async () => {
+  // ── ข้อมูลอ้างอิง (ห้อง, อัตราค่าน้ำ-ไฟ, ตั้งค่า) — ดึงครั้งเดียวตอนโหลดหน้า
+  // ไม่เกี่ยวกับ page/search/filter ของตารางด้านล่าง ไม่ต้อง refetch ทุกครั้ง
+  const fetchReferenceData = useCallback(async () => {
     try {
-      setLoading(true);
-      const [readRes, roomRes, rateRes, settingsRes] = await Promise.all([
-        meterAPI.getAll(),
+      const [roomRes, rateRes, settingsRes] = await Promise.all([
         roomAPI.getAll({ status: "occupied" }),
         utilityRateAPI.getCurrent(),
         settingsAPI.getAll().catch(() => ({ data: {} })),
       ]);
-      setReadings(readRes?.data ?? readRes ?? []);
       setRooms(roomRes?.data ?? roomRes ?? []);
       const rd = rateRes?.data ?? rateRes ?? {};
       setRates({
@@ -188,14 +192,44 @@ export default function MetersPage() {
       setWaterFlatRate(Number(settings.water_flat_rate ?? 0));
     } catch {
       toast.error(t("meters.loadError"));
+    }
+  }, [t]);
+
+  useEffect(() => {
+    fetchReferenceData();
+  }, [fetchReferenceData]);
+
+  const fetchAll = useCallback(async () => {
+    try {
+      setLoading(true);
+      const readRes = await meterAPI.getAll({
+        search: searchQuery || undefined,
+        month: monthFilter !== "all" ? monthFilter : undefined,
+        page,
+        limit: PAGE_SIZE,
+      });
+      setReadings(readRes?.data?.items ?? []);
+      setPageMeta({
+        total: readRes?.data?.pagination?.total ?? 0,
+        totalPages: readRes?.data?.pagination?.totalPages ?? 0,
+      });
+    } catch {
+      toast.error(t("meters.loadError"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchQuery, monthFilter, page, t]);
 
   useEffect(() => {
-    fetchAll();
+    const timer = setTimeout(fetchAll, 300);
+    return () => clearTimeout(timer);
   }, [fetchAll]);
+
+  // เปลี่ยน search/filter แล้วต้องกลับไปหน้า 1 เสมอ — ไม่งั้นอาจค้างอยู่หน้า
+  // ที่ filter ใหม่ไม่มีข้อมูลถึง
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, monthFilter]);
 
   const fetchAvailableRooms = useCallback(async (m: string, y: string) => {
     try {
@@ -251,14 +285,10 @@ export default function MetersPage() {
     return Array.from(map.values());
   })();
 
-  const filtered = grouped.filter((g) => {
-    const matchSearch = g.room_number
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    const matchMonth =
-      monthFilter === "all" || String(g.reading_month) === monthFilter;
-    return matchSearch && matchMonth;
-  });
+  // ⚠️ search/month filter ย้ายไปทำที่ backend แล้ว (ดู meter.model.js) เพื่อ
+  // ให้ total/pagination ถูกต้องตามหน้าที่แบ่งจริง — grouped คือข้อมูลของ
+  // หน้าปัจจุบันที่ filter มาจาก backend เรียบร้อยแล้ว ไม่ต้อง filter ซ้ำ
+  const filtered = grouped;
 
   const handleRoomChange = async (rid: string) => {
     setRoomId(rid);
@@ -485,7 +515,7 @@ export default function MetersPage() {
             {t("meters.listTitle")}
           </CardTitle>
           <CardDescription>
-            {t("meters.totalItems").replace("{n}", String(filtered.length))}
+            {t("meters.totalItems").replace("{n}", String(pageMeta.total))}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -700,6 +730,14 @@ export default function MetersPage() {
                   </div>
                 ))}
               </div>
+
+              <PaginationFooter
+                page={page}
+                limit={PAGE_SIZE}
+                total={pageMeta.total}
+                totalPages={pageMeta.totalPages}
+                onPageChange={setPage}
+              />
             </>
           )}
         </CardContent>

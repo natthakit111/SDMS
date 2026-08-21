@@ -36,9 +36,9 @@ const getAllReadings = async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
-    const { room_id, meter_type, month, year } = req.query;
+    const { room_id, meter_type, month, year, search } = req.query;
     const { page, limit, offset, isPaginated } = parsePagination(req.query);
-    const filters = { room_id, meter_type, month, year };
+    const filters = { room_id, meter_type, month, year, search };
 
     const readings = await MeterModel.findAll({ ...filters, limit, offset });
     if (!isPaginated) return sendSuccess(res, readings);

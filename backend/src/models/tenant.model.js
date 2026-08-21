@@ -5,7 +5,20 @@
 
 const { pool } = require('../config/db');
 
-const findAll = async ({ search = null, isActive = true } = {}) => {
+// ── WHERE clause ที่ findAll/count ใช้ร่วมกัน กันสองจุดเขียนเงื่อนไขไม่ตรงกัน ──
+const buildListWhere = ({ search = null, isActive = true } = {}) => {
+  const clauses = ['u.is_active = ?'];
+  const params = [isActive ? 1 : 0];
+  if (search) {
+    clauses.push('(t.first_name LIKE ? OR t.last_name LIKE ? OR t.phone LIKE ? OR t.id_card_number LIKE ?)');
+    const s = `%${search}%`;
+    params.push(s, s, s, s);
+  }
+  return { where: clauses.join(' AND '), params };
+};
+
+const findAll = async ({ search = null, isActive = true, limit = null, offset = 0 } = {}) => {
+  const { where, params } = buildListWhere({ search, isActive });
   let sql = `
     SELECT
       t.*,
@@ -15,18 +28,28 @@ const findAll = async ({ search = null, isActive = true } = {}) => {
     FROM tenants t
     JOIN users u ON t.user_id = u.user_id
     LEFT JOIN contracts c ON c.tenant_id = t.tenant_id AND c.status = 'active'
-    LEFT JOIN rooms r ON r.room_id = c.room_id`;
-  const params = [];
-  sql += ` WHERE u.is_active = ?`;
-  params.push(isActive ? 1 : 0);
-  if (search) {
-    sql += ` AND (t.first_name LIKE ? OR t.last_name LIKE ? OR t.phone LIKE ? OR t.id_card_number LIKE ?)`;
-    const s = `%${search}%`;
-    params.push(s, s, s, s);
+    LEFT JOIN rooms r ON r.room_id = c.room_id
+    WHERE ${where}
+    ORDER BY t.created_at DESC`;
+  const queryParams = [...params];
+  if (limit !== null) {
+    sql += ' LIMIT ? OFFSET ?';
+    queryParams.push(limit, offset);
   }
-  sql += ' ORDER BY t.created_at DESC';
-  const [rows] = await pool.query(sql, params);
+  const [rows] = await pool.query(sql, queryParams);
   return rows;
+};
+
+const countAll = async ({ search = null, isActive = true } = {}) => {
+  const { where, params } = buildListWhere({ search, isActive });
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS total
+     FROM tenants t
+     JOIN users u ON t.user_id = u.user_id
+     WHERE ${where}`,
+    params
+  );
+  return rows[0].total;
 };
 
 const findById = async (tenantId) => {
@@ -172,7 +195,7 @@ const countActiveWithTelegram = async () => {
 };
 
 module.exports = {
-  findAll, findById, findByUserId, findByIdCard, update,
+  findAll, countAll, findById, findByUserId, findByIdCard, update,
   findConflictByPhoneOrEmail, createFromSelfRegistration,
   findMatchesByPhoneOrEmail, findIdCardConflictExcluding,
   upgradeSelfRegistered, createFull, countActiveWithTelegram,

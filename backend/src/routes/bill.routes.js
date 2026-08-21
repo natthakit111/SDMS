@@ -10,6 +10,7 @@ const router = express.Router();
 const ctrl = require('../controllers/bill.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
+const { paginationValidation } = require('../utils/pagination');
 
 const generateBillValidation = [
   body('room_id').isInt({ min: 1 }),
@@ -37,6 +38,7 @@ router.post('/generate',
 // ── Admin list ────────────────────────────────────────────────
 router.get('/',
   authenticate, authorizeRoles('admin'),
+  paginationValidation,
   ctrl.getAllBills
 );
 

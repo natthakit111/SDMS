@@ -17,12 +17,22 @@ const { htmlToPdfBuffer } = require('../services/pdf.service');
 const { renderInvoiceHtml } = require('../services/invoiceTemplate');
 const { sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendError } = require('../utils/response');
 const SettingsModel = require('../models/settings.model');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 const getAllBills = async (req, res, next) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
+
     const { room_id, status, month, year, tenant_id } = req.query;
-    const bills = await BillModel.findAll({ room_id, status, month, year, tenant_id });
-    return sendSuccess(res, bills);
+    const { page, limit, offset } = parsePagination(req.query);
+
+    const [bills, total] = await Promise.all([
+      BillModel.findAll({ room_id, status, month, year, tenant_id, limit, offset }),
+      BillModel.countAll({ room_id, status, month, year, tenant_id }),
+    ]);
+
+    return sendSuccess(res, { items: bills, pagination: buildPaginationMeta(page, limit, total) });
   } catch (err) { next(err); }
 };
 

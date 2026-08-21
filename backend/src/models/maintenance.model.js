@@ -10,7 +10,18 @@
 
 const { pool } = require('../config/db');
 
-const findAll = async ({ status, priority, room_id, tenant_id } = {}) => {
+const buildListWhere = ({ status, priority, room_id, tenant_id } = {}) => {
+  const clauses = ['1=1'];
+  const params = [];
+  if (status)    { clauses.push('mr.status = ?');    params.push(status); }
+  if (priority)  { clauses.push('mr.priority = ?');  params.push(priority); }
+  if (room_id)   { clauses.push('mr.room_id = ?');   params.push(room_id); }
+  if (tenant_id) { clauses.push('mr.tenant_id = ?'); params.push(tenant_id); }
+  return { where: clauses.join(' AND '), params };
+};
+
+const findAll = async ({ status, priority, room_id, tenant_id, limit = null, offset = 0 } = {}) => {
+  const { where, params } = buildListWhere({ status, priority, room_id, tenant_id });
   let sql = `
     SELECT mr.*,
            r.room_number,
@@ -21,16 +32,25 @@ const findAll = async ({ status, priority, room_id, tenant_id } = {}) => {
     JOIN rooms   r  ON mr.room_id   = r.room_id
     JOIN tenants t  ON mr.tenant_id = t.tenant_id
     LEFT JOIN users u ON mr.assigned_to = u.user_id
-    WHERE 1=1
+    WHERE ${where}
+    ORDER BY FIELD(mr.priority,"high","medium","low"), mr.created_at DESC
   `;
-  const params = [];
-  if (status)    { sql += ' AND mr.status = ?';    params.push(status); }
-  if (priority)  { sql += ' AND mr.priority = ?';  params.push(priority); }
-  if (room_id)   { sql += ' AND mr.room_id = ?';   params.push(room_id); }
-  if (tenant_id) { sql += ' AND mr.tenant_id = ?'; params.push(tenant_id); }
-  sql += ' ORDER BY FIELD(mr.priority,"high","medium","low"), mr.created_at DESC';
-  const [rows] = await pool.query(sql, params);
+  const queryParams = [...params];
+  if (limit !== null) {
+    sql += ' LIMIT ? OFFSET ?';
+    queryParams.push(limit, offset);
+  }
+  const [rows] = await pool.query(sql, queryParams);
   return rows;
+};
+
+const countAll = async ({ status, priority, room_id, tenant_id } = {}) => {
+  const { where, params } = buildListWhere({ status, priority, room_id, tenant_id });
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS total FROM maintenance_requests mr WHERE ${where}`,
+    params
+  );
+  return rows[0].total;
 };
 
 const findById = async (requestId) => {
@@ -99,4 +119,4 @@ const getStatusSummary = async () => {
   return rows[0];
 };
 
-module.exports = { findAll, findById, findByTenantId, create, updateStatus, getStatusSummary };
+module.exports = { findAll, countAll, findById, findByTenantId, create, updateStatus, getStatusSummary };

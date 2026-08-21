@@ -9,14 +9,24 @@ const RoomModel     = require('../models/room.model')
 const TenantModel   = require('../models/tenant.model')
 const DepositModel  = require('../models/deposit.model')
 const { sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden } = require('../utils/response')
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination')
 const cloudinary = require('cloudinary').v2;
 const https = require('https');
 
 const getAllContracts = async (req, res, next) => {
   try {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array())
+
     const { status, tenant_id, room_id } = req.query
-    const contracts = await ContractModel.findAll({ status, tenant_id, room_id })
-    return sendSuccess(res, contracts)
+    const { page, limit, offset } = parsePagination(req.query)
+
+    const [contracts, total] = await Promise.all([
+      ContractModel.findAll({ status, tenant_id, room_id, limit, offset }),
+      ContractModel.countAll({ status, tenant_id, room_id }),
+    ])
+
+    return sendSuccess(res, { items: contracts, pagination: buildPaginationMeta(page, limit, total) })
   } catch (err) { next(err) }
 }
 

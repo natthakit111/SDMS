@@ -5,21 +5,41 @@
 
 const { pool } = require('../config/db');
 
-const findAll = async ({ room_id, meter_type, month, year } = {}) => {
+const buildListWhere = ({ room_id, meter_type, month, year } = {}) => {
+  const clauses = ['1=1'];
+  const params = [];
+  if (room_id)    { clauses.push('mr.room_id = ?');    params.push(room_id); }
+  if (meter_type) { clauses.push('mr.meter_type = ?'); params.push(meter_type); }
+  if (month)      { clauses.push('mr.reading_month = ?'); params.push(month); }
+  if (year)       { clauses.push('mr.reading_year = ?');  params.push(year); }
+  return { where: clauses.join(' AND '), params };
+};
+
+const findAll = async ({ room_id, meter_type, month, year, limit = null, offset = 0 } = {}) => {
+  const { where, params } = buildListWhere({ room_id, meter_type, month, year });
   let sql = `
     SELECT mr.*, r.room_number
     FROM meter_readings mr
     JOIN rooms r ON mr.room_id = r.room_id
-    WHERE 1=1
+    WHERE ${where}
+    ORDER BY mr.reading_year DESC, mr.reading_month DESC, r.room_number
   `;
-  const params = [];
-  if (room_id)    { sql += ' AND mr.room_id = ?';    params.push(room_id); }
-  if (meter_type) { sql += ' AND mr.meter_type = ?'; params.push(meter_type); }
-  if (month)      { sql += ' AND mr.reading_month = ?'; params.push(month); }
-  if (year)       { sql += ' AND mr.reading_year = ?';  params.push(year); }
-  sql += ' ORDER BY mr.reading_year DESC, mr.reading_month DESC, r.room_number';
-  const [rows] = await pool.query(sql, params);
+  const queryParams = [...params];
+  if (limit !== null) {
+    sql += ' LIMIT ? OFFSET ?';
+    queryParams.push(limit, offset);
+  }
+  const [rows] = await pool.query(sql, queryParams);
   return rows;
+};
+
+const countAll = async ({ room_id, meter_type, month, year } = {}) => {
+  const { where, params } = buildListWhere({ room_id, meter_type, month, year });
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS total FROM meter_readings mr WHERE ${where}`,
+    params
+  );
+  return rows[0].total;
 };
 
 const findById = async (readingId) => {
@@ -110,6 +130,6 @@ const findAvailableRoomsForMeter = async (month, year) => {
 };
 
 module.exports = {
-  findAll, findById, findLatestByRoomAndType,
+  findAll, countAll, findById, findLatestByRoomAndType,
   findByRoomMonthYear, create, update,findAvailableRoomsForMeter,
 };

@@ -5,7 +5,18 @@
 
 const { pool } = require('../config/db');
 
-const findAll = async ({ tenant_id, bill_id, status, payment_method, } = {}) => {
+const buildListWhere = ({ tenant_id, bill_id, status, payment_method } = {}) => {
+  const clauses = ['1=1'];
+  const params = [];
+  if (tenant_id) { clauses.push('p.tenant_id = ?'); params.push(tenant_id); }
+  if (bill_id)   { clauses.push('p.bill_id = ?');   params.push(bill_id); }
+  if (status)    { clauses.push('p.status = ?');    params.push(status); }
+  if (payment_method) { clauses.push('p.payment_method = ?'); params.push(payment_method); }
+  return { where: clauses.join(' AND '), params };
+};
+
+const findAll = async ({ tenant_id, bill_id, status, payment_method, limit = null, offset = 0 } = {}) => {
+  const { where, params } = buildListWhere({ tenant_id, bill_id, status, payment_method });
   let sql = `
     SELECT p.*,
            b.bill_month, b.bill_year, b.total_amount AS bill_total,
@@ -17,16 +28,29 @@ const findAll = async ({ tenant_id, bill_id, status, payment_method, } = {}) => 
     JOIN rooms    r  ON b.room_id   = r.room_id
     JOIN tenants  t  ON p.tenant_id = t.tenant_id
     LEFT JOIN users u ON p.verified_by = u.user_id
-    WHERE 1=1
+    WHERE ${where}
+    ORDER BY p.paid_at DESC
   `;
-  const params = [];
-  if (tenant_id) { sql += ' AND p.tenant_id = ?'; params.push(tenant_id); }
-  if (bill_id)   { sql += ' AND p.bill_id = ?';   params.push(bill_id); }
-  if (status)    { sql += ' AND p.status = ?';    params.push(status); }
-  if (payment_method) { sql += ' AND p.payment_method = ?'; params.push(payment_method); }
-  sql += ' ORDER BY p.paid_at DESC';
-  const [rows] = await pool.query(sql, params);
+  const queryParams = [...params];
+  if (limit !== null) {
+    sql += ' LIMIT ? OFFSET ?';
+    queryParams.push(limit, offset);
+  }
+  const [rows] = await pool.query(sql, queryParams);
   return rows;
+};
+
+const countAll = async ({ tenant_id, bill_id, status, payment_method } = {}) => {
+  const { where, params } = buildListWhere({ tenant_id, bill_id, status, payment_method });
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS total
+     FROM payments p
+     JOIN bills   b ON p.bill_id   = b.bill_id
+     JOIN tenants t ON p.tenant_id = t.tenant_id
+     WHERE ${where}`,
+    params
+  );
+  return rows[0].total;
 };
 
 const findById = async (paymentId) => {
@@ -92,4 +116,4 @@ const updateSlipImage = async (paymentId, slipImage) => {
   await pool.query('UPDATE payments SET slip_image = ? WHERE payment_id = ?', [slipImage, paymentId]);
 };
 
-module.exports = { findAll, findById, findByBillId, findPendingByTenant, create, verify, updateSlipImage };
+module.exports = { findAll, countAll, findById, findByBillId, findPendingByTenant, create, verify, updateSlipImage };

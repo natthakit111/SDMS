@@ -16,6 +16,7 @@ const MeterModel       = require('../models/meter.model');
 const UtilityRateModel = require('../models/utilityRate.model');
 const ContractModel    = require('../models/contract.model');
 const { sendSuccess, sendCreated, sendBadRequest, sendNotFound } = require('../utils/response');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -32,9 +33,18 @@ const sendNotFoundCoded = (res, error_code, message) =>
 // GET /api/meters?room_id=&meter_type=&month=&year=
 const getAllReadings = async (req, res, next) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
+
     const { room_id, meter_type, month, year } = req.query;
-    const readings = await MeterModel.findAll({ room_id, meter_type, month, year });
-    return sendSuccess(res, readings);
+    const { page, limit, offset } = parsePagination(req.query);
+
+    const [readings, total] = await Promise.all([
+      MeterModel.findAll({ room_id, meter_type, month, year, limit, offset }),
+      MeterModel.countAll({ room_id, meter_type, month, year }),
+    ]);
+
+    return sendSuccess(res, { items: readings, pagination: buildPaginationMeta(page, limit, total) });
   } catch (err) { next(err); }
 };
 

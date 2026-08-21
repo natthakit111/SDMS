@@ -11,13 +11,23 @@ const TenantModel      = require('../models/tenant.model');
 const ContractModel    = require('../models/contract.model');
 const TelegramService  = require('../services/telegram.service');
 const { sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden } = require('../utils/response');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 // ── ดึงคำร้องแจ้งซ่อมทั้งหมด (แอดมิน) พร้อม filter ตาม status/priority/room/tenant ──
 const getAllRequests = async (req, res, next) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
+
     const { status, priority, room_id, tenant_id } = req.query;
-    const requests = await MaintenanceModel.findAll({ status, priority, room_id, tenant_id });
-    return sendSuccess(res, requests);
+    const { page, limit, offset } = parsePagination(req.query);
+
+    const [requests, total] = await Promise.all([
+      MaintenanceModel.findAll({ status, priority, room_id, tenant_id, limit, offset }),
+      MaintenanceModel.countAll({ status, priority, room_id, tenant_id }),
+    ]);
+
+    return sendSuccess(res, { items: requests, pagination: buildPaginationMeta(page, limit, total) });
   } catch (err) { next(err); }
 };
 

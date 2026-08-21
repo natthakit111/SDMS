@@ -5,7 +5,19 @@
 
 const { pool } = require('../config/db');
 
-const findAll = async ({ room_id, status, month, year, tenant_id } = {}) => {
+const buildListWhere = ({ room_id, status, month, year, tenant_id } = {}) => {
+  const clauses = ['1=1'];
+  const params = [];
+  if (room_id)   { clauses.push('b.room_id = ?');    params.push(room_id); }
+  if (status)    { clauses.push('b.status = ?');     params.push(status); }
+  if (month)     { clauses.push('b.bill_month = ?'); params.push(month); }
+  if (year)      { clauses.push('b.bill_year = ?');  params.push(year); }
+  if (tenant_id) { clauses.push('t.tenant_id = ?');  params.push(tenant_id); }
+  return { where: clauses.join(' AND '), params };
+};
+
+const findAll = async ({ room_id, status, month, year, tenant_id, limit = null, offset = 0 } = {}) => {
+  const { where, params } = buildListWhere({ room_id, status, month, year, tenant_id });
   let sql = `
     SELECT b.*,
            r.room_number,
@@ -15,17 +27,30 @@ const findAll = async ({ room_id, status, month, year, tenant_id } = {}) => {
     JOIN rooms     r ON b.room_id     = r.room_id
     JOIN contracts c ON b.contract_id = c.contract_id
     JOIN tenants   t ON c.tenant_id   = t.tenant_id
-    WHERE 1=1
+    WHERE ${where}
+    ORDER BY b.bill_year DESC, b.bill_month DESC, r.room_number
   `;
-  const params = [];
-  if (room_id)   { sql += ' AND b.room_id = ?';    params.push(room_id); }
-  if (status)    { sql += ' AND b.status = ?';     params.push(status); }
-  if (month)     { sql += ' AND b.bill_month = ?'; params.push(month); }
-  if (year)      { sql += ' AND b.bill_year = ?';  params.push(year); }
-  if (tenant_id) { sql += ' AND t.tenant_id = ?';  params.push(tenant_id); }
-  sql += ' ORDER BY b.bill_year DESC, b.bill_month DESC, r.room_number';
-  const [rows] = await pool.query(sql, params);
+  const queryParams = [...params];
+  if (limit !== null) {
+    sql += ' LIMIT ? OFFSET ?';
+    queryParams.push(limit, offset);
+  }
+  const [rows] = await pool.query(sql, queryParams);
   return rows;
+};
+
+const countAll = async ({ room_id, status, month, year, tenant_id } = {}) => {
+  const { where, params } = buildListWhere({ room_id, status, month, year, tenant_id });
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS total
+     FROM bills b
+     JOIN rooms     r ON b.room_id     = r.room_id
+     JOIN contracts c ON b.contract_id = c.contract_id
+     JOIN tenants   t ON c.tenant_id   = t.tenant_id
+     WHERE ${where}`,
+    params
+  );
+  return rows[0].total;
 };
 
 const findById = async (billId) => {
@@ -125,7 +150,7 @@ const getMonthlyRevenue = async (year) => {
 };
 
 module.exports = {
-  findAll, findById, findByRoomMonthYear, findByTenantId,
+  findAll, countAll, findById, findByRoomMonthYear, findByTenantId,
   create, updateStatus, updateQrPayload, markOverdueBills, getMonthlyRevenue,
 };
 

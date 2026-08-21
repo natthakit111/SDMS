@@ -10,6 +10,7 @@ const ctrl = require('../controllers/contract.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
 const { uploadContractFile: uploadContractMiddleware } = require('../middlewares/upload.middleware');
+const { paginationValidation } = require('../utils/pagination');
 
 const createContractValidation = [
   body('tenant_id').isInt({ min: 1 }),
@@ -43,7 +44,7 @@ router.get('/my',        authorizeRoles('tenant'), ctrl.getMyContract);
 router.get('/my/active', authorizeRoles('tenant'), ctrl.getMyContract); // alias
 
 // ── Admin list ────────────────────────────────────────────────
-router.get('/',   authorizeRoles('admin'), ctrl.getAllContracts);
+router.get('/',   authorizeRoles('admin'), paginationValidation, ctrl.getAllContracts);
 router.post('/',  authorizeRoles('admin'), createContractValidation, ctrl.createContract);
 
 // ── Wildcard paths LAST ───────────────────────────────────────

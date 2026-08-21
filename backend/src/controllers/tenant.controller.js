@@ -10,16 +10,26 @@ const TenantModel = require('../models/tenant.model');
 const {
   sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden,
 } = require('../utils/response');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 const PLACEHOLDER_ID_CARD_REGEX = /^REG\d{9}$/;
 
-// GET /api/tenants  — admin: list all (with optional ?search=)
+// GET /api/tenants  — admin: list all (with optional ?search=&page=&limit=)
 const getAllTenants = async (req, res, next) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
+
     const { search, inactive } = req.query;
     const isActive = inactive === 'true' ? false : true;
-    const tenants = await TenantModel.findAll({ search: search || null, isActive });
-    return sendSuccess(res, tenants);
+    const { page, limit, offset } = parsePagination(req.query);
+
+    const [tenants, total] = await Promise.all([
+      TenantModel.findAll({ search: search || null, isActive, limit, offset }),
+      TenantModel.countAll({ search: search || null, isActive }),
+    ]);
+
+    return sendSuccess(res, { items: tenants, pagination: buildPaginationMeta(page, limit, total) });
   } catch (err) { next(err); }
 };
 

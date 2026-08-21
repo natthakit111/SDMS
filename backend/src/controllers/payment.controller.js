@@ -9,12 +9,22 @@ const BillModel       = require('../models/bill.model');
 const TenantModel     = require('../models/tenant.model');
 const TelegramService = require('../services/telegram.service');
 const { sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden } = require('../utils/response');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 const getAllPayments = async (req, res, next) => {
   try {
-    const { tenant_id, bill_id, status, payment_method } = req.query;  
-    const payments = await PaymentModel.findAll({ tenant_id, bill_id, status, payment_method });
-    return sendSuccess(res, payments);
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
+
+    const { tenant_id, bill_id, status, payment_method } = req.query;
+    const { page, limit, offset } = parsePagination(req.query);
+
+    const [payments, total] = await Promise.all([
+      PaymentModel.findAll({ tenant_id, bill_id, status, payment_method, limit, offset }),
+      PaymentModel.countAll({ tenant_id, bill_id, status, payment_method }),
+    ]);
+
+    return sendSuccess(res, { items: payments, pagination: buildPaginationMeta(page, limit, total) });
   } catch (err) { next(err); }
 };
 

@@ -7,6 +7,7 @@ const ctrl = require('../controllers/meter.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
 const { uploadMeterImage } = require('../middlewares/upload.middleware');
+const { paginationValidation } = require('../utils/pagination');
 
 const readingValidation = [
   body('room_id').isInt({ min: 1 }).withMessage('Valid room_id is required'),
@@ -27,6 +28,7 @@ const updateReadingValidation = [
 
 router.get('/',
   authenticate, authorizeRoles('admin'),
+  paginationValidation,
   ctrl.getAllReadings
 );
 

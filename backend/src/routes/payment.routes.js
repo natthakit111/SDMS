@@ -9,6 +9,7 @@ const ctrl = require('../controllers/payment.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
 const { uploadPaymentSlip } = require('../middlewares/upload.middleware');
+const { paginationValidation } = require('../utils/pagination');
 
 const submitValidation = [
   body('bill_id').isInt({ min: 1 }),
@@ -28,6 +29,7 @@ router.post('/',
 );
 router.get('/',
   authenticate, authorizeRoles('admin'),
+  paginationValidation,
   ctrl.getAllPayments
 );
 

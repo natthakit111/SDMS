@@ -17,6 +17,7 @@ const ctrl = require('../controllers/tenant.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
 const notificationPrefController = require('../controllers/notificationPreference.controller')
+const { paginationValidation } = require('../utils/pagination')
 
 // เบอร์โทรไทย: ขึ้นต้นด้วย 0, ตามด้วย 1-9, รวม 9-10 หลัก (รองรับทั้งมือถือและเบอร์บ้าน)
 const THAI_PHONE_REGEX = /^0[1-9]\d{7,8}$/;
@@ -96,7 +97,7 @@ router.get('/notification-preferences', authenticate, authorizeRoles('tenant'), 
 router.put('/notification-preferences', authenticate, authorizeRoles('tenant'), notificationPrefController.updatePreferences);
 
 // Admin routes
-router.get('/',       authenticate, authorizeRoles('admin'), ctrl.getAllTenants);
+router.get('/',       authenticate, authorizeRoles('admin'), paginationValidation, ctrl.getAllTenants);
 router.get('/:id',    authenticate, authorizeRoles('admin'), ctrl.getTenantById);
 router.post('/',      authenticate, authorizeRoles('admin'), createValidation, ctrl.createTenant);
 router.put('/:id',    authenticate, authorizeRoles('admin'), updateValidation, ctrl.updateTenant);

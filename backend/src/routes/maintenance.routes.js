@@ -9,6 +9,7 @@ const ctrl = require('../controllers/maintenance.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
 const { uploadMeterImage } = require('../middlewares/upload.middleware');
+const { paginationValidation } = require('../utils/pagination');
 
 const createValidation = [
   body('category').trim().notEmpty().withMessage('Category is required'),
@@ -40,6 +41,7 @@ router.post('/',
 );
 router.get('/',
   authenticate, authorizeRoles('admin'),
+  paginationValidation,
   ctrl.getAllRequests
 );
 

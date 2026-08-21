@@ -5,7 +5,17 @@
 
 const { pool } = require('../config/db');
 
-const findAll = async ({ status = null, tenant_id = null, room_id = null } = {}) => {
+const buildListWhere = ({ status = null, tenant_id = null, room_id = null } = {}) => {
+  const conditions = [];
+  const params = [];
+  if (status)    { conditions.push('c.status = ?');    params.push(status); }
+  if (tenant_id) { conditions.push('c.tenant_id = ?'); params.push(tenant_id); }
+  if (room_id)   { conditions.push('c.room_id = ?');   params.push(room_id); }
+  return { where: conditions.length ? 'WHERE ' + conditions.join(' AND ') : '', params };
+};
+
+const findAll = async ({ status = null, tenant_id = null, room_id = null, limit = null, offset = 0 } = {}) => {
+  const { where, params } = buildListWhere({ status, tenant_id, room_id });
   let sql = `
     SELECT
       c.*,
@@ -20,16 +30,25 @@ const findAll = async ({ status = null, tenant_id = null, room_id = null } = {})
     FROM contracts c
     JOIN tenants t ON c.tenant_id = t.tenant_id
     JOIN rooms   r ON c.room_id   = r.room_id
-    LEFT JOIN deposits d ON d.contract_id = c.contract_id`;
-  const conditions = [];
-  const params = [];
-  if (status)    { conditions.push('c.status = ?');    params.push(status); }
-  if (tenant_id) { conditions.push('c.tenant_id = ?'); params.push(tenant_id); }
-  if (room_id)   { conditions.push('c.room_id = ?');   params.push(room_id); }
-  if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
-  sql += ' ORDER BY c.created_at DESC';
-  const [rows] = await pool.query(sql, params);
+    LEFT JOIN deposits d ON d.contract_id = c.contract_id
+    ${where}
+    ORDER BY c.created_at DESC`;
+  const queryParams = [...params];
+  if (limit !== null) {
+    sql += ' LIMIT ? OFFSET ?';
+    queryParams.push(limit, offset);
+  }
+  const [rows] = await pool.query(sql, queryParams);
   return rows;
+};
+
+const countAll = async ({ status = null, tenant_id = null, room_id = null } = {}) => {
+  const { where, params } = buildListWhere({ status, tenant_id, room_id });
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS total FROM contracts c ${where}`,
+    params
+  );
+  return rows[0].total;
 };
 
 const findById = async (contractId) => {
@@ -99,4 +118,4 @@ const updateStatus = async (contractId, status, executor = pool) => {
   return result.affectedRows;
 };
 
-module.exports = { findAll, findById, findActiveByRoom, findActiveByTenant, create, update, updateStatus };
+module.exports = { findAll, countAll, findById, findActiveByRoom, findActiveByTenant, create, update, updateStatus };

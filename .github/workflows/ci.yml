@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: sdms
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: sdms
+      NODE_ENV: test
+      JWT_SECRET: ci_only_dummy_secret_do_not_use_in_production_1234567890
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: ติดตั้ง dependency
+        working-directory: backend
+        run: npm ci
+
+      - name: โหลด schema + seed + CI fixture เข้า MySQL service
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -uroot -proot sdms < database/schema.sql
+          mysql -h 127.0.0.1 -P 3306 -uroot -proot sdms < database/seed.sql
+          mysql -h 127.0.0.1 -P 3306 -uroot -proot sdms < database/ci_fixture.sql
+
+      - name: รัน backend test suite
+        working-directory: backend
+        run: npm test
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          package_json_file: frontend/package.json
+
+      - name: ติดตั้ง dependency
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      # หมายเหตุ: ไม่รัน `pnpm run lint` ใน CI เพราะ eslint ไม่ได้อยู่ใน
+      # package.json (ทั้ง dependencies และ devDependencies) เลย รันแล้วจะ error
+      # ทันที "'eslint' is not recognized" — เป็นปัญหาที่มีอยู่ก่อนแล้วในโปรเจกต์
+      # (ยืนยันโดยรัน `pnpm run lint` จริงในเครื่อง) ไม่ใช่สโคปของงาน CI/CD นี้
+      # ถ้าจะแก้ต้องเพิ่ม eslint + eslint config ใหม่เป็นงานแยกต่างหาก
+      - name: ตรวจสอบ TypeScript
+        working-directory: frontend
+        # next.config.mjs ตั้ง ignoreBuildErrors: true ทำให้ `next build`
+        # เฉยๆ ไม่ช่วยจับ TypeScript error ต้องรัน tsc แยกเป็นด่านของตัวเอง
+        run: npx tsc --noEmit
+
+      - name: Build
+        working-directory: frontend
+        run: pnpm run build
+        env:
+          # ตัวแปรหลอกให้ build ผ่าน (ไม่มีการเรียก service จริงตอน build)
+          NEXT_PUBLIC_API_URL: http://localhost:5000/api

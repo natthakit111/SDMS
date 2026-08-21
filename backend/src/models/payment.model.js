@@ -78,11 +78,11 @@ const create = async ({ bill_id, tenant_id, amount_paid, payment_method, slip_im
   return result.insertId;
 };
 
-const verify = async (paymentId, adminUserId, status, remark = null) => {
-  const [result] = await pool.query(
+const verify = async (paymentId, adminUserId, status, remark = null, executor = pool) => {
+  const [result] = await executor.query(
     `UPDATE payments
      SET status = ?, verified_by = ?, verified_at = NOW(), remark = ?
-     WHERE payment_id = ?`,
+     WHERE payment_id = ? AND status = 'pending_verify'`,
     [status, adminUserId, remark, paymentId]
   );
   return result.affectedRows;

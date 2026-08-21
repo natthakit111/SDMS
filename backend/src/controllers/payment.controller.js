@@ -3,6 +3,7 @@
  */
 
 const { validationResult } = require('express-validator');
+const { pool }        = require('../config/db');
 const PaymentModel    = require('../models/payment.model');
 const BillModel       = require('../models/bill.model');
 const TenantModel     = require('../models/tenant.model');
@@ -89,18 +90,38 @@ const submitPayment = async (req, res, next) => {
 };
 
 const verifyPayment = async (req, res, next) => {
+  const conn = await pool.getConnection();
   try {
     const payment = await PaymentModel.findById(req.params.id);
-    if (!payment) return sendNotFound(res, 'ไม่พบข้อมูลการชำระเงิน');
-    if (payment.status !== 'pending_verify') return sendBadRequest(res, `รายการชำระเงินนี้มีสถานะ '${payment.status}' อยู่แล้ว`);
+    if (!payment) { conn.release(); return sendNotFound(res, 'ไม่พบข้อมูลการชำระเงิน'); }
+    if (payment.status !== 'pending_verify') {
+      conn.release();
+      return sendBadRequest(res, `รายการชำระเงินนี้มีสถานะ '${payment.status}' อยู่แล้ว`);
+    }
 
-    await PaymentModel.verify(req.params.id, req.user.user_id, 'verified', req.body.remark || null);
-    await BillModel.updateStatus(payment.bill_id, 'paid');
+    await conn.beginTransaction();
+
+    // guard บน UPDATE เช็คสถานะซ้ำ + affectedRows กันสองแอดมินกดยืนยัน/ปฏิเสธพร้อมกัน
+    const affected = await PaymentModel.verify(req.params.id, req.user.user_id, 'verified', req.body.remark || null, conn);
+    if (affected === 0) {
+      await conn.rollback();
+      conn.release();
+      return sendBadRequest(res, 'รายการชำระเงินนี้ถูกดำเนินการไปแล้วโดยผู้ดูแลระบบคนอื่น กรุณารีเฟรชหน้าจอ');
+    }
+    await BillModel.updateStatus(payment.bill_id, 'paid', conn);
+
+    await conn.commit();
+
     const updated = await PaymentModel.findById(req.params.id);
     TelegramService.sendPaymentConfirmation(updated).catch(() => {});
 
     return sendSuccess(res, updated, 'ยืนยันการชำระเงินสำเร็จ — บิลถูกเปลี่ยนสถานะเป็นชำระแล้ว');
-  } catch (err) { next(err); }
+  } catch (err) {
+    await conn.rollback();
+    next(err);
+  } finally {
+    conn.release();
+  }
 };
 
 const rejectPayment = async (req, res, next) => {
@@ -112,7 +133,11 @@ const rejectPayment = async (req, res, next) => {
     if (!payment) return sendNotFound(res, 'ไม่พบข้อมูลการชำระเงิน');
     if (payment.status !== 'pending_verify') return sendBadRequest(res, `รายการชำระเงินนี้มีสถานะ '${payment.status}' อยู่แล้ว`);
 
-    await PaymentModel.verify(req.params.id, req.user.user_id, 'rejected', remark);
+    // guard บน UPDATE เช็คสถานะซ้ำ + affectedRows กันสองแอดมินกดยืนยัน/ปฏิเสธพร้อมกัน
+    const affected = await PaymentModel.verify(req.params.id, req.user.user_id, 'rejected', remark);
+    if (affected === 0) {
+      return sendBadRequest(res, 'รายการชำระเงินนี้ถูกดำเนินการไปแล้วโดยผู้ดูแลระบบคนอื่น กรุณารีเฟรชหน้าจอ');
+    }
     const updated = await PaymentModel.findById(req.params.id);
     TelegramService.sendPaymentRejected(updated).catch(() => {});
 

@@ -85,8 +85,8 @@ const create = async ({ contract_id, room_id, bill_month, bill_year,
   return result.insertId;
 };
 
-const updateStatus = async (billId, status) => {
-  const [result] = await pool.query(
+const updateStatus = async (billId, status, executor = pool) => {
+  const [result] = await executor.query(
     'UPDATE bills SET status = ? WHERE bill_id = ?',
     [status, billId]
   );

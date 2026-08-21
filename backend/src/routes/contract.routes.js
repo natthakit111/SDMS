@@ -50,7 +50,7 @@ router.post('/',  authorizeRoles('admin'), createContractValidation, ctrl.create
 router.get('/:id',              ctrl.getContractById);
 router.put('/:id',              authorizeRoles('admin'), updateValidation, ctrl.updateContract);
 router.put('/:id/renew',        authorizeRoles('admin'), renewValidation, ctrl.renewContract);
-router.put('/:id/terminate',    authorizeRoles('admin', 'tenant'), ctrl.terminateContract);
+router.put('/:id/terminate',    authorizeRoles('admin'), ctrl.terminateContract);
 
 // ── Contract file upload/download ──────────────────────────────
 router.post('/:id/upload', authorizeRoles('admin'), uploadContractMiddleware, ctrl.uploadContractFile);

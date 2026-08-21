@@ -175,17 +175,6 @@ const terminateContract = async (req, res, next) => {
       return sendBadRequest(res, 'สัญญานี้ถูกยกเลิกไปแล้ว')
     }
 
-    // ✅ Tenant can only terminate their OWN active contract
-    if (req.user.role === 'tenant') {
-      if (contract.status !== 'active') {
-        return sendForbidden(res, 'ไม่สามารถแจ้งย้ายออกสำหรับสัญญาที่หมดอายุแล้วได้ กรุณาติดต่อแอดมิน')
-      }
-      const tenant = await TenantModel.findByUserId(req.user.user_id)
-      if (!tenant || tenant.tenant_id !== contract.tenant_id) {
-        return sendForbidden(res, 'คุณสามารถแจ้งย้ายออกได้เฉพาะสัญญาของตัวเองเท่านั้น')
-      }
-    }
-
     const checkoutDate  = req.body.checkout_date ? new Date(req.body.checkout_date) : new Date()
     const endDate       = new Date(contract.end_date)
     const deposit       = parseFloat(contract.deposit_amount || 0)

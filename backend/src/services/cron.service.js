@@ -19,6 +19,7 @@
 const cron = require('node-cron');
 const { pool } = require('../config/db');
 const BillModel     = require('../models/bill.model');
+const RoomModel     = require('../models/room.model');
 const TelegramService = require('./telegram.service');
 
 // ── Helper: get bills with tenant telegram_chat_id ────────────
@@ -143,7 +144,7 @@ const sendFinalRemindersJob = () => {
 const runExpireContractsNow = async () => {
   try {
     const [contracts] = await pool.query(`
-      SELECT c.contract_id, c.end_date, r.room_number, u.user_id, u.telegram_chat_id
+      SELECT c.contract_id, c.room_id, c.end_date, r.room_number, u.user_id, u.telegram_chat_id
       FROM contracts c
       JOIN rooms   r ON c.room_id   = r.room_id
       JOIN tenants t ON c.tenant_id = t.tenant_id
@@ -159,7 +160,11 @@ const runExpireContractsNow = async () => {
       console.log(`[Cron] Expired ${result.affectedRows} contract(s)`);
     }
 
+    // ⚠️ FIX: เดิม cron นี้ไม่ปล่อยห้องคืนเลย — สัญญาหมดอายุแล้วแต่ห้องยัง
+    // ค้างสถานะ occupied ตลอดไปจนกว่าแอดมินจะมาแก้เอง (ต้องผ่าน move-out/
+    // terminate ถึงจะปล่อยห้อง แต่สัญญาที่หมดอายุเองไม่มีคำร้องแบบนั้น)
     for (const contract of contracts) {
+      await RoomModel.updateStatus(contract.room_id, 'available');
       await TelegramService.sendContractExpired(contract);
     }
   } catch (err) {

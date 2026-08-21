@@ -90,6 +90,8 @@ Vercel (Next.js frontend)  ──HTTPS + cookie──→  Railway (Express backe
 ## Checklist ก่อนขึ้นจริง
 
 - [ ] MySQL บน Railway import schema (`database/schema.sql`) เรียบร้อย — เช็คด้วย `SHOW TABLES;`
+- [ ] รัน `database/seed.sql` ด้วย — ไม่มีทางสร้างบัญชี admin เริ่มต้นทางอื่นเลย ถ้าข้ามขั้นตอนนี้จะ login เข้าระบบครั้งแรกไม่ได้
+- [ ] รัน `npm run migrate:baseline` (จาก `backend/`) ครั้งเดียวหลัง import schema สดๆ ให้บันทึกว่าโครงสร้างล่าสุดถูกติดตั้งแล้ว (ดูรายละเอียดใน README หัวข้อ "Migration")
 - [ ] Backend service ตั้ง Root Directory = `backend`, ปิด serverless/sleep mode, replica = 1
 - [ ] Backend env ครบทุกตัว โดยเฉพาะ `FRONTEND_URL` ตรงกับ Vercel domain เป๊ะๆ (ไม่มี `/` ท้าย), `COOKIE_CROSS_SITE=true`, `COOKIE_SECURE=true`
 - [ ] Frontend service ตั้ง Root Directory = `frontend`, `NEXT_PUBLIC_API_URL` ชี้ไป Railway backend + `/api`

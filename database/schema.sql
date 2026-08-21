@@ -11,10 +11,12 @@
 --  bill_month/bill_year, payment_method, priority) — ไม่ต้องรันไฟล์ migration
 --  แยกอีกถ้า deploy จากไฟล์นี้ตั้งแต่ต้น
 --
---  วิธี deploy:
---    mysql -u <user> -p < sdms.sql
---  หรือใน MySQL client / Workbench:
---    SOURCE /path/to/sdms.sql;
+--  ไฟล์นี้ไม่สร้าง/สลับฐานข้อมูลเอง — ต้องสร้างฐานข้อมูลเปล่าไว้ก่อน แล้วรันไฟล์นี้
+--  เข้าไปในฐานข้อมูลนั้นโดยตรง (ชื่อฐานข้อมูลเลือกเองได้ตามต้องการ):
+--    mysql -u <user> -p <ชื่อฐานข้อมูล> < database/schema.sql
+--  หรือใน MySQL client / Workbench (ต้อง USE ฐานข้อมูลเป้าหมายก่อน):
+--    USE <ชื่อฐานข้อมูล>;
+--    SOURCE /path/to/database/schema.sql;
 -- =============================================================================
 
 SET NAMES utf8mb4;
@@ -22,12 +24,6 @@ SET FOREIGN_KEY_CHECKS = 0;
 SET UNIQUE_CHECKS = 0;
 SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';
 SET TIME_ZONE = '+00:00';
-
-CREATE DATABASE IF NOT EXISTS `sdms`
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-USE `sdms`;
 
 -- =============================================================================
 -- 1) ผู้ใช้งานระบบ / ผู้เช่า

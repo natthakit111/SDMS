@@ -69,7 +69,7 @@ const OAUTH_PROVIDER_LABELS: Record<string, string> = {
 };
 
 export default function TenantProfilePage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { t, language } = useLanguage();
 
   const hasPassword = !!(user as any)?.has_password;
@@ -238,6 +238,10 @@ export default function TenantProfilePage() {
         email: profile.email.trim(),
         phone: profile.phone.trim(),
       });
+      // ⚠️ FIX: เดิมไม่ sync user state ใน context หลังบันทึกโปรไฟล์
+      // ทำให้ header (อ่าน user จาก useAuth()) ยังโชว์ชื่อเก่าค้างจนกว่าจะ
+      // navigate ไปหน้าอื่นแล้วกลับมา (AuthProvider ไม่ remount ระหว่างนั้น)
+      await refreshUser();
       setProfileSuccess(true);
       toast.success(
         language === "th" ? "บันทึกข้อมูลสำเร็จ" : "Profile saved successfully",

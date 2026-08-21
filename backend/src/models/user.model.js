@@ -34,7 +34,7 @@ const findById = async (userId) => {
 const getProfileById = async (userId) => {
   const [rows] = await pool.query(
     `SELECT user_id, username, role, first_name, last_name, email, phone,
-            telegram_chat_id, oauth_provider,
+            telegram_chat_id, oauth_provider, password_must_change,
             CASE WHEN password_hash IS NOT NULL AND password_hash != '' THEN 1 ELSE 0 END AS has_password
      FROM users WHERE user_id = ? LIMIT 1`,
     [userId]
@@ -70,8 +70,14 @@ const getPasswordHash = async (userId) => {
   return rows[0]?.password_hash ?? null;
 };
 
+// ล้าง password_must_change ทุกครั้งที่ตั้ง/เปลี่ยนรหัสผ่านสำเร็จ (ผ่าน
+// change-password, set-password, หรือ reset-password ก็ตาม) — เงื่อนไข
+// "ต้องเปลี่ยนรหัสผ่านก่อนใช้งาน" ถือว่าหมดไปทันทีที่มีการตั้งรหัสใหม่จริง
 const setPasswordHash = async (userId, hash) => {
-  await pool.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hash, userId]);
+  await pool.query(
+    'UPDATE users SET password_hash = ?, password_must_change = 0 WHERE user_id = ?',
+    [hash, userId]
+  );
 };
 
 const updateTelegramChatId = async (userId, telegramChatId) => {

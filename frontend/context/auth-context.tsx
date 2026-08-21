@@ -25,6 +25,7 @@ export interface User {
   roomNumber?: string;
   phone?: string;
   telegramId?: string;
+  passwordMustChange?: boolean;
 }
 
 interface AuthContextType {
@@ -69,6 +70,7 @@ const mapUser = (backendUser: any): User => ({
   phone: backendUser.phone,
   roomNumber: backendUser.room_number,
   telegramId: backendUser.telegram_chat_id,
+  passwordMustChange: !!backendUser.password_must_change,
 });
 
 // ⚠️ SECURITY MIGRATION (localStorage → httpOnly cookie):

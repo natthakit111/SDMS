@@ -18,8 +18,11 @@ export default function AdminLayout({
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && (!user || user.role !== "admin")) {
+    if (isLoading) return;
+    if (!user || user.role !== "admin") {
       router.replace("/login");
+    } else if (user.passwordMustChange) {
+      router.replace("/change-password-required");
     }
   }, [user, isLoading, router]);
 
@@ -31,7 +34,7 @@ export default function AdminLayout({
     );
   }
 
-  if (!user || user.role !== "admin") {
+  if (!user || user.role !== "admin" || user.passwordMustChange) {
     return null;
   }
 

@@ -183,7 +183,8 @@ const login = async (req, res, next) => {
         first_name: user.first_name,
         last_name: user.last_name,
         email: user.email,
-        phone: user.phone
+        phone: user.phone,
+        password_must_change: !!user.password_must_change,
       }
     });
   } catch (err) { next(err); }

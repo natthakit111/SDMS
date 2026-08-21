@@ -41,6 +41,7 @@ CREATE TABLE `users` (
   `phone`                varchar(20)  DEFAULT NULL,
   `telegram_chat_id`     bigint       DEFAULT NULL,
   `is_active`            tinyint(1)   NOT NULL DEFAULT '1',
+  `password_must_change` tinyint(1)   NOT NULL DEFAULT '0' COMMENT 'บังคับเปลี่ยนรหัสผ่านก่อนใช้งาน (ตั้งเป็น 1 ให้บัญชี admin ที่สร้างด้วยรหัสผ่านตั้งต้นใน seed.sql)',
   `oauth_provider`       varchar(20)  DEFAULT NULL COMMENT 'google | telegram',
   `oauth_provider_id`    varchar(100) DEFAULT NULL COMMENT 'provider user id',
   `language`             enum('th','en') NOT NULL DEFAULT 'th',

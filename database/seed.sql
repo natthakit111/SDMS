@@ -25,9 +25,9 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- รหัสผ่านเริ่มต้น: ChangeMe@2026  (hash แบบ bcrypt คอสต์ 10 ด้านล่างคือของรหัสนี้จริง)
 -- **ต้องเข้าสู่ระบบแล้วเปลี่ยนรหัสผ่านทันทีหลัง deploy จริง**
 INSERT INTO `users`
-  (`username`, `password_hash`, `role`, `first_name`, `last_name`, `email`, `phone`, `is_active`, `language`)
+  (`username`, `password_hash`, `role`, `first_name`, `last_name`, `email`, `phone`, `is_active`, `language`, `password_must_change`)
 VALUES
-  ('admin', '$2b$10$CIa3e8kgdro2hhtWUY0y5u6N9p5IXysPqeMLYTNWuE.0GDQcQnO3m', 'admin', 'System', 'Administrator', 'admin@example.com', '0800000000', 1, 'th');
+  ('admin', '$2b$10$CIa3e8kgdro2hhtWUY0y5u6N9p5IXysPqeMLYTNWuE.0GDQcQnO3m', 'admin', 'System', 'Administrator', 'admin@example.com', '0800000000', 1, 'th', 1);
 
 -- =============================================================================
 -- 2) การตั้งค่าทั่วไปของหอพัก

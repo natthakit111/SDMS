@@ -23,10 +23,13 @@ export default function TenantLayout({
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    if (!isLoading && (!user || user.role !== "tenant")) {
+    if (isLoading) return;
+    if (!user || user.role !== "tenant") {
       const query = searchParams.toString();
       const fullPath = query ? `${pathname}?${query}` : pathname;
       router.replace(`/login?redirect=${encodeURIComponent(fullPath)}`);
+    } else if (user.passwordMustChange) {
+      router.replace("/change-password-required");
     }
   }, [user, isLoading, router, pathname, searchParams]);
 
@@ -38,7 +41,7 @@ export default function TenantLayout({
     );
   }
 
-  if (!user || user.role !== "tenant") return null;
+  if (!user || user.role !== "tenant" || user.passwordMustChange) return null;
 
   return (
     <NotificationProvider>

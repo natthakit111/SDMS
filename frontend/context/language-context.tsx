@@ -164,6 +164,25 @@ const translations: Record<string, { th: string; en: string }> = {
   },
   "resetPassword.loginNow": { th: "เข้าสู่ระบบเลย", en: "Login Now" },
 
+  // ── Forced password change (บัญชีที่ยังใช้รหัสผ่านตั้งต้นอยู่) ──────────────
+  "forcePasswordChange.title": {
+    th: "ต้องเปลี่ยนรหัสผ่านก่อนใช้งาน",
+    en: "You must change your password",
+  },
+  "forcePasswordChange.subtitle": {
+    th: "บัญชีนี้ยังใช้รหัสผ่านตั้งต้นอยู่ กรุณาตั้งรหัสผ่านใหม่ก่อนเข้าใช้งานระบบ",
+    en: "This account is still using its default password — set a new one before continuing",
+  },
+  "forcePasswordChange.currentPassword": {
+    th: "รหัสผ่านตั้งต้น",
+    en: "Default Password",
+  },
+  "forcePasswordChange.submit": { th: "เปลี่ยนรหัสผ่านและเข้าใช้งาน", en: "Change Password & Continue" },
+  "forcePasswordChange.success": {
+    th: "เปลี่ยนรหัสผ่านสำเร็จ กำลังเข้าสู่ระบบ...",
+    en: "Password changed. Signing you in...",
+  },
+
   // ── Password strength ──────────────────────────────────────────────────────
   "password.strength": { th: "ความแข็งแรง", en: "Strength" },
   "password.veryWeak": { th: "อ่อนมาก", en: "Very Weak" },

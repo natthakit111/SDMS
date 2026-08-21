@@ -131,16 +131,33 @@ const createReading = async (req, res, next) => {
     // ✅ Cloudinary: req.file.path คือ URL เต็ม ไม่ต้อง replace backslash
     const image_path = req.file ? req.file.path : null;
 
-    const readingId = await MeterModel.create({
-      room_id, meter_type,
-      reading_month: parseInt(reading_month),
-      reading_year:  parseInt(reading_year),
-      previous_unit,
-      current_unit:  parseFloat(current_unit),
-      rate_per_unit: parseFloat(rate_per_unit),
-      image_path,
-      recorded_by: req.user.user_id,
-    });
+    // ⚠️ FIX: มี pre-check findByRoomMonthYear ด้านบนแล้ว (ข้อ 2) แต่ยังมี race
+    // condition ได้ (2 request มาพร้อมกันผ่าน pre-check ทั้งคู่) — ตอน INSERT
+    // ชนกับ uq_meter_room_month ของจริงจะโยน ER_DUP_ENTRY ดิบไป errorHandler
+    // กลาง ซึ่งไม่มี error_code ให้ frontend แปลภาษาได้ จับตรงนี้แล้วตอบด้วย
+    // error_code เดียวกับ pre-check
+    let readingId;
+    try {
+      readingId = await MeterModel.create({
+        room_id, meter_type,
+        reading_month: parseInt(reading_month),
+        reading_year:  parseInt(reading_year),
+        previous_unit,
+        current_unit:  parseFloat(current_unit),
+        rate_per_unit: parseFloat(rate_per_unit),
+        image_path,
+        recorded_by: req.user.user_id,
+      });
+    } catch (dbErr) {
+      if (dbErr.code === 'ER_DUP_ENTRY') {
+        return sendBadRequestCoded(
+          res,
+          'meters.error.alreadyExists',
+          `มีการบันทึกค่ามิเตอร์ประเภท ${meter_type} สำหรับห้อง ${room_id} ในเดือน ${reading_month}/${reading_year} อยู่แล้ว`,
+        );
+      }
+      throw dbErr;
+    }
 
     const created = await MeterModel.findById(readingId);
     return sendCreated(res, created, 'บันทึกค่ามิเตอร์สำเร็จ');

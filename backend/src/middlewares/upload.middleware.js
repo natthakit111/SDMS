@@ -7,10 +7,17 @@
  * แต่ลืมใส่ "version" (v1234567890/) เข้าไปด้วย ทำให้ resource_type: 'raw'
  * (PDF) โหลดไม่ได้ (404) เพราะไฟล์แบบ raw ต้องมี version ใน URL ถึงจะ resolve
  *
- * แก้รอบนี้โดยไม่สร้าง URL เอง — ใช้ req.file.secure_url ที่ Cloudinary
- * ส่งกลับมาให้ตรงๆ หลังอัปโหลดสำเร็จแทน (multer-storage-cloudinary spread
- * ผลลัพธ์เต็มของ Cloudinary ทับบน req.file object ให้อยู่แล้ว รวมถึง
- * secure_url ที่มี version ติดมาถูกต้องเสมอ ไม่ต้องมานั่งประกอบเอง)
+ * แก้รอบนี้โดยไม่สร้าง URL เอง — multer-storage-cloudinary@4 เซ็ต
+ * req.file.path = resp.secure_url ให้ตรงๆ อยู่แล้ว (มี version ติดมาถูกต้อง
+ * เสมอ ดู node_modules/multer-storage-cloudinary/lib/index.js) ทุก
+ * controller จึงอ่านจาก req.file.path ไม่ใช่ req.file.secure_url
+ *
+ * ⚠️ FIX (2026-08, รอบ 3): เดิมมี fallback เรียก cloudinary.api.resource()
+ * ซ้ำทุกครั้งที่ req.file.secure_url ไม่มีค่า — แต่ lib เวอร์ชันที่ติดตั้งจริง
+ * ไม่เคย set secure_url ให้เลย (set แค่ path/size/filename) ทำให้ fallback
+ * นี้ทำงานทุกอัปโหลด 100% ของเวลา เสีย round-trip ไป Cloudinary Admin API
+ * โดยเปล่าประโยชน์ เพราะไม่มี controller ไหนอ่าน req.file.secure_url เลย
+ * (ทุกที่อ่าน req.file.path ซึ่งมีค่าถูกต้องอยู่แล้วตั้งแต่แรก) เอาออก
  *
  * ต้องติดตั้ง:
  *   npm install cloudinary multer-storage-cloudinary
@@ -71,31 +78,7 @@ function makeUpload(fieldname) {
     cb(null, true);
   };
 
-  const upload = multer({ storage, fileFilter, limits: { fileSize: MAX_SIZE_BYTES } }).single(fieldname);
-
-  // ── FIX: middleware ห่อทับอีกชั้น — เช็คว่า req.file.secure_url มาจริงไหม
-  // (ควรมีมาให้อยู่แล้วจาก multer-storage-cloudinary เพราะมัน spread ผลลัพธ์
-  // เต็มของ Cloudinary ทับบน req.file) ถ้าไม่มี (เช่น lib version เก่ามาก)
-  // ค่อย fallback ไปดึงจาก Cloudinary Admin API ตรงๆ ด้วย public_id ที่รู้แน่ๆ
-  return (req, res, next) => {
-    upload(req, res, async (err) => {
-      if (err) return next(err);
-      if (req.file && !req.file.secure_url) {
-        try {
-          // fallback: บาง version ของ lib ไม่ spread secure_url มาให้ —
-          // ไปถาม Cloudinary ตรงๆ ด้วย public_id ที่ได้ ให้ได้ค่าที่ถูกต้อง
-          // แน่ๆ (รวม version) แทนที่จะเดา/ประกอบ URL เอง
-          const result = await cloudinary.api.resource(req.file.filename, {
-            resource_type: cfg.resource_type,
-          });
-          req.file.secure_url = result.secure_url;
-        } catch (lookupErr) {
-          return next(lookupErr);
-        }
-      }
-      next();
-    });
-  };
+  return multer({ storage, fileFilter, limits: { fileSize: MAX_SIZE_BYTES } }).single(fieldname);
 }
 
 // ── Export เหมือนเดิมทุก controller ใช้ได้เลย ───────────────────────────────

@@ -146,13 +146,26 @@ const generateBill = async (req, res, next) => {
       console.warn('[Bill] promptpay_id not configured in dorm_settings — bill created without QR');
     }
 
-    const billId = await BillModel.create({
-      contract_id: contract.contract_id, room_id: parseInt(room_id),
-      bill_month: parseInt(month), bill_year: parseInt(year),
-      rent_amount: amounts.rent_amount, electric_amount: amounts.electric_amount,
-      water_amount: amounts.water_amount, other_amount: amounts.other_amount,
-      total_amount: amounts.total_amount, due_date, qr_payload: qrPayload,
-    });
+    // ⚠️ FIX: มี pre-check findByRoomMonthYear ด้านบนแล้ว แต่ยังมี race condition
+    // ได้ (2 request มาพร้อมกันผ่าน pre-check ทั้งคู่) — ตอน INSERT ชนกับ
+    // uq_bill_room_month_active ของจริงจะโยน ER_DUP_ENTRY ดิบไป errorHandler
+    // กลาง ซึ่งไม่มี error_code ให้ frontend แปลภาษาได้ (ต่างจาก error_code
+    // อื่นๆ ทั้งหมดในไฟล์นี้) จับตรงนี้แล้วตอบด้วย error_code เดียวกับ pre-check
+    let billId;
+    try {
+      billId = await BillModel.create({
+        contract_id: contract.contract_id, room_id: parseInt(room_id),
+        bill_month: parseInt(month), bill_year: parseInt(year),
+        rent_amount: amounts.rent_amount, electric_amount: amounts.electric_amount,
+        water_amount: amounts.water_amount, other_amount: amounts.other_amount,
+        total_amount: amounts.total_amount, due_date, qr_payload: qrPayload,
+      });
+    } catch (dbErr) {
+      if (dbErr.code === 'ER_DUP_ENTRY') {
+        return res.status(400).json({ success: false, error_code: 'bills.error.alreadyExists', message: 'Bill already exists' });
+      }
+      throw dbErr;
+    }
 
     const newBill = await BillModel.findById(billId);
     TelegramService.sendBillNotification(newBill).catch(() => {});

@@ -118,6 +118,12 @@ const THAI_MONTHS = [
 const thaiMonth = (m) => THAI_MONTHS[parseInt(m)] || m;
 const formatAmount = (n) => Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2 });
 
+// Telegram legacy Markdown (parse_mode: 'Markdown') ตีความ _ * ` [ เป็นอักขระพิเศษ
+// เสมอ — ค่าที่มาจากผู้ใช้ (ชื่อ, เลขห้อง, หมายเหตุ, username) ต้อง escape ก่อนแทรก
+// ในข้อความ ไม่งั้นอักขระพวกนี้จะทำให้ format พังหรือทำให้ทั้งข้อความส่งไม่สำเร็จ
+const escapeMarkdown = (text) =>
+  text === null || text === undefined ? '' : String(text).replace(/([_*`[])/g, '\\$1');
+
 // สร้างลิงก์หน้าชำระเงินแบบเดียวกันทุกจุด กันเขียนซ้ำผิดๆ ถูกๆ
 const buildPaymentUrl = (billId) =>
   `${process.env.FRONTEND_URL}/login?redirect=${encodeURIComponent(`/tenant/payment?bill=${billId}`)}`;
@@ -142,7 +148,7 @@ const sendBillNotification = async (bill) => {
 
   const message = [
     `🏠 *แจ้งค่าเช่าประจำเดือน ${thaiMonth(bill.bill_month)} ${bill.bill_year}*`,
-    `ห้อง: *${bill.room_number}*`,
+    `ห้อง: *${escapeMarkdown(bill.room_number)}*`,
     ``,
     `📋 รายละเอียด:`,
     `  • ค่าเช่า: ${formatAmount(bill.rent_amount)} บาท`,
@@ -191,7 +197,7 @@ const sendPaymentConfirmation = async (payment) => {
   const message = [
     `✅ *ยืนยันการชำระเงินสำเร็จ*`,
     ``,
-    `ห้อง: *${payment.room_number}*`,
+    `ห้อง: *${escapeMarkdown(payment.room_number)}*`,
     `เดือน: ${thaiMonth(payment.bill_month)} ${payment.bill_year}`,
     `ยอดที่ชำระ: *${formatAmount(payment.amount_paid)} บาท*`,
     `วันที่ชำระ: ${new Date(payment.paid_at).toLocaleDateString('th-TH')}`,
@@ -213,10 +219,10 @@ const sendPaymentRejected = async (payment) => {
   const message = [
     `❌ *การชำระเงินถูกปฏิเสธ*`,
     ``,
-    `ห้อง: *${payment.room_number}*`,
+    `ห้อง: *${escapeMarkdown(payment.room_number)}*`,
     `เดือน: ${thaiMonth(payment.bill_month)} ${payment.bill_year}`,
     ``,
-    `📝 เหตุผล: ${payment.remark || '-'}`,
+    `📝 เหตุผล: ${escapeMarkdown(payment.remark) || '-'}`,
     ``,
     `กรุณาเข้าเว็บไซต์เพื่ออัปโหลดหลักฐานการชำระเงินใหม่`,
   ].join('\n');
@@ -254,7 +260,7 @@ const sendBillReminder = async (bill) => {
   const message = [
     headerLine,
     ``,
-    `ห้อง: *${bill.room_number}*`,
+    `ห้อง: *${escapeMarkdown(bill.room_number)}*`,
     `เดือน: ${thaiMonth(bill.bill_month)} ${bill.bill_year}`,
     `💰 ยอดที่ต้องชำระ: *${formatAmount(bill.total_amount)} บาท*`,
     `📅 กำหนดชำระ: *${dueDateStr}*`,
@@ -285,7 +291,7 @@ const sendOverdueNotice = async (bill) => {
   const message = [
     `🚨 *แจ้งเตือน: ค่าเช่าค้างชำระ*`,
     ``,
-    `ห้อง: *${bill.room_number}*`,
+    `ห้อง: *${escapeMarkdown(bill.room_number)}*`,
     `เดือน: ${thaiMonth(bill.bill_month)} ${bill.bill_year}`,
     `💰 ยอดค้างชำระ: *${formatAmount(bill.total_amount)} บาท*`,
     `📅 ครบกำหนดเมื่อ: ${thaiDateBangkok(bill.due_date)}`,
@@ -321,10 +327,10 @@ const sendMaintenanceUpdate = async (request) => {
   const message = [
     `${s.icon} *อัปเดตคำร้องแจ้งซ่อม*`,
     ``,
-    `ห้อง: *${request.room_number}*`,
-    `หมวด: ${request.category}`,
+    `ห้อง: *${escapeMarkdown(request.room_number)}*`,
+    `หมวด: ${escapeMarkdown(request.category)}`,
     `สถานะ: *${s.label}*`,
-    request.admin_note ? `📝 หมายเหตุจากผู้ดูแล: ${request.admin_note}` : null,
+    request.admin_note ? `📝 หมายเหตุจากผู้ดูแล: ${escapeMarkdown(request.admin_note)}` : null,
   ].filter(Boolean).join('\n');
 
   await sendMessage(request.telegram_chat_id, message, request.user_id || null, 'maintenance_update');
@@ -339,7 +345,7 @@ const sendContractExpired = async (contract) => {
   const message = [
     `📄 *แจ้งเตือน: สัญญาเช่าสิ้นสุดแล้ว*`,
     ``,
-    `ห้อง: *${contract.room_number}*`,
+    `ห้อง: *${escapeMarkdown(contract.room_number)}*`,
     `วันที่ครบกำหนด: ${thaiDateBangkok(contract.end_date)}`,
     ``,
     `กรุณาติดต่อผู้ดูแลหอพักเพื่อต่อสัญญา หรือดำเนินการย้ายออกตามขั้นตอน`,
@@ -358,8 +364,8 @@ const notifyAdminNewPayment = async (payment) => {
   const message = [
     `💳 *มีการแจ้งชำระเงินใหม่*`,
     ``,
-    `ผู้เช่า: *${payment.tenant_name}*`,
-    `ห้อง: ${payment.room_number}`,
+    `ผู้เช่า: *${escapeMarkdown(payment.tenant_name)}*`,
+    `ห้อง: ${escapeMarkdown(payment.room_number)}`,
     `เดือน: ${thaiMonth(payment.bill_month)} ${payment.bill_year}`,
     `ยอด: *${formatAmount(payment.amount_paid)} บาท*`,
     ``,
@@ -386,12 +392,12 @@ const notifyAdminNewMaintenance = async (request) => {
   const message = [
     `🔧 *คำร้องแจ้งซ่อมใหม่*`,
     ``,
-    `ห้อง: *${request.room_number}*`,
-    `ผู้เช่า: ${request.tenant_name}`,
-    `หมวด: ${request.category}`,
+    `ห้อง: *${escapeMarkdown(request.room_number)}*`,
+    `ผู้เช่า: ${escapeMarkdown(request.tenant_name)}`,
+    `หมวด: ${escapeMarkdown(request.category)}`,
     `ความเร่งด่วน: ${p.icon} ${p.label}`,
     ``,
-    `📝 รายละเอียด: ${request.description}`,
+    `📝 รายละเอียด: ${escapeMarkdown(request.description)}`,
   ].join('\n');
 
   await sendMessage(adminChatId, message, null, 'admin_maintenance_alert');
@@ -425,7 +431,7 @@ const broadcastAnnouncement = async (title, content, targetAudience = 'all', tar
 
   const floorLabel = targetFloor ? ` (ชั้น ${targetFloor})` : '';
   const urgentTag = isUrgent ? '🚨 ' : '';
-  const message = [`📢 ${urgentTag}*ประกาศจากหอพัก${floorLabel}*`, ``, `*${title}*`, ``, content].join('\n');
+  const message = [`📢 ${urgentTag}*ประกาศจากหอพัก${floorLabel}*`, ``, `*${escapeMarkdown(title)}*`, ``, escapeMarkdown(content)].join('\n');
 
   for (const user of users) {
     await sendMessage(user.telegram_chat_id, message, user.user_id, isUrgent ? 'announcement_urgent' : 'announcement');
@@ -455,7 +461,7 @@ const confirmLink = async (token, chatId, telegramUsername) => {
   const message = [
     `✅ *เชื่อมต่อ Telegram สำเร็จ!*`,
     ``,
-    `สวัสดี @${displayName}!`,
+    `สวัสดี @${escapeMarkdown(displayName)}!`,
     `คุณจะได้รับการแจ้งเตือนค่าเช่า บิล และข่าวสารจากหอพักผ่าน Telegram นี้`,
     ``,
     `พิมพ์ /status เพื่อดูสถานะบิลปัจจุบัน`,

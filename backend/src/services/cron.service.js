@@ -80,7 +80,7 @@ const runSendOverdueNoticesNow = async () => {
         WHERE nl.bill_id = b.bill_id
           AND nl.notification_type = 'overdue_notice'
           AND nl.status = 'sent'
-          AND DATE(nl.sent_at) = CURDATE()
+          AND nl.sent_at >= CURDATE() AND nl.sent_at < CURDATE() + INTERVAL 1 DAY
       )
     `);
     console.log(`[Cron] Sending overdue notices to ${bills.length} tenant(s) (day milestones: ${dayList})`);

@@ -145,7 +145,7 @@ CREATE TABLE `move_out_requests` (
   CONSTRAINT `fk_moveout_contract` FOREIGN KEY (`contract_id`) REFERENCES `contracts` (`contract_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_moveout_reviewer` FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   CONSTRAINT `fk_moveout_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`room_id`) ON DELETE RESTRICT,
-  CONSTRAINT `fk_moveout_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`tenant_id`) ON DELETE CASCADE
+  CONSTRAINT `fk_moveout_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`tenant_id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `deposits`;
@@ -210,7 +210,8 @@ CREATE TABLE `bills` (
   KEY `idx_bills_month_year` (`bill_year`,`bill_month`),
   KEY `idx_bills_status_due` (`status`,`due_date`),
   CONSTRAINT `fk_bills_contract` FOREIGN KEY (`contract_id`) REFERENCES `contracts` (`contract_id`) ON DELETE RESTRICT,
-  CONSTRAINT `fk_bills_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`room_id`) ON DELETE RESTRICT
+  CONSTRAINT `fk_bills_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`room_id`) ON DELETE RESTRICT,
+  CONSTRAINT `chk_bills_month` CHECK (`bill_month` BETWEEN 1 AND 12)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- payments : รวม index จาก migration: idx_payments_status, idx_payments_method
@@ -256,7 +257,8 @@ CREATE TABLE `meter_readings` (
   UNIQUE KEY `uq_meter_room_month` (`room_id`,`meter_type`,`reading_month`,`reading_year`),
   KEY `fk_meter_user` (`recorded_by`),
   CONSTRAINT `fk_meter_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`room_id`) ON DELETE RESTRICT,
-  CONSTRAINT `fk_meter_user` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL
+  CONSTRAINT `fk_meter_user` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  CONSTRAINT `chk_meter_reading_month` CHECK (`reading_month` BETWEEN 1 AND 12)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `utility_rates`;
@@ -330,6 +332,7 @@ CREATE TABLE `notifications_log` (
   PRIMARY KEY (`log_id`),
   KEY `fk_notif_user` (`user_id`),
   KEY `fk_notif_bill` (`bill_id`),
+  KEY `idx_notif_dedup` (`bill_id`,`notification_type`,`status`,`sent_at`),
   CONSTRAINT `fk_notif_bill` FOREIGN KEY (`bill_id`) REFERENCES `bills` (`bill_id`) ON DELETE SET NULL,
   CONSTRAINT `fk_notif_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -352,12 +355,12 @@ CREATE TABLE `oauth_exchange_codes` (
 DROP TABLE IF EXISTS `password_resets`;
 CREATE TABLE `password_resets` (
   `id`           int unsigned NOT NULL AUTO_INCREMENT,
-  `user_id`      int unsigned DEFAULT NULL,
-  `token`        varchar(255) DEFAULT NULL,
-  `expires_at`   datetime DEFAULT NULL,
+  `user_id`      int unsigned NOT NULL,
+  `token`        varchar(255) NOT NULL,
+  `expires_at`   datetime NOT NULL,
   `created_at`   datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_password_resets_token` (`token`),
+  UNIQUE KEY `uq_password_resets_token` (`token`),
   KEY `fk_password_resets_user` (`user_id`),
   CONSTRAINT `fk_password_resets_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

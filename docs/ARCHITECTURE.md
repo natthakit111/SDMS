@@ -6,14 +6,14 @@ Diagram ทั้งหมดเป็น [Mermaid](https://mermaid.js.org/) —
 
 ```mermaid
 flowchart LR
-    subgraph Client
+    subgraph Client["Vercel (Frontend)"]
         FE[Next.js Frontend]
     end
-    subgraph Server["VPS / Server"]
+    subgraph Server["Railway (Backend)"]
         BE[Express Backend]
         CRON[node-cron\nin-process scheduler]
     end
-    DB[(MySQL)]
+    DB[(Railway MySQL)]
     CLOUD[Cloudinary\nfile storage]
     TG[Telegram Bot API]
     GOOGLE[Google OAuth]

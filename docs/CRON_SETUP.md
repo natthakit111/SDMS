@@ -13,7 +13,7 @@ const { initCronJobs } = require('./src/services/cron.service')
 initCronJobs()
 ```
 
-แปลว่า **ตราบใดที่ backend process รันอยู่** (เช่นผ่าน PM2) cron ก็ทำงานอัตโนมัติ ไม่ต้องตั้งค่าอะไรเพิ่มที่ระบบปฏิบัติการหรือบริการภายนอก
+แปลว่า **ตราบใดที่ backend process รันอยู่** (เช่นผ่าน Railway — ดู [`DEPLOYMENT.md`](./DEPLOYMENT.md) หรือผ่าน PM2 ถ้า self-host เอง) cron ก็ทำงานอัตโนมัติ ไม่ต้องตั้งค่าอะไรเพิ่มที่ระบบปฏิบัติการหรือบริการภายนอก
 
 ## รายการ Job ทั้งหมด (เวลาไทย, Asia/Bangkok)
 
@@ -31,11 +31,11 @@ initCronJobs()
 
 ทุก job ที่ส่ง Telegram จะเช็คตาราง `notifications_log` ก่อนส่งเสมอ (`notification_type` + `DATE(sent_at) = CURDATE()`) — ถ้า process รันซ้ำโดยไม่ตั้งใจในวันเดียวกัน จะไม่ส่งข้อความซ้ำหาผู้เช่า
 
-## ⚠️ ข้อควรระวังตอน deploy: อย่ารัน backend แบบ cluster mode
+## ⚠️ ข้อควรระวังตอน deploy: อย่ารันมากกว่า 1 instance
 
-เพราะ cron ผูกอยู่กับ process ของ backend เอง ถ้า deploy ด้วย PM2 แบบ cluster mode (เช่น `pm2 start server.js -i 4`) จะมี **4 instance ต่างรัน cron ของตัวเอง** → ส่งข้อความแจ้งเตือนซ้ำ 4 เท่า และ mark สถานะซ้ำโดยไม่จำเป็น (ถึงจะไม่ error เพราะ query เป็น idempotent แต่ก็สิ้นเปลืองและเสี่ยง race condition)
+เพราะ cron ผูกอยู่กับ process ของ backend เอง ถ้ามีมากกว่า 1 instance รันพร้อมกัน (เช่น Railway ตั้ง **Replica > 1**, หรือ deploy ด้วย PM2 แบบ cluster mode อย่าง `pm2 start server.js -i 4`) จะมี **หลาย instance ต่างรัน cron ของตัวเอง** → ส่งข้อความแจ้งเตือนซ้ำหลายเท่า และ mark สถานะซ้ำโดยไม่จำเป็น (ถึงจะไม่ error เพราะ query เป็น idempotent แต่ก็สิ้นเปลืองและเสี่ยง race condition)
 
-**แนะนำ:** รัน backend แบบ fork mode เดียว (`pm2 start server.js --name sdms-backend` ไม่ใส่ `-i`) ถ้าจำเป็นต้อง scale backend จริงๆ ให้แยก cron ออกเป็น service ต่างหาก (เช่น รัน `cron.service.js` เป็น process แยกที่เชื่อม DB เดียวกัน แล้วปิด `initCronJobs()` ใน instance อื่นด้วย env flag)
+**แนะนำ:** ตาม [`DEPLOYMENT.md`](./DEPLOYMENT.md) — บน Railway ให้คง **Replica = 1** เสมอ (ถ้า self-host ด้วย PM2 ให้ใช้ fork mode เดียว `pm2 start server.js --name sdms-backend` ไม่ใส่ `-i`) ถ้าจำเป็นต้อง scale backend จริงๆ ให้แยก cron ออกเป็น service ต่างหาก (เช่น รัน `cron.service.js` เป็น process แยกที่เชื่อม DB เดียวกัน แล้วปิด `initCronJobs()` ใน instance อื่นด้วย env flag)
 
 ## ทดสอบ job ด้วยตัวเอง (ไม่ต้องรอถึงเวลาจริง)
 

@@ -624,6 +624,10 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "ไม่พบบิลนี้",
     en: "Bill not found",
   },
+  "payment.error.slipRequired": {
+    th: "กรุณาแนบรูปสลิปการโอนเงิน",
+    en: "Please attach a payment slip",
+  },
 
   "payment.success.submitted": {
     th: "ส่งสลิปสำเร็จ รอแอดมินตรวจสอบ",

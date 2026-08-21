@@ -76,10 +76,18 @@ const submitPayment = async (req, res, next) => {
       return sendErrorWithCode(res, 400, 'payment.error.pendingVerify', 'มีรายการชำระเงินที่รอการตรวจสอบอยู่แล้ว');
 
     const slip_image = req.file ? req.file.path : null;
+    const method = payment_method || 'qr_promptpay';
+
+    // ⚠️ FIX: frontend เช็คแล้วว่าต้องแนบสลิปยกเว้นจ่ายเงินสด (ไม่มีสลิปให้แนบ
+    // จริงๆ) แต่เดิม backend ไม่เช็คซ้ำ — ยิง API ตรงๆ ข้าม UI จะแจ้งชำระเงิน
+    // qr_promptpay/bank_transfer โดยไม่มีหลักฐานเลยก็ได้
+    if (method !== 'cash' && !slip_image) {
+      return sendErrorWithCode(res, 400, 'payment.error.slipRequired', 'กรุณาแนบรูปสลิปการโอนเงิน');
+    }
 
     const paymentId = await PaymentModel.create({
       bill_id: parseInt(bill_id), tenant_id: tenant.tenant_id,
-      amount_paid: bill.total_amount, payment_method: payment_method || 'qr_promptpay', slip_image,
+      amount_paid: bill.total_amount, payment_method: method, slip_image,
     });
 
     const newPayment = await PaymentModel.findById(paymentId);

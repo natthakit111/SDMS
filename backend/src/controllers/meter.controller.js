@@ -92,7 +92,7 @@ const createReading = async (req, res, next) => {
 
     // ── 3. ต้องมีอัตราค่าไฟ/น้ำ ──────────────────────────────────────────
     if (!rate_per_unit) {
-      const currentRate = await UtilityRateModel.getCurrentRate(meterType);
+      const currentRate = await UtilityRateModel.getCurrentRate(meter_type);
       if (!currentRate) {
         const errorCode = meter_type === 'water'
           ? 'meters.error.noWaterRate'

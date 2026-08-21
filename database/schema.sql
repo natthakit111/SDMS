@@ -54,7 +54,8 @@ CREATE TABLE `users` (
   UNIQUE KEY `uq_users_username` (`username`),
   UNIQUE KEY `uq_users_email` (`email`),
   UNIQUE KEY `uq_users_phone` (`phone`),
-  KEY `idx_users_oauth` (`oauth_provider`,`oauth_provider_id`)
+  KEY `idx_users_oauth` (`oauth_provider`,`oauth_provider_id`),
+  KEY `idx_users_telegram_chat_id` (`telegram_chat_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `rooms`;
@@ -116,6 +117,7 @@ CREATE TABLE `contracts` (
   PRIMARY KEY (`contract_id`),
   KEY `fk_contracts_tenant` (`tenant_id`),
   KEY `fk_contracts_room` (`room_id`),
+  KEY `idx_contracts_status_enddate` (`status`,`end_date`),
   CONSTRAINT `fk_contracts_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`room_id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_contracts_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`tenant_id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -205,6 +207,7 @@ CREATE TABLE `bills` (
   KEY `idx_bills_room` (`room_id`),
   KEY `idx_bills_status` (`status`),
   KEY `idx_bills_month_year` (`bill_year`,`bill_month`),
+  KEY `idx_bills_status_due` (`status`,`due_date`),
   CONSTRAINT `fk_bills_contract` FOREIGN KEY (`contract_id`) REFERENCES `contracts` (`contract_id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_bills_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`room_id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

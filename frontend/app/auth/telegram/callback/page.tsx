@@ -4,7 +4,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Building2, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ function TelegramCallbackInner() {
   const router = useRouter();
   const { refreshUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const hasExchangedRef = useRef(false);
 
   useEffect(() => {
     const code = searchParams.get("code");
@@ -49,6 +50,14 @@ function TelegramCallbackInner() {
       setError("ไม่ได้รับ code จาก Telegram");
       return;
     }
+
+    // ⚠️ FIX: เดิมไม่มี guard กันตรงนี้ (มีใน Google callback แต่ไม่มีที่นี่)
+    // — code แลกได้ครั้งเดียว ถ้า effect ยิงซ้ำ (เช่น React StrictMode หรือ
+    // dependency เปลี่ยน) ครั้งแรกแลก session สำเร็จจริงฝั่ง server แต่
+    // ครั้งที่สองยิงซ้ำด้วย code เดิมที่ถูกใช้ไปแล้ว จะโดน backend ปฏิเสธ
+    // แล้วโชว์ error ทับหน้าจอ ทั้งที่ login สำเร็จจริงไปแล้วรอบแรก
+    if (hasExchangedRef.current) return;
+    hasExchangedRef.current = true;
 
     let cancelled = false;
 

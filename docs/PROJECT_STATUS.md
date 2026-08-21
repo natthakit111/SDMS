@@ -45,7 +45,7 @@ Smart Dormitory Management System (SDMS) — ระบบจัดการห�
 |---|---|
 | CI/CD pipeline | ยังไม่มี |
 | Docker / containerization | ยังไม่มี — ดูวิธี deploy แบบ manual ที่ [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md) |
-| Database schema ใน repo | เพิ่งเพิ่มเข้ามา — ดู [`database/DATABASE.md`](../database/DATABASE.md) และ `database/sdms.sql` |
+| Database schema ใน repo | เพิ่งเพิ่มเข้ามา — ดู [`database/DATABASE.md`](../database/DATABASE.md) และ `database/schema.sql` |
 
 ## เอกสารที่เกี่ยวข้อง
 

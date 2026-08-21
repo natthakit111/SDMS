@@ -22,7 +22,7 @@ Vercel (Next.js frontend)  ──HTTPS + cookie──→  Railway (Express backe
 3. Import schema จริงเข้าไป — เชื่อมต่อผ่าน Railway CLI หรือ MySQL client ตัวไหนก็ได้ (เช่น TablePlus, DBeaver, mysql cli) ด้วยค่า connection ข้างต้น:
 
    ```bash
-   mysql -h <MYSQLHOST> -P <MYSQLPORT> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < database/sdms.sql
+   mysql -h <MYSQLHOST> -P <MYSQLPORT> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < database/schema.sql
    ```
 
    > ดูโครงสร้างตาราง/ERD ที่ [`database/DATABASE.md`](../database/DATABASE.md)
@@ -89,7 +89,7 @@ Vercel (Next.js frontend)  ──HTTPS + cookie──→  Railway (Express backe
 
 ## Checklist ก่อนขึ้นจริง
 
-- [ ] MySQL บน Railway import schema (`database/sdms.sql`) เรียบร้อย — เช็คด้วย `SHOW TABLES;`
+- [ ] MySQL บน Railway import schema (`database/schema.sql`) เรียบร้อย — เช็คด้วย `SHOW TABLES;`
 - [ ] Backend service ตั้ง Root Directory = `backend`, ปิด serverless/sleep mode, replica = 1
 - [ ] Backend env ครบทุกตัว โดยเฉพาะ `FRONTEND_URL` ตรงกับ Vercel domain เป๊ะๆ (ไม่มี `/` ท้าย), `COOKIE_CROSS_SITE=true`, `COOKIE_SECURE=true`
 - [ ] Frontend service ตั้ง Root Directory = `frontend`, `NEXT_PUBLIC_API_URL` ชี้ไป Railway backend + `/api`

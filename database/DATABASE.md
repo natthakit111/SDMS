@@ -1,6 +1,6 @@
 # SDMS Database Schema
 
-อ้างอิงจาก `database/sdms.sql` (dump จริงจาก `sdms`) — ถ้าแก้ schema ต้อง export dump ใหม่ทับไฟล์นี้ด้วยเสมอ ไม่งั้นเอกสารจะไม่ตรงกับของจริง
+อ้างอิงจาก `database/schema.sql` — ถ้าแก้ schema ต้องอัปเดตเอกสารนี้ด้วยเสมอ ไม่งั้นเอกสารจะไม่ตรงกับของจริง
 
 ## ERD ภาพรวม
 

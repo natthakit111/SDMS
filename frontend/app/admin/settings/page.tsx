@@ -255,8 +255,7 @@ export default function SettingsPage() {
         );
       }
       await Promise.all(promises);
-      toast.error(
-        // หมายเหตุ: อย่าลืมเช็กตรงนี้ ถ้าโค้ดเดิมเป็น toast.success ก็ใช้ .success นะครับ
+      toast.success(
         language === "th"
           ? "บันทึกอัตราค่าสาธารณูปโภคแล้ว"
           : "Utility rates saved",

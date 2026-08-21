@@ -305,6 +305,7 @@ const resetPassword = async (req, res, next) => {
     const record = await PasswordResetModel.findByToken(token);
     if (!record) return sendBadRequest(res, 'Token ไม่ถูกต้อง');
     if (new Date(record.expires_at) < new Date()) return sendBadRequest(res, 'Token หมดอายุ');
+    if (!record.is_active) return sendBadRequest(res, 'บัญชีนี้ถูกปิดการใช้งาน');
 
     const salt = await bcrypt.genSalt(12);
     const newHash = await bcrypt.hash(newPassword, salt);

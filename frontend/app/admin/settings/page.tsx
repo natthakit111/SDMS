@@ -188,6 +188,14 @@ export default function SettingsPage() {
 
   /* ── Save financial (bank display info + PromptPay) ── */
   const handleSaveFinancial = async () => {
+    if (promptpayId && !/^\d+$/.test(promptpayId)) {
+      toast.error(
+        language === "th"
+          ? "หมายเลข PromptPay ต้องเป็นตัวเลขเท่านั้น"
+          : "PromptPay ID must contain only numbers",
+      );
+      return;
+    }
     setSavingFinancial(true);
     try {
       await settingsAPI.update({
@@ -197,14 +205,6 @@ export default function SettingsPage() {
         promptpay_type: promptpayType,
         promptpay_id: promptpayId,
       });
-      if (promptpayId && !/^\d+$/.test(promptpayId)) {
-        toast.error(
-          language === "th"
-            ? "หมายเลข PromptPay ต้องเป็นตัวเลขเท่านั้น"
-            : "PromptPay ID must contain only numbers",
-        );
-        return;
-      }
       toast.success(
         language === "th" ? "บันทึกข้อมูลการเงินแล้ว" : "Financial info saved",
       );

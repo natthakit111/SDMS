@@ -15,6 +15,7 @@ const SettingsModel = require('../models/settings.model');
 const updateValidation = [
   body('dorm_name').optional().trim().isLength({ max: 200 }),
   body('dorm_address').optional().trim().isLength({ max: 500 }),
+  body('num_floors').optional().isInt({ min: 1 }).withMessage('NUM_FLOORS_INVALID'),
   body('admin_email').optional({ checkFalsy: true }).isEmail().withMessage('EMAIL_FORMAT'),
   body('admin_phone').optional({ checkFalsy: true }).trim().isLength({ max: 20 }),
 

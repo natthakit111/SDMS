@@ -19,6 +19,7 @@ const roomValidation = [
   body('room_type').trim().notEmpty().withMessage('Room type is required'),
   body('base_rent').isFloat({ min: 0 }).withMessage('Base rent must be a positive number'),
   body('area_sqm').optional().isFloat({ min: 0 }),
+  body('status').optional().isIn(['available', 'occupied', 'maintenance']).withMessage('Invalid room status'),
 ];
 
 // ใช้กับ PUT (update) เท่านั้น — ทุก field optional เพราะเป็น partial update
@@ -32,6 +33,7 @@ const updateRoomValidation = [
   body('room_type').optional().trim().notEmpty().withMessage('Room type is required'),
   body('base_rent').optional().isFloat({ min: 0 }).withMessage('Base rent must be a positive number'),
   body('area_sqm').optional().isFloat({ min: 0 }),
+  body('status').optional().isIn(['available', 'occupied', 'maintenance']).withMessage('Invalid room status'),
 ];
 
 // All routes require authentication

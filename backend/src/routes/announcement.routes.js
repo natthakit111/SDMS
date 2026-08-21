@@ -14,6 +14,9 @@ const createValidation = [
   body('title').trim().notEmpty().withMessage('Title is required'),
   body('content').trim().notEmpty().withMessage('Content is required'),
   body('target_audience').optional().isIn(['all', 'admin', 'tenant']),
+  body('target_floor').optional({ nullable: true }).isInt({ min: 1 }).withMessage('target_floor must be a positive integer'),
+  body('is_pinned').optional().isBoolean(),
+  body('is_urgent').optional().isBoolean(),
   body('expires_at').optional().isISO8601(),
 ];
 

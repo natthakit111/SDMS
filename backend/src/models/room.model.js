@@ -17,8 +17,9 @@ const findAll = async ({ status = null, floor = null } = {}) => {
   return rows;
 };
 
-const findById = async (roomId) => {
-  const [rows] = await pool.query('SELECT * FROM rooms WHERE room_id = ? LIMIT 1', [roomId]);
+const findById = async (roomId, executor = pool, forUpdate = false) => {
+  const sql = 'SELECT * FROM rooms WHERE room_id = ? LIMIT 1' + (forUpdate ? ' FOR UPDATE' : '');
+  const [rows] = await executor.query(sql, [roomId]);
   return rows[0] || null;
 };
 

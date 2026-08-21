@@ -59,13 +59,6 @@ const createContract = async (req, res, next) => {
 
     const { tenant_id, room_id, start_date, end_date, rent_amount, deposit_amount, note, tenant_id_card } = req.body                                                                                       
 
-    const room = await RoomModel.findById(room_id)
-    if (!room) { conn.release(); return sendNotFound(res, 'ไม่พบห้องพักนี้') }
-    if (room.status !== 'available') {
-      conn.release()
-      return sendBadRequest(res, `ห้อง ${room.room_number} มีสถานะ '${room.status}' ไม่สามารถทำสัญญาได้`)
-    }
-
     const tenant = await TenantModel.findById(tenant_id)
     if (!tenant) { conn.release(); return sendNotFound(res, 'ไม่พบข้อมูลผู้เช่ารายนี้') }
 
@@ -78,6 +71,19 @@ const createContract = async (req, res, next) => {
     const finalDeposit = deposit_amount || 0
 
     await conn.beginTransaction()
+
+    // ล็อกแถวห้องก่อนเช็คสถานะ กันสองสัญญาจองห้องเดียวกันพร้อมกัน (race condition)
+    const room = await RoomModel.findById(room_id, conn, true)
+    if (!room) {
+      await conn.rollback()
+      conn.release()
+      return sendNotFound(res, 'ไม่พบห้องพักนี้')
+    }
+    if (room.status !== 'available') {
+      await conn.rollback()
+      conn.release()
+      return sendBadRequest(res, `ห้อง ${room.room_number} มีสถานะ '${room.status}' ไม่สามารถทำสัญญาได้`)
+    }
 
     if (tenant_id_card && tenant_id_card.trim() && tenant_id_card.trim() !== tenant.id_card_number) {
       const idCard = tenant_id_card.trim()

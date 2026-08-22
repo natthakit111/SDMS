@@ -85,9 +85,11 @@ const findById = async (requestId) => {
 
 const findByTenantId = async (tenantId) => {
   const [rows] = await pool.query(`
-    SELECT mr.*, r.room_number
+    SELECT mr.*, r.room_number,
+           u.username AS assigned_username
     FROM maintenance_requests mr
     JOIN rooms r ON mr.room_id = r.room_id
+    LEFT JOIN users u ON mr.assigned_to_user_id = u.user_id
     WHERE mr.tenant_id = ?
     ORDER BY mr.created_at DESC
   `, [tenantId]);

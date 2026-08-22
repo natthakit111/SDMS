@@ -28,9 +28,31 @@ const getTenantFloor = async (userId) => {
   return rows[0]?.floor ?? null
 }
 
+// ── Helper: does this tenant currently have an active contract at all? ──
+// ⚠️ FIX: หน้าฟีดประกาศในแอปเดิมกรองแค่ตาม role/ชั้น ไม่เช็คว่ามีสัญญาเช่า
+// ที่ใช้งานอยู่หรือยัง ทำให้ผู้เช่าที่สมัครบัญชีไว้แต่ยังไม่มีสัญญาเห็น
+// ประกาศทุกอันได้ ทั้งที่ฝั่ง Telegram (TelegramService.broadcastAnnouncement)
+// บังคับต้องมีสัญญา active อยู่แล้วอยู่แล้ว — ทำให้สองฝั่งไม่ตรงกัน
+const hasActiveContract = async (userId) => {
+  const [rows] = await pool.query(
+    `SELECT 1
+     FROM tenants t
+     JOIN contracts c ON c.tenant_id = t.tenant_id AND c.status = 'active'
+     WHERE t.user_id = ?
+     LIMIT 1`,
+    [userId]
+  )
+  return rows.length > 0
+}
+
 const getAll = async (req, res, next) => {
   try {
     const isAdmin = req.user.role === 'admin'
+
+    if (!isAdmin && !(await hasActiveContract(req.user.user_id))) {
+      return sendSuccess(res, [])
+    }
+
     const audience = isAdmin ? undefined : 'tenant'
     const tenantFloor = isAdmin ? null : await getTenantFloor(req.user.user_id)
 
@@ -52,6 +74,9 @@ const getById = async (req, res, next) => {
     // ไว้ — tenant เดา announcement_id แล้วเห็นประกาศที่ไม่ใช่ของตัวเองได้
     if (req.user.role !== 'admin') {
       if (item.target_audience === 'admin') {
+        return sendNotFound(res, 'ไม่พบประกาศ')
+      }
+      if (!(await hasActiveContract(req.user.user_id))) {
         return sendNotFound(res, 'ไม่พบประกาศ')
       }
       if (item.target_floor !== null) {

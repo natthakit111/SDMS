@@ -38,7 +38,7 @@ const findAll = async ({ status, priority, room_id, tenant_id, search = null, li
     FROM maintenance_requests mr
     JOIN rooms   r  ON mr.room_id   = r.room_id
     JOIN tenants t  ON mr.tenant_id = t.tenant_id
-    LEFT JOIN users u ON mr.assigned_to = u.user_id
+    LEFT JOIN users u ON mr.assigned_to_user_id = u.user_id
     WHERE ${where}
     ORDER BY FIELD(mr.priority,"high","medium","low"), mr.created_at DESC
   `;
@@ -77,7 +77,7 @@ const findById = async (requestId) => {
     JOIN rooms   r   ON mr.room_id    = r.room_id
     JOIN tenants t   ON mr.tenant_id  = t.tenant_id
     JOIN users   u_t ON t.user_id     = u_t.user_id
-    LEFT JOIN users u_a ON mr.assigned_to = u_a.user_id
+    LEFT JOIN users u_a ON mr.assigned_to_user_id = u_a.user_id
     WHERE mr.request_id = ? LIMIT 1
   `, [requestId]);
   return rows[0] || null;
@@ -104,15 +104,15 @@ const create = async ({ tenant_id, room_id, category, description, image_path, p
   return result.insertId;
 };
 
-const updateStatus = async (requestId, status, adminNote = null, assignedTo = null) => {
+const updateStatus = async (requestId, status, adminNote = null, assignedToUserId = null) => {
   const resolved_at = status === 'resolved' ? new Date() : null;
   const [result] = await pool.query(
     `UPDATE maintenance_requests
      SET status = ?, admin_note = COALESCE(?, admin_note),
-         assigned_to = COALESCE(?, assigned_to),
+         assigned_to_user_id = COALESCE(?, assigned_to_user_id),
          resolved_at = COALESCE(?, resolved_at)
      WHERE request_id = ?`,
-    [status, adminNote, assignedTo, resolved_at, requestId]
+    [status, adminNote, assignedToUserId, resolved_at, requestId]
   );
   return result.affectedRows;
 };

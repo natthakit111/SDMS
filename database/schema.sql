@@ -288,7 +288,7 @@ CREATE TABLE `maintenance_requests` (
   `image_path`    varchar(255) DEFAULT NULL,
   `priority`      enum('low','medium','high') NOT NULL DEFAULT 'medium',
   `status`        enum('pending','in_progress','resolved','cancelled') NOT NULL DEFAULT 'pending',
-  `assigned_to`   varchar(100) DEFAULT NULL,
+  `assigned_to_user_id` int unsigned DEFAULT NULL,
   `resolved_at`   datetime DEFAULT NULL,
   `admin_note`    text DEFAULT NULL,
   `created_at`    datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -296,11 +296,12 @@ CREATE TABLE `maintenance_requests` (
   PRIMARY KEY (`request_id`),
   KEY `fk_maint_tenant` (`tenant_id`),
   KEY `fk_maint_room` (`room_id`),
-  KEY `fk_maint_assigned` (`assigned_to`),
+  KEY `fk_maint_assigned` (`assigned_to_user_id`),
   KEY `idx_maintenance_status` (`status`),
   KEY `idx_maintenance_priority` (`priority`),
   CONSTRAINT `fk_maint_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`room_id`) ON DELETE RESTRICT,
-  CONSTRAINT `fk_maint_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`tenant_id`) ON DELETE RESTRICT
+  CONSTRAINT `fk_maint_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`tenant_id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_maint_assigned` FOREIGN KEY (`assigned_to_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `announcements`;

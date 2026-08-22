@@ -52,7 +52,7 @@ interface Request {
   created_at: string;
   admin_note: string | null;
   image_path: string | null;
-  assigned_to: string | null;
+  assigned_username?: string | null;
   resolved_at: string | null;
   room_number: string;
 }
@@ -601,12 +601,12 @@ export default function TenantMaintenancePage() {
                 </div>
               )}
 
-              {viewingRequest.assigned_to && (
+              {viewingRequest.assigned_username && (
                 <div className="text-sm">
                   <p className="text-muted-foreground">
                     {t("maintenance.assignedTo")}
                   </p>
-                  <p className="font-medium">{viewingRequest.assigned_to}</p>
+                  <p className="font-medium">{viewingRequest.assigned_username}</p>
                 </div>
               )}
 

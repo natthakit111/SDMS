@@ -9,6 +9,7 @@ const { validationResult } = require('express-validator');
 const MaintenanceModel = require('../models/maintenance.model');
 const TenantModel      = require('../models/tenant.model');
 const ContractModel    = require('../models/contract.model');
+const UserModel        = require('../models/user.model');
 const TelegramService  = require('../services/telegram.service');
 const { sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden } = require('../utils/response');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
@@ -36,6 +37,14 @@ const getStats = async (req, res, next) => {
   try {
     const stats = await MaintenanceModel.getStatusSummary();
     return sendSuccess(res, stats);
+  } catch (err) { next(err); }
+};
+
+// ── รายชื่อแอดมินที่ active ทั้งหมด สำหรับ dropdown "มอบหมายให้" ──
+const getAssignableAdmins = async (req, res, next) => {
+  try {
+    const admins = await UserModel.findAdmins();
+    return sendSuccess(res, admins);
   } catch (err) { next(err); }
 };
 
@@ -106,6 +115,14 @@ const updateStatus = async (req, res, next) => {
       return sendBadRequest(res, `ไม่สามารถแก้ไขคำร้องที่มีสถานะ '${request.status}' ได้`);
     }
 
+    // assigned_to ต้องเป็น user_id ของแอดมินที่มีอยู่จริง (validator เช็คแค่ isInt)
+    if (assigned_to !== undefined && assigned_to !== null) {
+      const admins = await UserModel.findAdmins();
+      if (!admins.some((a) => a.user_id === Number(assigned_to))) {
+        return sendBadRequest(res, 'ผู้ใช้ที่ระบุไม่ใช่แอดมินที่ active อยู่ ไม่สามารถมอบหมายงานได้');
+      }
+    }
+
     await MaintenanceModel.updateStatus(req.params.id, status, admin_note || null, assigned_to || null);
     const updated = await MaintenanceModel.findById(req.params.id);
 
@@ -130,4 +147,4 @@ const cancelRequest = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { getAllRequests, getStats, getMyRequests, getRequestById, createRequest, updateStatus, cancelRequest };
+module.exports = { getAllRequests, getStats, getAssignableAdmins, getMyRequests, getRequestById, createRequest, updateStatus, cancelRequest };

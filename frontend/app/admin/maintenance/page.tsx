@@ -51,9 +51,18 @@ import { PaginationFooter } from "@/components/common/pagination-footer";
 
 interface UpdateData {
   status: string;
-  assigned_to: string;
+  assigned_to: string; // user_id เป็น string (ใช้กับ Select) หรือ "" = ยังไม่มอบหมาย
   admin_note: string;
 }
+
+interface AdminUser {
+  user_id: number;
+  username: string;
+  first_name: string | null;
+  last_name: string | null;
+}
+
+const UNASSIGNED = "unassigned";
 
 const formatDate = (d: string) =>
   new Date(d).toLocaleDateString("th-TH", {
@@ -106,6 +115,7 @@ export default function MaintenancePage() {
     assigned_to: "",
     admin_note: "",
   });
+  const [admins, setAdmins] = useState<AdminUser[]>([]);
 
   const PAGE_SIZE = 20;
   const [page, setPage] = useState(1);
@@ -152,6 +162,14 @@ export default function MaintenancePage() {
       .catch(() => {});
   }, [requests]);
 
+  // ── รายชื่อแอดมินสำหรับ dropdown "มอบหมายให้" — โหลดครั้งเดียวตอน mount ──
+  useEffect(() => {
+    maintenanceAPI
+      .getAdmins()
+      .then((res: any) => setAdmins(res.data ?? []))
+      .catch(() => {});
+  }, []);
+
   // ⚠️ search ย้ายไปทำที่ backend แล้ว (ดู maintenance.model.js) เพื่อให้
   // ค้นหาได้ถูกต้องข้ามทุกหน้า — ตัวแปรนี้เก็บชื่อเดิมไว้
   const filteredRequests = requests;
@@ -168,7 +186,10 @@ export default function MaintenancePage() {
       await maintenanceAPI.updateStatus(viewingRequest.request_id, {
         status: updateData.status || viewingRequest.status,
         admin_note: updateData.admin_note || undefined,
-        assigned_to: updateData.assigned_to || undefined,
+        assigned_to:
+          updateData.assigned_to && updateData.assigned_to !== UNASSIGNED
+            ? Number(updateData.assigned_to)
+            : undefined,
       });
       toast.success(t("maintenance.updateSuccess"));
       setViewingRequest(null);
@@ -184,7 +205,9 @@ export default function MaintenancePage() {
     setViewingRequest(request);
     setUpdateData({
       status: request.status,
-      assigned_to: request.assigned_to ?? "",
+      assigned_to: request.assigned_to_user_id
+        ? String(request.assigned_to_user_id)
+        : "",
       admin_note: request.admin_note ?? "",
     });
   };
@@ -493,16 +516,29 @@ export default function MaintenancePage() {
                   </Field>
                   <Field>
                     <FieldLabel>{t("maintenance.assignedTo")}</FieldLabel>
-                    <Input
-                      value={updateData.assigned_to}
-                      onChange={(e) =>
+                    <Select
+                      value={updateData.assigned_to || UNASSIGNED}
+                      onValueChange={(v) =>
                         setUpdateData((p) => ({
                           ...p,
-                          assigned_to: e.target.value,
+                          assigned_to: v === UNASSIGNED ? "" : v,
                         }))
                       }
-                      placeholder={t("maintenance.assignedPlaceholder")}
-                    />
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("maintenance.assignedPlaceholder")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={UNASSIGNED}>
+                          {t("maintenance.assignedPlaceholder")}
+                        </SelectItem>
+                        {admins.map((a) => (
+                          <SelectItem key={a.user_id} value={String(a.user_id)}>
+                            {[a.first_name, a.last_name].filter(Boolean).join(" ") || a.username}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </Field>
                   <Field>
                     <FieldLabel>{t("common.note")}</FieldLabel>

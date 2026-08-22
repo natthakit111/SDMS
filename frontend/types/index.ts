@@ -136,7 +136,7 @@ export interface MaintenanceRequest {
   image_path: string | null;
   priority: "low" | "medium" | "high";
   status: "pending" | "in_progress" | "resolved" | "cancelled";
-  assigned_to: string | null;
+  assigned_to_user_id: number | null;
   resolved_at: string | null;
   admin_note: string | null;
   created_at: string;

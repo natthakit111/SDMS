@@ -26,6 +26,9 @@ export const maintenanceAPI = {
   getStats: () =>
     api.get('/maintenance/stats').then((r) => r.data),
 
+  getAdmins: () =>
+    api.get('/maintenance/admins').then((r) => r.data),
+
   getAll: (params) =>
     api.get('/maintenance', { params }).then((r) => r.data),
 

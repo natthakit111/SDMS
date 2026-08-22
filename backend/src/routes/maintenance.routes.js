@@ -21,7 +21,8 @@ const updateStatusValidation = [
   body('status').isIn(['pending', 'in_progress', 'resolved', 'cancelled'])
     .withMessage('Status must be one of: pending, in_progress, resolved, cancelled'),
   body('admin_note').optional().trim().isLength({ max: 1000 }),
-  body('assigned_to').optional().trim().isLength({ max: 100 }),
+  body('assigned_to').optional({ nullable: true }).isInt({ min: 1 })
+    .withMessage('assigned_to ต้องเป็น user_id ของแอดมิน (ตัวเลข)'),
 ];
 
 // ── Specific paths FIRST ──────────────────────────────────────
@@ -32,6 +33,10 @@ router.get('/my',
 router.get('/stats',
   authenticate, authorizeRoles('admin'),
   ctrl.getStats
+);
+router.get('/admins',
+  authenticate, authorizeRoles('admin'),
+  ctrl.getAssignableAdmins
 );
 router.post('/',
   authenticate, authorizeRoles('tenant'),

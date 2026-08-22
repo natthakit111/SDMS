@@ -113,6 +113,16 @@ const findAll = async () => {
   return rows;
 };
 
+// ใช้เติม dropdown "มอบหมายให้" ในหน้าแจ้งซ่อม — เฉพาะ admin ที่ยัง active
+const findAdmins = async () => {
+  const [rows] = await pool.query(
+    `SELECT user_id, username, first_name, last_name
+     FROM users WHERE role = 'admin' AND is_active = 1
+     ORDER BY first_name, last_name`
+  );
+  return rows;
+};
+
 //  ใช้เช็ค is_active ทุก request ที่ authenticate (ดู
 // auth.middleware.js) — เลือก SELECT แค่ 2 คอลัมน์ที่จำเป็นเพื่อให้ query
 // เบาที่สุด ไม่ใช้ findById() ที่ select field เยอะกว่าที่ต้องการ
@@ -139,5 +149,6 @@ module.exports = {
   clearTelegramChatId,
   deactivateUser,
   findAll,
+  findAdmins,
   isUserActive,
 };

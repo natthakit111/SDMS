@@ -169,6 +169,10 @@ const renewContract = async (req, res, next) => {
       ...(rent_amount ? { rent_amount } : {}),
     })
     await ContractModel.updateStatus(req.params.id, 'active')
+    // ⚠️ FIX: cron ปล่อยห้องเป็น available ตอนสัญญาหมดอายุ (runExpireContractsNow) —
+    // ต่อสัญญาแล้วต้องคืนสถานะห้องเป็น occupied ด้วย ไม่งั้นห้องจะค้างโชว์ว่างทั้งที่มีคนอยู่
+    // และเสี่ยงถูกจองซ้อนผ่าน createContract
+    await RoomModel.updateStatus(contract.room_id, 'occupied')
 
     const renewed = await ContractModel.findById(req.params.id)
     return sendSuccess(res, renewed, `ต่อสัญญาสำเร็จ — ห้อง ${renewed.room_number} มีผลถึง ${end_date}`)

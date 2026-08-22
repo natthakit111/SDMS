@@ -212,18 +212,28 @@ const updateMyProfile = async (req, res, next) => {
     const tenant = await TenantModel.findByUserId(req.user.user_id);
     if (!tenant) return sendNotFound(res, 'ไม่พบข้อมูลโปรไฟล์ผู้เช่า');
 
-    const { phone, email, emergency_contact_name, emergency_contact_phone } = req.body;
+    const { first_name, last_name, phone, email, emergency_contact_name, emergency_contact_phone } = req.body;
 
     // ⚠️ FIX: เดิมอัปเดตแค่ tenants table ฝั่งเดียว — phone/email เพี้ยน
     // ออกจาก users table (ที่ใช้เป็น username/login) ไปเรื่อยๆ ทุกครั้งที่
     // tenant แก้โปรไฟล์ตัวเอง ตอนนี้ sync ทั้งสองตารางในธุรกรรมเดียวกัน
+    // (รวม first_name/last_name ด้วย — เดิมไม่ส่งไปเลย ทำให้ users.first_name/
+    // last_name ถูกเซ็ตเป็น NULL ทุกครั้งที่เรียก endpoint นี้ ใช้ค่าเดิมของ
+    // tenant เป็น fallback กันข้อมูลหายถ้าไม่ได้ส่งฟิลด์นั้นมา)
     await conn.beginTransaction();
 
-    if (phone !== undefined || email !== undefined) {
-      await UserModel.updateProfileFields(req.user.user_id, { phone, email }, conn);
+    if (first_name !== undefined || last_name !== undefined || phone !== undefined || email !== undefined) {
+      await UserModel.updateProfileFields(req.user.user_id, {
+        firstName: first_name !== undefined ? first_name : tenant.first_name,
+        lastName: last_name !== undefined ? last_name : tenant.last_name,
+        email: email !== undefined ? email : tenant.email,
+        phone: phone !== undefined ? phone : tenant.phone,
+      }, conn);
     }
 
     const tenantUpdates = {};
+    if (first_name !== undefined) tenantUpdates.first_name = first_name;
+    if (last_name !== undefined) tenantUpdates.last_name = last_name;
     if (phone !== undefined) tenantUpdates.phone = phone;
     if (email !== undefined) tenantUpdates.email = email;
     if (emergency_contact_name !== undefined) tenantUpdates.emergency_contact_name = emergency_contact_name;

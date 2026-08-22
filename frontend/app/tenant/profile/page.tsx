@@ -9,6 +9,7 @@ import { notificationPreferenceAPI } from "@/lib/api/notificationPreference.api"
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/auth-context";
 import { authAPI } from "@/lib/api/auth.api";
+import { tenantAPI } from "@/lib/api/tenant.api";
 import { telegramAPI } from "@/lib/api/telegram.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -226,9 +227,13 @@ export default function TenantProfilePage() {
     if (!validateProfile()) return;
     setProfileLoading(true);
     try {
-      await authAPI.updateProfile({
-        firstName: profile.firstName.trim(),
-        lastName: profile.lastName.trim(),
+      // ⚠️ FIX: เดิมเรียก authAPI.updateProfile ซึ่งอัปเดตแค่ users table
+      // ทำให้เบอร์โทร/อีเมลที่แก้ไม่ sync ไป tenants table ที่หน้าจัดการ
+      // ผู้เช่าฝั่งแอดมินอ่านค่าอยู่ — เปลี่ยนมาเรียก endpoint เฉพาะของ tenant
+      // ที่ sync ทั้งสองตารางให้แล้ว
+      await tenantAPI.updateMyProfile({
+        first_name: profile.firstName.trim(),
+        last_name: profile.lastName.trim(),
         email: profile.email.trim(),
         phone: profile.phone.trim(),
       });

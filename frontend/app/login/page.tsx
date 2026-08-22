@@ -324,7 +324,7 @@ function LoginForm() {
       </Card>
 
         <p className="mt-6 text-center text-xs text-primary-foreground/40">
-          SDMS v1.0 — Web
+          SDMS Web
         </p>
       </div>
     </div>

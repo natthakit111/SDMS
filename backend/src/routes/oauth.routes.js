@@ -72,11 +72,40 @@ async function upsertOAuthUser({ provider, providerId, email, displayName }) {
       [email]
     );
     if (byEmail.length > 0) {
+      const existingUser = byEmail[0];
+
+      // ⚠️ FIX: เดิม link account ด้วย email แล้วไม่เคยอัปเดตชื่อ-นามสกุลเลย
+      // ถ้าบัญชีเดิมยังไม่มีชื่อจริง (เช่น แอดมินสร้างให้ไว้ก่อน หรือเคย
+      // login ผ่าน provider อื่นที่ไม่ส่งชื่อมา) พอ link เข้ากับ Google ก็ควร
+      // ดึงชื่อจริงจาก Google profile มาเติมให้ — ไม่เขียนทับชื่อที่มีอยู่
+      // แล้ว เพื่อไม่ให้ไปเบียดชื่อที่ user เคยแก้เองในหน้าโปรไฟล์
+      const hasName = existingUser.first_name && existingUser.first_name !== 'ไม่ระบุ';
+      let firstName = existingUser.first_name;
+      let lastName  = existingUser.last_name;
+      if (!hasName && displayName) {
+        const nameParts = displayName.trim().split(' ');
+        firstName = nameParts[0] || '';
+        lastName  = nameParts.slice(1).join(' ') || '';
+      }
+
       await pool.query(
-        'UPDATE users SET oauth_provider = ?, oauth_provider_id = ? WHERE user_id = ?',
-        [provider, String(providerId), byEmail[0].user_id]
+        'UPDATE users SET oauth_provider = ?, oauth_provider_id = ?, first_name = ?, last_name = ? WHERE user_id = ?',
+        [provider, String(providerId), firstName, lastName, existingUser.user_id]
       );
-      return byEmail[0];
+      if (!hasName && displayName) {
+        // sync ให้ตาราง tenants ตรงกับ users เหมือนกัน (โมเดลข้อมูล 2 ตาราง
+        // แยกกัน — เคยเจอบั๊กหน้าโปรไฟล์เพี้ยนเพราะ sync แค่ตารางเดียวมาแล้ว)
+        await pool.query(
+          'UPDATE tenants SET first_name = ?, last_name = ? WHERE user_id = ?',
+          [firstName || 'ไม่ระบุ', lastName || 'ไม่ระบุ', existingUser.user_id]
+        );
+      }
+
+      const [refreshed] = await pool.query(
+        'SELECT * FROM users WHERE user_id = ? LIMIT 1',
+        [existingUser.user_id]
+      );
+      return refreshed[0];
     }
   }
 

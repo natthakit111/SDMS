@@ -174,7 +174,7 @@ export default function TenantDashboard() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">
-          {t("tenant.welcome")}, {user?.username || t("common.tenant")}
+          {t("tenant.welcome")}, {user?.name || t("common.tenant")}
         </h1>
         <p className="text-muted-foreground mt-2">{t("rooms.subtitle")}</p>
       </div>

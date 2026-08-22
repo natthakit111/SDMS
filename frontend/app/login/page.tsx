@@ -107,13 +107,18 @@ function LoginForm() {
     const result = await login(username, password, rememberMe);
 
     if (result.success && result.user) {
-      // ใช้ redirect param เฉพาะเมื่อเป็น path ภายในระบบเท่านั้น
-      // ไม่งั้น fallback ไปตาม role เหมือนเดิม
+      // ใช้ redirect param เฉพาะเมื่อเป็น path ภายในระบบ "ของ role เดียวกัน"
+      // กับ user ที่เพิ่ง login สำเร็จเท่านั้น ไม่งั้น fallback ไปตาม role
+      // เหมือนเดิม — เดิมใช้ redirect param ตรงๆ โดยไม่เช็ค role เลย ทำให้
+      // ถ้า logout จากหน้า /tenant/xxx แล้ว login ด้วยบัญชี admin จะโดนพา
+      // กลับไป /tenant/xxx ต่อ (ผิด role) แล้ว route guard ของหน้านั้นเด้ง
+      // กลับมา /login พร้อม redirect เดิมทันที ดูเหมือนกด login แล้วไม่ขยับ
+      const roleHome = result.user.role === "admin" ? "/admin" : "/tenant";
       const safeRedirect = getSafeRedirect(redirectTo);
-      if (safeRedirect) {
+      if (safeRedirect && safeRedirect.startsWith(roleHome)) {
         router.push(safeRedirect);
       } else {
-        router.push(result.user.role === "admin" ? "/admin" : "/tenant");
+        router.push(roleHome);
       }
     } else {
       setError(result.error || t("common.error"));

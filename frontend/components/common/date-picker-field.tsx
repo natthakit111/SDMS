@@ -4,6 +4,7 @@
 
 import { useState } from "react";
 import { CalendarIcon } from "lucide-react";
+import { th, enUS } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -67,6 +68,7 @@ export function DatePickerField({
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="single"
+          locale={language === "th" ? th : enUS}
           selected={selectedDate}
           onSelect={(date: Date | undefined) => {
             if (date) onChange(toISODate(date));

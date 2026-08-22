@@ -39,6 +39,7 @@ import { PaymentStatusBadge } from "@/components/common/status-badge";
 import { PaginationFooter } from "@/components/common/pagination-footer";
 import { paymentAPI } from "@/lib/api/payment.api";
 import { getMediaUrl } from "@/lib/media-url";
+import { todayDateString } from "@/lib/utils";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 import { Payment } from "@/types/index";
@@ -231,7 +232,7 @@ export default function PaymentsPage() {
       if (filterMethod !== "all") params.payment_method = filterMethod;
       if (searchTerm.trim()) params.search = searchTerm.trim();
 
-      const dateStamp = new Date().toISOString().split("T")[0];
+      const dateStamp = todayDateString();
       await paymentAPI.exportExcel(params, `payments_${dateStamp}.xlsx`);
 
       toast.success(t("payment.exportSuccess") ?? "Export สำเร็จ");

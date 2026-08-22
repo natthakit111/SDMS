@@ -222,7 +222,7 @@ export default function AdminMoveOutPage() {
     setDeductionExtraNote("");
     setDepositPreview(null);
     // ⚠️ ใหม่: reset เป็นวันนี้ทุกครั้งที่เปิด dialog ใหม่
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayDateString();
     setActualCheckoutDate(today);
 
     if (r.status === "pending") {

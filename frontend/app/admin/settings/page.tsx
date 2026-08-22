@@ -38,6 +38,7 @@ import { settingsAPI } from "@/lib/api/settings.api";
 import { utilityRateAPI } from "@/lib/api/utilityRate.api";
 import { reportAPI } from "@/lib/api/report.api";
 import { parseBlobErrorMessage } from "@/lib/api/axiosInstance";
+import { todayDateString } from "@/lib/utils";
 import { useLanguage } from "@/context/language-context";
 import { DatePickerField } from "@/components/common/date-picker-field";
 
@@ -89,9 +90,7 @@ export default function SettingsPage() {
   const [waterFlatRate, setWaterFlatRate] = useState("");
   const [electricRate, setElectricRate] = useState("");
   const [waterRate, setWaterRate] = useState("");
-  const [effectiveFrom, setEffectiveFrom] = useState(
-    new Date().toISOString().split("T")[0],
-  );
+  const [effectiveFrom, setEffectiveFrom] = useState(todayDateString());
   const [savingRates, setSavingRates] = useState(false);
   const [currentRates, setCurrentRates] = useState<{
     electric?: any;

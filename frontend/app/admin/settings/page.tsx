@@ -37,6 +37,7 @@ import {
 import { settingsAPI } from "@/lib/api/settings.api";
 import { utilityRateAPI } from "@/lib/api/utilityRate.api";
 import { reportAPI } from "@/lib/api/report.api";
+import { parseBlobErrorMessage } from "@/lib/api/axiosInstance";
 import { useLanguage } from "@/context/language-context";
 import { DatePickerField } from "@/components/common/date-picker-field";
 
@@ -154,8 +155,11 @@ export default function SettingsPage() {
       toast.success(
         language === "th" ? "ดาวน์โหลดข้อมูลสำเร็จ" : "Export downloaded",
       );
-    } catch {
-      toast.error(language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred");
+    } catch (err) {
+      const msg = await parseBlobErrorMessage(err);
+      toast.error(
+        msg ?? (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
+      );
     } finally {
       setExportingSystem(false);
     }

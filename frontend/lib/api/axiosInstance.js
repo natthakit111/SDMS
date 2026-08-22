@@ -85,12 +85,29 @@ api.interceptors.response.use(
       // เพราะ token จริงอยู่ใน httpOnly cookie ที่ JS อ่านไม่ได้แล้ว)
       if (error.response?.status === 401 && hasSessionHint()) {
         clearSessionHint();
-        window.location.href = "/login";
+        const current = `${window.location.pathname}${window.location.search}`;
+        window.location.href = `/login?redirect=${encodeURIComponent(current)}`;
       }
     }
 
     return Promise.reject(error);
   }
 );
+
+// ── อ่านข้อความ error จริงจาก request ที่ขอ responseType: 'blob' ──────────
+// axios parse error response body เป็น Blob เสมอตาม responseType ที่ตั้งไว้
+// ตอนขอ (แม้ backend จะตอบ error กลับมาเป็น JSON) ทำให้
+// err.response.data.message อ่านไม่ได้ตรงๆ (data เป็น Blob ไม่ใช่ object)
+// และข้อความ error จริงจาก backend หายไปเงียบๆ กลายเป็นข้อความ fallback ทั่วไป
+export const parseBlobErrorMessage = async (err) => {
+  const data = err?.response?.data;
+  if (!(data instanceof Blob)) return err?.response?.data?.message;
+  try {
+    const json = JSON.parse(await data.text());
+    return json?.message;
+  } catch {
+    return undefined;
+  }
+};
 
 export default api;

@@ -57,6 +57,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { billAPI } from "@/lib/api/bill.api";
+import { parseBlobErrorMessage } from "@/lib/api/axiosInstance";
 import { getMediaUrl } from "@/lib/media-url";
 import { roomAPI } from "@/lib/api/room.api";
 import { useLanguage } from "@/context/language-context";
@@ -335,7 +336,7 @@ export default function BillsPage() {
         `invoice-${bill.room_number}-${bill.bill_month}-${bill.bill_year}.pdf`,
       );
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? t("common.error"));
+      toast.error((await parseBlobErrorMessage(err)) ?? t("common.error"));
     } finally {
       setExportingId(null);
     }

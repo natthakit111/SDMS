@@ -42,7 +42,6 @@ export function TenantNavbar() {
 
   const handleLogout = () => {
     logout();
-    router.push("/login");
   };
 
   const initials =

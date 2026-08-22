@@ -53,7 +53,6 @@ export function AdminNavbar() {
 
   const handleLogout = () => {
     logout();
-    router.push("/login");
   };
 
   const initials =

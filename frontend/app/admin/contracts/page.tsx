@@ -38,6 +38,7 @@ import {
   Paperclip,
 } from "lucide-react";
 import { contractAPI } from "@/lib/api/contract.api";
+import { parseBlobErrorMessage } from "@/lib/api/axiosInstance";
 import { tenantAPI } from "@/lib/api/tenant.api";
 import { roomAPI } from "@/lib/api/room.api";
 import { toast } from "sonner";
@@ -381,11 +382,13 @@ export default function ContractsPage() {
       a.download = `contract_CNT${String(contract.contract_id).padStart(3, "0")}.${ext}`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch {
+    } catch (err) {
+      const msg = await parseBlobErrorMessage(err);
       toast.error(
-        language === "th"
-          ? "ไม่สามารถดาวน์โหลดไฟล์สัญญาได้"
-          : "Failed to download the contract file",
+        msg ??
+          (language === "th"
+            ? "ไม่สามารถดาวน์โหลดไฟล์สัญญาได้"
+            : "Failed to download the contract file"),
       );
     } finally {
       setDownloadingId(null);

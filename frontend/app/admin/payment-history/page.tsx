@@ -31,6 +31,7 @@ import { PaymentStatusBadge } from "@/components/common/status-badge";
 import { paymentAPI } from "@/lib/api/payment.api";
 import { getMediaUrl } from "@/lib/media-url";
 import { reportAPI } from "@/lib/api/report.api";
+import { parseBlobErrorMessage } from "@/lib/api/axiosInstance";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 import { Payment } from "@/types/index";
@@ -118,8 +119,9 @@ export default function PaymentHistoryPage() {
       toast.success(
         t("payment.exportSuccess").replace("{fmt}", format.toUpperCase()),
       );
-    } catch {
-      toast.error(t("payment.exportError"));
+    } catch (err) {
+      const msg = await parseBlobErrorMessage(err);
+      toast.error(msg ?? t("payment.exportError"));
     } finally {
       setExporting(false);
     }

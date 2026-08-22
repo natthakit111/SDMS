@@ -17,6 +17,11 @@ export const telegramAPI = {
     api.get('/telegram/status').then((r) => r.data),
   // returns: { linked: boolean, chat_id: string | null }
 
+  // สร้าง deep link ให้ผู้ใช้กดเปิดบอทเอง (ต่างจาก link() ที่บอทเรียกเองหลังผู้ใช้กดลิงก์)
+  generateLink: () =>
+    api.post('/telegram/generate-link').then((r) => r.data),
+  // returns: { deepLink: string }
+
   // ── Admin only ────────────────────────────────────────────
   // ✅ เพิ่ม: alias สำหรับ admin link/unlink
   linkAdmin: (chat_id) =>

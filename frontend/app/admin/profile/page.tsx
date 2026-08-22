@@ -35,7 +35,9 @@ export default function ProfilePage() {
 
   // ── Profile ───────────────────────────────────────────────
   const [firstName, setFirstName] = useState(user?.name?.split(" ")[0] ?? "");
-  const [lastName, setLastName] = useState(user?.name?.split(" ")[1] ?? "");
+  const [lastName, setLastName] = useState(
+    user?.name?.split(" ").slice(1).join(" ") ?? "",
+  );
   const [email, setEmail] = useState(user?.email ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
   const [savingProfile, setSavingProfile] = useState(false);

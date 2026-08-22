@@ -9,7 +9,7 @@ import { notificationPreferenceAPI } from "@/lib/api/notificationPreference.api"
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/auth-context";
 import { authAPI } from "@/lib/api/auth.api";
-import api from "@/lib/api/axiosInstance";
+import { telegramAPI } from "@/lib/api/telegram.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -47,12 +47,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
-
-const telegramAPI = {
-  getStatus: () => api.get("/telegram/status"),
-  generateLink: () => api.post("/telegram/generate-link"),
-  unlink: () => api.delete("/telegram/unlink"),
-};
 
 // Simple, reasonably permissive email check for client-side UX.
 // Backend must still be the source of truth for validation.
@@ -142,8 +136,8 @@ export default function TenantProfilePage() {
     telegramAPI
       .getStatus()
       .then((r) => {
-        setTgLinked(r.data?.data?.linked ?? false);
-        setTgChatId(r.data?.data?.chat_id ?? null);
+        setTgLinked(r.data?.linked ?? false);
+        setTgChatId(r.data?.chat_id ?? null);
       })
       .catch(() => {});
     return () => {
@@ -376,7 +370,7 @@ export default function TenantProfilePage() {
     setTgLinkLoading(true);
     try {
       const res = await telegramAPI.generateLink();
-      const link = res.data?.data?.deepLink;
+      const link = res.data?.deepLink;
       setTgDeepLink(link);
       setTgPolling(true);
       let attempts = 0;
@@ -384,9 +378,9 @@ export default function TenantProfilePage() {
         attempts++;
         try {
           const r = await telegramAPI.getStatus();
-          if (r.data?.data?.linked) {
+          if (r.data?.linked) {
             setTgLinked(true);
-            setTgChatId(r.data?.data?.chat_id);
+            setTgChatId(r.data?.chat_id);
             setTgDeepLink(null);
             setTgPolling(false);
             if (pollingRef.current) clearInterval(pollingRef.current);

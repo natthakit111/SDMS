@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { FileText, Loader2, Download } from "lucide-react";
 import { contractAPI } from "@/lib/api/contract.api";
+import { parseBlobErrorMessage } from "@/lib/api/axiosInstance";
 import { useLanguage } from "@/context/language-context";
 import { toast } from "sonner";
 
@@ -92,8 +93,9 @@ export default function TenantContractPage() {
       a.download = `contract_CNT${String(contract.contract_id).padStart(3, "0")}.${ext}`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch {
-      toast.error(t("tenant.contract.downloadError"));
+    } catch (err) {
+      const msg = await parseBlobErrorMessage(err);
+      toast.error(msg ?? t("tenant.contract.downloadError"));
     } finally {
       setDownloading(false);
     }

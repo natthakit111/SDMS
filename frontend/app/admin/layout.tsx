@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { AdminNavbar } from "@/components/layout/admin-navbar";
@@ -14,17 +14,29 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  return (
+    <Suspense fallback={null}>
+      <AdminLayoutInner>{children}</AdminLayoutInner>
+    </Suspense>
+  );
+}
+
+function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (isLoading) return;
     if (!user || user.role !== "admin") {
-      router.replace("/login");
+      const query = searchParams.toString();
+      const fullPath = query ? `${pathname}?${query}` : pathname;
+      router.replace(`/login?redirect=${encodeURIComponent(fullPath)}`);
     } else if (user.passwordMustChange) {
       router.replace("/change-password-required");
     }
-  }, [user, isLoading, router]);
+  }, [user, isLoading, router, pathname, searchParams]);
 
   if (isLoading) {
     return (

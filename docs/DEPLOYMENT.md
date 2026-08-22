@@ -69,7 +69,10 @@ Vercel (Next.js frontend)  ──HTTPS + cookie──→  Railway (Express backe
 
    | ตัวแปร | ค่า |
    |---|---|
-   | `NEXT_PUBLIC_API_URL` | URL backend จาก Railway + `/api` เช่น `https://sdms-backend-production.up.railway.app/api` (ดูที่ frontend อ่านค่านี้ใน `lib/api/axiosInstance.js`) |
+   | `BACKEND_URL` | URL backend จาก Railway (ไม่มี `/api` ต่อท้าย) เช่น `https://sdms-backend-production.up.railway.app` — ใช้ใน `next.config.mjs` (`rewrites()`) เท่านั้น server-side ล้วนๆ **ห้ามขึ้นต้นด้วย `NEXT_PUBLIC_`** |
+   | `NEXT_PUBLIC_API_URL` | ตั้งเป็น `/api` (relative เฉยๆ ไม่ใช่ URL เต็ม) |
+
+   > ⚠️ **อย่าตั้ง `NEXT_PUBLIC_API_URL` เป็น URL เต็มของ Railway ตรงๆ** (เช่น `https://xxx.up.railway.app/api`) แม้จะดูใช้งานได้ปกติตอน login ก็ตาม — เพราะ frontend/backend คนละโดเมนกัน ทำให้ cookie ที่ backend ตั้งให้ (`token`, `csrf_token`) กลายเป็น third-party cookie ซึ่ง browser รุ่นใหม่ (เช่น Chrome ที่ปิดกั้น third-party cookie เป็นค่าเริ่มต้น) จะเงียบๆ ปฏิเสธไม่เก็บ — อาการที่เจอคือ login ดูผ่านปกติ (เพราะอ่านจาก response body ตรงๆ) แต่พอเรียก endpoint ที่ต้องใช้ cookie จริง (เช่นเปลี่ยนรหัสผ่าน) จะพังด้วย "CSRF token ไม่ถูกต้อง" หรือ "No token provided" ทันที ต้องตั้งเป็น `/api` (relative) คู่กับ `BACKEND_URL` ด้านบนเพื่อให้ `next.config.mjs` proxy ผ่าน domain เดียวกับ frontend เองแทน (cookie จะกลายเป็น first-party ไม่ต้องพึ่ง browser privacy setting ของผู้ใช้แต่ละคนอีกเลย)
 
 4. Deploy — Vercel build อัตโนมัติทุก push, ได้ preview URL แยกต่างหากทุก PR ด้วย
 5. ตั้ง production domain ที่ **Settings → Domains** (ใช้ `*.vercel.app` ฟรี หรือผูก custom domain ก็ได้)

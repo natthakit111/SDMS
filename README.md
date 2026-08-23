@@ -154,12 +154,12 @@ cd SDMS
 
 ### 2. ตั้งค่าฐานข้อมูล (MySQL)
 
-สร้างฐานข้อมูลเปล่าชื่อ `smart_dormitory` (หรือชื่ออื่นตามที่จะตั้งใน `.env`) แล้วรันไฟล์ schema ตามลำดับ:
+สร้างฐานข้อมูลเปล่าชื่อ `sdms` (หรือชื่ออื่นตามที่จะตั้งใน `.env` — ไฟล์ schema/seed ไม่ได้ล็อกชื่อไว้) แล้วรันไฟล์ schema ตามลำดับ:
 
 ```bash
-mysql -u root -p -e "CREATE DATABASE smart_dormitory"
-mysql -u root -p smart_dormitory < database/schema.sql
-mysql -u root -p smart_dormitory < database/seed.sql   # ไม่บังคับ แต่แนะนำ — ได้บัญชี admin + ห้องตัวอย่างไว้ทดสอบทันที
+mysql -u root -p -e "CREATE DATABASE sdms"
+mysql -u root -p sdms < database/schema.sql
+mysql -u root -p sdms < database/seed.sql   # ไม่บังคับ แต่แนะนำ — ได้บัญชี admin + ห้องตัวอย่างไว้ทดสอบทันที
 ```
 
 รายละเอียดแต่ละตารางดูได้ที่ [`database/DATABASE.md`](database/DATABASE.md)

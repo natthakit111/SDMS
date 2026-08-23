@@ -23,8 +23,11 @@ Vercel (Next.js frontend)  ──HTTPS + cookie──→  Railway (Express backe
 
    ```bash
    mysql -h <MYSQLHOST> -P <MYSQLPORT> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < database/schema.sql
+   mysql -h <MYSQLHOST> -P <MYSQLPORT> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < database/seed.sql
    ```
 
+   > รัน `seed.sql` ต่อจาก `schema.sql` เข้า `<MYSQLDATABASE>` เดียวกันเสมอ (ไฟล์ไม่ได้ล็อกชื่อฐานข้อมูลไว้เอง) — ไม่งั้นจะไม่มีทางสร้างบัญชี admin เริ่มต้นได้ (ดู checklist ท้ายเอกสารนี้)
+   >
    > ดูโครงสร้างตาราง/ERD ที่ [`database/DATABASE.md`](../database/DATABASE.md)
 
 ---

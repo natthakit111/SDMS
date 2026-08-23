@@ -70,9 +70,13 @@ function makeUpload(fieldname) {
       : file.mimetype.startsWith('image/');
 
     if (!cfg.formats.includes(ext) || !mimeOk) {
-      const err = new Error(`ไฟล์ประเภทนี้ไม่รองรับ อนุญาตเฉพาะ: ${cfg.formats.join(', ')}`);
-      err.code = 'INVALID_FILE_TYPE';
+      // ⚠️ message เดิม hardcode ภาษาไทย ไม่แปลตามภาษาที่ผู้ใช้เลือกไว้ —
+      // errorHandler.js ส่ง code 'UNSUPPORTED_FILE_TYPE' + allowedFormats
+      // ให้ frontend แปล/ใส่รายการ format แทนแล้ว ไม่ต้องพึ่ง err.message นี้
+      const err = new Error('Unsupported file type');
+      err.code = 'UNSUPPORTED_FILE_TYPE';
       err.statusCode = 400;
+      err.allowedFormats = cfg.formats.join(', ');
       return cb(err);
     }
     cb(null, true);

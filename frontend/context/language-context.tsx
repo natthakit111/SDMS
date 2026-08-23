@@ -23,7 +23,10 @@ const LanguageContext = createContext<LanguageContextType | undefined>(
 );
 
 // ── Translations ──────────────────────────────────────────────────────────────
-const translations: Record<string, { th: string; en: string }> = {
+// export ไว้ให้ lib/api/axiosInstance.js เรียกแปล error code (ตัวพิมพ์ใหญ่ล้วน
+// เช่น 'DUPLICATE_ENTRY' จาก backend) เป็นข้อความอ่านง่ายตามภาษาที่เลือกไว้
+// ได้จากทุกจุดที่ยิง API — ไม่ต้อง import LanguageProvider (component) เข้าไป
+export const translations: Record<string, { th: string; en: string }> = {
   // ── Common ─────────────────────────────────────────────────────────────────
   "common.sending": { th: "กำลังส่ง...", en: "Sending..." },
   "common.saving": { th: "กำลังบันทึก...", en: "Saving..." },
@@ -407,6 +410,32 @@ const translations: Record<string, { th: string; en: string }> = {
   "errors.ID_CARD_ALREADY_REGISTERED": {
     th: "เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว",
     en: "This ID card number is already registered",
+  },
+  // ⚠️ ใหม่: error code กลางจาก backend/src/middlewares/errorHandler.js —
+  // เดิมส่งเป็นประโยคภาษาอังกฤษ/ไทยตรงๆ ไม่แปลตามภาษาที่เลือกไว้เลย
+  "errors.DUPLICATE_ENTRY": {
+    th: "ข้อมูลนี้ซ้ำกับที่มีอยู่ในระบบแล้ว",
+    en: "This record already exists",
+  },
+  "errors.REFERENCED_RECORD_NOT_FOUND": {
+    th: "ไม่พบข้อมูลที่อ้างอิงถึงในระบบ",
+    en: "The referenced record does not exist",
+  },
+  "errors.INVALID_OR_EXPIRED_TOKEN": {
+    th: "เซสชันหมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่",
+    en: "Your session is invalid or has expired — please log in again",
+  },
+  "errors.FILE_TOO_LARGE": {
+    th: "ไฟล์มีขนาดใหญ่เกินไป ขนาดสูงสุดที่รองรับคือ {mb}MB",
+    en: "File too large. Maximum allowed size is {mb}MB",
+  },
+  "errors.UNSUPPORTED_FILE_TYPE": {
+    th: "ไฟล์ประเภทนี้ไม่รองรับ อนุญาตเฉพาะ: {formats}",
+    en: "This file type is not supported. Allowed: {formats}",
+  },
+  "errors.INTERNAL_ERROR": {
+    th: "เกิดข้อผิดพลาดบางอย่าง กรุณาลองใหม่อีกครั้ง",
+    en: "Something went wrong — please try again",
   },
 
   // ── Contracts ──────────────────────────────────────────────────────────────

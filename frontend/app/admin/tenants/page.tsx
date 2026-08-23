@@ -104,18 +104,14 @@ const emptyForm: FormData = {
 const THAI_PHONE_REGEX = /^0[1-9]\d{7,8}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function translateErrorCode(t: (key: string) => string, code: string): string {
-  const translated = t(`errors.${code}`);
-  if (!translated || translated === `errors.${code}`) {
-    return code.replace(/_/g, " ").toLowerCase();
-  }
-  return translated;
-}
-
-function parseFieldErrors(
-  err: any,
-  t: (key: string) => string,
-): { fieldErrors: FieldErrors; generalMessage: string | null } {
+// ⚠️ เดิมฟังก์ชันนี้แปล error code (เช่น 'PHONE_ALREADY_REGISTERED') เป็น
+// ข้อความอ่านง่ายเองในหน้านี้ — ย้ายไปแปลกลางที่ axios response interceptor
+// แล้ว (lib/api/axiosInstance.js) เพื่อให้ทุกหน้าได้ประโยชน์เหมือนกัน ไม่ใช่
+// แค่หน้านี้ ตอนถึงตรงนี้ err.response.data จึงเป็นข้อความที่แปลแล้วเสมอ
+function parseFieldErrors(err: any): {
+  fieldErrors: FieldErrors;
+  generalMessage: string | null;
+} {
   const data = err?.response?.data;
   const rawErrors: any[] =
     data?.errors ?? data?.details ?? (Array.isArray(data) ? data : []);
@@ -124,26 +120,11 @@ function parseFieldErrors(
   if (Array.isArray(rawErrors)) {
     rawErrors.forEach((e) => {
       const field = e?.path ?? e?.param ?? e?.field;
-      const rawMsg = e?.msg ?? e?.message;
-      if (field && rawMsg) {
-        (fieldErrors as any)[field] = translateErrorCode(t, rawMsg);
+      const msg = e?.msg ?? e?.message;
+      if (field && msg) {
+        (fieldErrors as any)[field] = msg;
       }
     });
-  }
-
-  // ✅ กรณี backend ส่ง error แบบ single message code กลับมาตรงๆ (ไม่ใช่ array)
-  // เช่น 'PHONE_ALREADY_REGISTERED' จาก createTenant — แปลงเป็นข้อความอ่านง่าย
-  if (
-    Object.keys(fieldErrors).length === 0 &&
-    typeof data?.message === "string"
-  ) {
-    const looksLikeCode = /^[A-Z_]+$/.test(data.message);
-    if (looksLikeCode) {
-      return {
-        fieldErrors: {},
-        generalMessage: translateErrorCode(t, data.message),
-      };
-    }
   }
 
   const generalMessage =
@@ -303,10 +284,8 @@ export default function TenantsPage() {
       resetForm();
       fetchTenants();
     } catch (err: any) {
-      const { fieldErrors: parsedErrors, generalMessage } = parseFieldErrors(
-        err,
-        t,
-      );
+      const { fieldErrors: parsedErrors, generalMessage } =
+        parseFieldErrors(err);
       if (Object.keys(parsedErrors).length > 0) {
         setFieldErrors(parsedErrors);
         toast.error(t("tenants.checkFormErrors"));

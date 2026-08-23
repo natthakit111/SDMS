@@ -1,6 +1,7 @@
 //frontend/lib/api/axiosInstance.js
 
 import axios from "axios";
+import { translations } from "@/context/language-context";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
@@ -66,6 +67,61 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// ⚠️ ใหม่: backend หลายจุด (โดยเฉพาะ errorHandler.js กลาง — DUPLICATE_ENTRY,
+// REFERENCED_RECORD_NOT_FOUND ฯลฯ) ส่ง error กลับมาเป็น CODE ตัวพิมพ์ใหญ่ล้วน
+// ให้ frontend แปลเอง เดิมมีแค่หน้า admin/tenants ที่แปล (มี translateErrorCode
+// ของตัวเอง) หน้าอื่นๆ ที่เจอ CODE เดียวกัน (หรือ error กลางที่เดิมเป็น
+// ประโยคอังกฤษ/ไทยฝังตรงๆ ไม่ตามภาษาที่เลือกไว้เลย) เลยโชว์ข้อความผิดภาษา —
+// ย้ายมาแปลที่นี่จุดเดียว ทุก request ที่ผ่าน axios instance นี้ได้ประโยชน์
+// อัตโนมัติโดยไม่ต้องแก้ทีละหน้า
+const getLanguage = () => {
+  if (typeof window === "undefined") return "th";
+  try {
+    return window.localStorage.getItem("language") === "en" ? "en" : "th";
+  } catch {
+    return "th";
+  }
+};
+
+const CODE_PATTERN = /^[A-Z_]+$/;
+
+export const translateCode = (code, params) => {
+  if (typeof code !== "string" || !CODE_PATTERN.test(code)) return code;
+  const lang = getLanguage();
+  const entry = translations[`errors.${code}`];
+  let str = entry ? entry[lang] || entry.th : code.replace(/_/g, " ").toLowerCase();
+  if (entry && params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null) {
+        str = str.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+      }
+    }
+  }
+  return str;
+};
+
+const translateErrorPayload = (data) => {
+  if (!data || typeof data !== "object") return;
+  if (typeof data.message === "string") {
+    data.message = translateCode(data.message, {
+      mb: data.maxSizeMB,
+      formats: data.allowedFormats,
+    });
+  }
+  const list = Array.isArray(data.errors)
+    ? data.errors
+    : Array.isArray(data.details)
+      ? data.details
+      : null;
+  if (list) {
+    for (const item of list) {
+      if (!item) continue;
+      if (typeof item.msg === "string") item.msg = translateCode(item.msg);
+      if (typeof item.message === "string") item.message = translateCode(item.message);
+    }
+  }
+};
+
 const clearSessionHint = () => {
   // ลบคุกกี้ auth_hint ฝั่ง client (คุกกี้ธรรมดา ไม่ใช่ httpOnly จึงลบเองได้
   // — ส่วน token จริงต้องให้ backend เป็นคนสั่งลบผ่าน endpoint logout เท่านั้น
@@ -79,6 +135,12 @@ const clearSessionHint = () => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Blob response (responseType: 'blob') ยังแปลไม่ได้ตรงนี้ — data เป็น
+    // Blob ไม่ใช่ object ต้องอ่านผ่าน parseBlobErrorMessage ด้านล่างแทน
+    if (!(error.response?.data instanceof Blob)) {
+      translateErrorPayload(error.response?.data);
+    }
+
     if (typeof window !== "undefined") {
       // 🔥 สำคัญ: force logout เฉพาะตอน "เคยมี session อยู่แล้ว" แต่โดน 401
       // (เดิมเช็คจาก token ใน localStorage — ตอนนี้เช็คจาก auth_hint แทน
@@ -104,7 +166,7 @@ export const parseBlobErrorMessage = async (err) => {
   if (!(data instanceof Blob)) return err?.response?.data?.message;
   try {
     const json = JSON.parse(await data.text());
-    return json?.message;
+    return translateCode(json?.message, { mb: json?.maxSizeMB, formats: json?.allowedFormats });
   } catch {
     return undefined;
   }

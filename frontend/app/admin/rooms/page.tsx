@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { RoomStatusBadge } from "@/components/common/status-badge";
+import { useConfirmDialog } from "@/components/common/confirm-dialog";
 import {
   Plus,
   Search,
@@ -77,6 +78,7 @@ const emptyForm: FormData = {
 
 export default function RoomsPage() {
   const { t, language } = useLanguage();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [numFloors, setNumFloors] = useState(5);
   const [loading, setLoading] = useState(true);
@@ -205,7 +207,7 @@ export default function RoomsPage() {
       toast.error(t("rooms.cannotDeleteOccupied"));
       return;
     }
-    if (!confirm(`${t("common.delete")} ${room.room_number}?`)) return;
+    if (!(await confirm(`${t("common.delete")} ${room.room_number}?`))) return;
     try {
       await roomAPI.delete(room.room_id);
       toast.success(t("common.delete"));
@@ -568,6 +570,7 @@ export default function RoomsPage() {
           )}
         </CardContent>
       </Card>
+      {ConfirmDialog}
     </div>
   );
 }

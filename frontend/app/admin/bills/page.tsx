@@ -39,6 +39,7 @@ import {
 import { Field, FieldLabel, FieldGroup } from "@/components/ui/field";
 import { BillStatusBadge } from "@/components/common/status-badge";
 import { PaginationFooter } from "@/components/common/pagination-footer";
+import { useConfirmDialog } from "@/components/common/confirm-dialog";
 import {
   Plus,
   Search,
@@ -133,6 +134,7 @@ const imgUrl = (path: string | null) => getMediaUrl(path, "detail");
 
 export default function BillsPage() {
   const { t, language } = useLanguage();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [bills, setBills] = useState<Bill[]>([]);
   const [occupiedRooms, setOccupiedRooms] = useState<Room[]>([]);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
@@ -313,9 +315,9 @@ export default function BillsPage() {
   // ── Cancel bill ───────────────────────────────────────────────────────────
   const handleCancel = async (bill: Bill) => {
     if (
-      !confirm(
+      !(await confirm(
         `${t("bills.cancelBill")} ${t("rooms.roomNumber")} ${bill.room_number} ${t(`month.${bill.bill_month}`)} ${bill.bill_year}?`,
-      )
+      ))
     )
       return;
     try {
@@ -964,6 +966,7 @@ export default function BillsPage() {
           )}
         </DialogContent>
       </Dialog>
+      {ConfirmDialog}
     </div>
   );
 }

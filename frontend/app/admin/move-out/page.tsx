@@ -55,6 +55,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 import { todayDateString } from "@/lib/utils";
 import { DatePickerField } from "@/components/common/date-picker-field";
+import { useConfirmDialog } from "@/components/common/confirm-dialog";
 import { MoveOutRequest } from "@/types/index";
 
 interface DepositPreview {
@@ -106,6 +107,7 @@ const statusConfig = {
 
 export default function AdminMoveOutPage() {
   const { t, language } = useLanguage();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [requests, setRequests] = useState<MoveOutRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -172,9 +174,9 @@ export default function AdminMoveOutPage() {
       return;
     }
     if (
-      !confirm(
+      !(await confirm(
         `${t("moveout.confirmApprove")} ${viewingRequest.first_name} ${viewingRequest.last_name}?\n${t("moveout.confirmApproveDetail")}`,
-      )
+      ))
     )
       return;
     setProcessing(true);
@@ -746,6 +748,7 @@ export default function AdminMoveOutPage() {
           )}
         </DialogContent>
       </Dialog>
+      {ConfirmDialog}
     </div>
   );
 }

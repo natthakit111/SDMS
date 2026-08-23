@@ -40,6 +40,7 @@ import {
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { TenantStatusBadge } from "@/components/common/status-badge";
 import { PaginationFooter } from "@/components/common/pagination-footer";
+import { useConfirmDialog } from "@/components/common/confirm-dialog";
 import {
   Plus,
   Search,
@@ -188,6 +189,7 @@ function generatePassword(): string {
 
 export default function TenantsPage() {
   const { t, language } = useLanguage();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -321,7 +323,7 @@ export default function TenantsPage() {
       toast.error(t("tenants.cannotDeleteActive"));
       return;
     }
-    if (!confirm(t("common.confirmDelete"))) return;
+    if (!(await confirm(t("common.confirmDelete")))) return;
     try {
       await tenantAPI.delete(tenant.tenant_id);
       toast.success(t("common.deleteSuccess"));
@@ -882,6 +884,7 @@ export default function TenantsPage() {
           )}
         </CardContent>
       </Card>
+      {ConfirmDialog}
     </div>
   );
 }

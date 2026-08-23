@@ -45,6 +45,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 import { DatePickerField } from "@/components/common/date-picker-field";
 import { PaginationFooter } from "@/components/common/pagination-footer";
+import { useConfirmDialog } from "@/components/common/confirm-dialog";
 import { toISODate, formatDate, formatCurrency } from "@/lib/utils";
 import { Contract } from "@/types/index";
 
@@ -101,6 +102,7 @@ const CONTRACT_FILE_MAX_MB = 10;
 
 export default function ContractsPage() {
   const { t, language } = useLanguage();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const displayDate = (d: string | null | undefined) => {
     return d ? formatDate(d, language) : "-";
@@ -426,9 +428,9 @@ export default function ContractsPage() {
 
   const handleTerminate = async (contract: Contract) => {
     if (
-      !confirm(
+      !(await confirm(
         `${t("contracts.confirmTerminate")} ${contract.tenant_name} ${t("contracts.confirmTerminate2")} ${contract.room_number} ${t("contracts.confirmTerminate3")}`,
-      )
+      ))
     )
       return;
     try {
@@ -1432,6 +1434,7 @@ export default function ContractsPage() {
           </form>
         </DialogContent>
       </Dialog>
+      {ConfirmDialog}
     </div>
   );
 }

@@ -56,6 +56,7 @@ export const translations: Record<string, { th: string; en: string }> = {
   "common.loading": { th: "กำลังโหลด...", en: "Loading..." },
   "common.noData": { th: "ไม่พบข้อมูล", en: "No data found" },
   "common.confirm": { th: "ยืนยัน", en: "Confirm" },
+  "common.confirmAction": { th: "ยืนยันการทำรายการ", en: "Confirm Action" },
   "common.close": { th: "ปิด", en: "Close" },
   "common.view": { th: "ดู", en: "View" },
   "common.download": { th: "ดาวน์โหลด", en: "Download" },

@@ -52,6 +52,7 @@ import { announcementAPI } from "@/lib/api/announcement.api";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 import { DatePickerField } from "@/components/common/date-picker-field";
+import { useConfirmDialog } from "@/components/common/confirm-dialog";
 import { formatDate } from "@/lib/utils";
 import { Announcement } from "@/types/index";
 
@@ -108,6 +109,7 @@ const buildPreviewText = (form: FormData, t: any) => {
 
 export default function AnnouncementsPage() {
   const { t, language } = useLanguage();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,7 +185,7 @@ export default function AnnouncementsPage() {
 
   // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async (ann: Announcement) => {
-    if (!confirm(`${t("announcements.confirmDelete")} "${ann.title}" ?`))
+    if (!(await confirm(`${t("announcements.confirmDelete")} "${ann.title}" ?`)))
       return;
 
     try {
@@ -575,6 +577,7 @@ export default function AnnouncementsPage() {
           </Card>
         ))
       )}
+      {ConfirmDialog}
     </div>
   );
 }

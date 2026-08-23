@@ -33,21 +33,20 @@ VALUES
 -- 2) การตั้งค่าทั่วไปของหอพัก
 -- =============================================================================
 -- key ตรงกับ `allowed` array ใน routes/settings.routes.js (PUT /api/settings) ทุกตัว
--- ค่า dorm_name / dorm_address / company_tax_id / admin_phone / admin_email / num_floors
--- อ้างอิงตามข้อมูลที่กรอกไว้ในหน้า "หอพัก" ของแอป — ปรับเป็นข้อมูลจริงก่อนใช้งาน
--- ค่าที่เหลือ (bank_*, promptpay_*, notify_*, water_billing_type) เป็นค่าเริ่มต้นที่สมเหตุสมผล
--- ให้เข้าไปตั้งค่าจริงในแท็บ "การเงิน" อีกครั้งหลัง deploy
+-- ⚠️ ค่า dorm_address / company_tax_id / admin_phone / promptpay_id ด้านล่าง
+-- เป็น placeholder ที่ตั้งใจให้ "ดูปลอมชัดเจน" (เลข 0 ล้วน) ไม่ใช่ข้อมูลจริง
+-- ของหอพักไหน — เข้าไปตั้งค่าจริงในแท็บ "หอพัก"/"การเงิน" ของแอปก่อนใช้งานจริงเสมอ
 INSERT INTO `dorm_settings` (`setting_key`, `setting_value`) VALUES
   ('dorm_name',           'Smart Dormitory Management System with Automated Notification'),
-  ('dorm_address',        '15/45 หมู่9 อ.เชียงใหม่'),
-  ('company_tax_id',      '0454654654645'),
-  ('admin_phone',         '0998765464'),
-  ('admin_email',         'admin@gmail.com'),
+  ('dorm_address',        'ที่อยู่ตัวอย่าง (แก้เป็นที่อยู่จริงของหอพักในหน้าตั้งค่า)'),
+  ('company_tax_id',      '0000000000000'),
+  ('admin_phone',         '0000000000'),
+  ('admin_email',         'admin@example.com'),
   ('num_floors',          '10'),
   ('currency',            'THB'),
   ('tax_rate',            '0'),
   ('promptpay_type',      'phone'),
-  ('promptpay_id',        '0998765464'),
+  ('promptpay_id',        '0000000000'),
   ('notify_payment',      '1'),
   ('notify_maintenance',  '1'),
   ('notify_overdue',      '1'),

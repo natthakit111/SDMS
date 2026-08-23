@@ -14,6 +14,19 @@ const findByUsername = async (username) => {
   return rows[0] || null;
 };
 
+// ⚠️ ใหม่: users.email มี UNIQUE constraint แยกจาก tenants.email — ใช้ใน
+// tenantController.createTenant กันกรณีอีเมลชนกับบัญชี users คนอื่น (เช่น
+// อีเมลแอดมินเอง) ที่ TenantModel.findConflictByPhoneOrEmail มองไม่เห็น
+// เพราะเช็คแค่ตาราง tenants ทำให้ INSERT ไปชน unique constraint ดิบๆ ที่ DB
+// แทน โชว์เป็น error กลางที่ไม่ระบุว่าฟิลด์ไหนซ้ำ
+const findByEmail = async (email) => {
+  const [rows] = await pool.query(
+    'SELECT * FROM users WHERE email = ? LIMIT 1',
+    [email]
+  );
+  return rows[0] || null;
+};
+
 const findByIdentifier = async (identifier) => {
   const [rows] = await pool.query(
     'SELECT * FROM users WHERE username = ? OR email = ? OR phone = ? LIMIT 1',
@@ -137,6 +150,7 @@ const isUserActive = async (userId) => {
 
 module.exports = {
   findByUsername,
+  findByEmail,
   findByIdentifier,
   findById,
   getProfileById,

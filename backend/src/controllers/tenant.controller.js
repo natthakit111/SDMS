@@ -82,6 +82,12 @@ const createTenant = async (req, res, next) => {
     }
     if (await UserModel.findByUsername(username))
       return sendBadRequest(res, 'PHONE_ALREADY_REGISTERED'); // username ชนกัน = เบอร์นี้มี user อยู่แล้ว
+    // ⚠️ FIX: users.email มี UNIQUE constraint แยกจาก tenants.email — เช็คแค่
+    // TenantModel.findConflictByPhoneOrEmail (ตาราง tenants) ไม่พอ ถ้าอีเมล
+    // ชนกับบัญชี users อื่นที่ไม่มี tenant record ผูกอยู่ (เช่น อีเมลแอดมิน)
+    // จะหลุดไปชน unique constraint ดิบๆ ตอน INSERT แทน โชว์เป็น error กลาง
+    if (email && (await UserModel.findByEmail(email)))
+      return sendBadRequest(res, 'EMAIL_ALREADY_REGISTERED');
     if (await TenantModel.findByIdCard(id_card_number))
       return sendBadRequest(res, 'ID_CARD_ALREADY_REGISTERED');
 

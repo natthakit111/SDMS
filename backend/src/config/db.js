@@ -2,9 +2,11 @@ const mysql = require('mysql2/promise');
 
 // Railway inject DATABASE_URL อัตโนมัติเมื่อเพิ่ม MySQL plugin
 // รองรับทั้ง DATABASE_URL และ individual env vars
+const CONNECTION_LIMIT = parseInt(process.env.DB_POOL_SIZE) || 10;
+
 function getPoolConfig() {
   if (process.env.DATABASE_URL) {
-    return { uri: process.env.DATABASE_URL, waitForConnections: true, connectionLimit: 10, queueLimit: 0, timezone: '+07:00', charset: 'utf8mb4' };
+    return { uri: process.env.DATABASE_URL, waitForConnections: true, connectionLimit: CONNECTION_LIMIT, queueLimit: 0, timezone: '+07:00', charset: 'utf8mb4' };
   }
   return {
     host:     process.env.DB_HOST     || 'localhost',
@@ -13,7 +15,7 @@ function getPoolConfig() {
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME     || 'sdms',
     waitForConnections: true,
-    connectionLimit:    10,
+    connectionLimit:    CONNECTION_LIMIT,
     queueLimit:         0,
     timezone:           '+07:00',
     charset:            'utf8mb4',

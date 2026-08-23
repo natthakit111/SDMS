@@ -28,6 +28,7 @@ import {
   Download,
 } from "lucide-react";
 import { PaymentStatusBadge } from "@/components/common/status-badge";
+import { PaginationFooter } from "@/components/common/pagination-footer";
 import { paymentAPI } from "@/lib/api/payment.api";
 import { getMediaUrl } from "@/lib/media-url";
 import { reportAPI } from "@/lib/api/report.api";
@@ -74,39 +75,62 @@ export default function PaymentHistoryPage() {
   );
   const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
 
+  // ⚠️ FIX: เดิมโหลดรายการ payment ที่ verified แล้วทั้งหมดทุกเดือน/ทุกปีมา
+  // ไว้ในเบราว์เซอร์ครั้งเดียว แล้วค่อยกรองเดือน/ปี/ค้นหาฝั่ง client — ยิ่ง
+  // ระบบใช้งานนานข้อมูลยิ่งโตไม่มีขอบเขต ตอนนี้ย้าย filter เดือน/ปี/ค้นหา
+  // ไปทำที่ query (backend) แล้วแบ่งหน้าแบบเดียวกับหน้า admin/payments —
+  // แต่ละ request จึงดึงมาแค่เท่าที่แสดงจริง ไม่โหลดประวัติทั้งหมดอีกต่อไป
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
+  const [monthRevenue, setMonthRevenue] = useState(0);
+  const [allTimeCount, setAllTimeCount] = useState(0);
+
   const fetchPayments = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await paymentAPI.getAll({ status: "verified" });
-      setPayments(res?.data ?? res ?? []);
+      const res = await paymentAPI.getAll({
+        status: "verified",
+        month: selectedMonth,
+        year: selectedYear,
+        search: searchTerm || undefined,
+        page,
+        limit: PAGE_SIZE,
+      });
+      setPayments(res?.data?.items ?? []);
+      setPageMeta({
+        total: res?.data?.pagination?.total ?? 0,
+        totalPages: res?.data?.pagination?.totalPages ?? 0,
+      });
+      setMonthRevenue(res?.data?.revenue ?? 0);
     } catch {
       toast.error(t("payment.loadError"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedMonth, selectedYear, searchTerm, page, t]);
 
   useEffect(() => {
-    fetchPayments();
+    const timer = setTimeout(fetchPayments, 300);
+    return () => clearTimeout(timer);
   }, [fetchPayments]);
 
-  const filteredPayments = payments.filter((p) => {
-    const d = new Date(p.verified_at ?? p.paid_at);
-    const matchMonth = d.getMonth() + 1 === Number(selectedMonth);
-    const matchYear = d.getFullYear() === Number(selectedYear);
-    const q = searchTerm.toLowerCase();
-    const matchSearch =
-      !q ||
-      p.tenant_name?.toLowerCase().includes(q) ||
-      p.room_number?.toLowerCase().includes(q) ||
-      String(p.bill_id).includes(q);
-    return matchMonth && matchYear && matchSearch;
-  });
+  // เปลี่ยน filter แล้วต้องกลับไปหน้า 1 เสมอ — ไม่งั้นอาจค้างอยู่หน้าที่
+  // filter ใหม่ไม่มีข้อมูลถึง
+  useEffect(() => {
+    setPage(1);
+  }, [selectedMonth, selectedYear, searchTerm]);
 
-  const totalRevenue = filteredPayments.reduce(
-    (sum, p) => sum + Number(p.amount_paid),
-    0,
-  );
+  // สถิติ "ทั้งหมดในระบบ" ไม่ผูกกับ filter เดือน/ปี/ค้นหา — โหลดครั้งเดียวตอน mount
+  useEffect(() => {
+    paymentAPI
+      .getAll({ status: "verified", page: 1, limit: 1 })
+      .then((res) => setAllTimeCount(res?.data?.pagination?.total ?? 0))
+      .catch(() => {});
+  }, []);
+
+  const filteredPayments = payments;
+  const totalRevenue = monthRevenue;
 
   const handleExport = async (format: "excel" | "pdf") => {
     try {
@@ -181,7 +205,7 @@ export default function PaymentHistoryPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{filteredPayments.length}</div>
+            <div className="text-2xl font-bold">{pageMeta.total}</div>
           </CardContent>
         </Card>
         <Card>
@@ -203,7 +227,7 @@ export default function PaymentHistoryPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{payments.length}</div>
+            <div className="text-2xl font-bold">{allTimeCount}</div>
           </CardContent>
         </Card>
       </div>
@@ -337,6 +361,14 @@ export default function PaymentHistoryPage() {
               </CardContent>
             </Card>
           )}
+
+          <PaginationFooter
+            page={page}
+            limit={PAGE_SIZE}
+            total={pageMeta.total}
+            totalPages={pageMeta.totalPages}
+            onPageChange={setPage}
+          />
         </div>
       )}
 

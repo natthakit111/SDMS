@@ -9,7 +9,14 @@ const ctrl = require('../controllers/payment.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
 const { uploadPaymentSlip } = require('../middlewares/upload.middleware');
+const { query } = require('express-validator');
 const { paginationValidation } = require('../utils/pagination');
+
+const listValidation = [
+  ...paginationValidation,
+  query('month').optional().isInt({ min: 1, max: 12 }).withMessage('MONTH_INVALID'),
+  query('year').optional().isInt({ min: 2000, max: 2100 }).withMessage('YEAR_INVALID'),
+];
 
 const submitValidation = [
   body('bill_id').isInt({ min: 1 }),
@@ -29,7 +36,7 @@ router.post('/',
 );
 router.get('/',
   authenticate, authorizeRoles('admin'),
-  paginationValidation,
+  listValidation,
   ctrl.getAllPayments
 );
 

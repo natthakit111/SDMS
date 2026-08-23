@@ -5,13 +5,17 @@
 
 const { pool } = require('../config/db');
 
-const buildListWhere = ({ tenant_id, bill_id, status, payment_method, search = null } = {}) => {
+const buildListWhere = ({ tenant_id, bill_id, status, payment_method, search = null, month = null, year = null } = {}) => {
   const clauses = ['1=1'];
   const params = [];
   if (tenant_id) { clauses.push('p.tenant_id = ?'); params.push(tenant_id); }
   if (bill_id)   { clauses.push('p.bill_id = ?');   params.push(bill_id); }
   if (status)    { clauses.push('p.status = ?');    params.push(status); }
   if (payment_method) { clauses.push('p.payment_method = ?'); params.push(payment_method); }
+  // ⚠️ ใช้ COALESCE(verified_at, paid_at) ตรงกับที่หน้า payment-history เดิม
+  // ใช้แบ่งเดือน/ปีฝั่ง client (verified_at ถ้ามี ไม่งั้น fallback paid_at)
+  if (month) { clauses.push('MONTH(COALESCE(p.verified_at, p.paid_at)) = ?'); params.push(month); }
+  if (year)  { clauses.push('YEAR(COALESCE(p.verified_at, p.paid_at)) = ?');  params.push(year); }
   // ⚠️ เดิม frontend ค้นหา tenant_name/room_number/bill_id เองฝั่ง client
   // จากข้อมูลทั้งก้อน — ย้ายมาทำที่ query เพื่อให้ค้นหาได้ถูกต้องข้ามทุกหน้า
   if (search) {
@@ -22,8 +26,8 @@ const buildListWhere = ({ tenant_id, bill_id, status, payment_method, search = n
   return { where: clauses.join(' AND '), params };
 };
 
-const findAll = async ({ tenant_id, bill_id, status, payment_method, search = null, limit = null, offset = 0 } = {}) => {
-  const { where, params } = buildListWhere({ tenant_id, bill_id, status, payment_method, search });
+const findAll = async ({ tenant_id, bill_id, status, payment_method, search = null, month = null, year = null, limit = null, offset = 0 } = {}) => {
+  const { where, params } = buildListWhere({ tenant_id, bill_id, status, payment_method, search, month, year });
   let sql = `
     SELECT p.*,
            b.bill_month, b.bill_year, b.total_amount AS bill_total,
@@ -47,8 +51,8 @@ const findAll = async ({ tenant_id, bill_id, status, payment_method, search = nu
   return rows;
 };
 
-const countAll = async ({ tenant_id, bill_id, status, payment_method, search = null } = {}) => {
-  const { where, params } = buildListWhere({ tenant_id, bill_id, status, payment_method, search });
+const countAll = async ({ tenant_id, bill_id, status, payment_method, search = null, month = null, year = null } = {}) => {
+  const { where, params } = buildListWhere({ tenant_id, bill_id, status, payment_method, search, month, year });
   const [rows] = await pool.query(
     `SELECT COUNT(*) AS total
      FROM payments p
@@ -59,6 +63,25 @@ const countAll = async ({ tenant_id, bill_id, status, payment_method, search = n
     params
   );
   return rows[0].total;
+};
+
+// ⚠️ ใช้ใน paymentController.getAllPayments: ยอดรวมเงินที่ตรงกับ filter
+// ปัจจุบัน (ไม่ใช่แค่หน้าที่กำลังแสดง) — เดิมหน้า payment-history sum
+// เอาจาก array ที่โหลดมาทั้งก้อนฝั่ง client ได้ค่าถูกเพราะโหลดมาไม่แบ่งหน้า
+// พอย้ายมาแบ่งหน้า/กรองเดือนที่ query จะ sum ผิดถ้ายังทำฝั่ง client (sum
+// ได้แค่ในหน้าปัจจุบัน) ต้อง sum ที่ query แทน
+const sumAmount = async ({ tenant_id, bill_id, status, payment_method, search = null, month = null, year = null } = {}) => {
+  const { where, params } = buildListWhere({ tenant_id, bill_id, status, payment_method, search, month, year });
+  const [rows] = await pool.query(
+    `SELECT COALESCE(SUM(p.amount_paid), 0) AS total
+     FROM payments p
+     JOIN bills   b ON p.bill_id   = b.bill_id
+     JOIN rooms   r ON b.room_id   = r.room_id
+     JOIN tenants t ON p.tenant_id = t.tenant_id
+     WHERE ${where}`,
+    params
+  );
+  return Number(rows[0].total);
 };
 
 // ── นับจำนวนแยกตาม status (ไม่กรอง status เองแต่ยังกรอง filter อื่นเหมือน
@@ -145,4 +168,4 @@ const updateSlipImage = async (paymentId, slipImage) => {
   await pool.query('UPDATE payments SET slip_image = ? WHERE payment_id = ?', [slipImage, paymentId]);
 };
 
-module.exports = { findAll, countAll, countByStatus, findById, findByBillId, findPendingByTenant, create, verify, updateSlipImage };
+module.exports = { findAll, countAll, sumAmount, countByStatus, findById, findByBillId, findPendingByTenant, create, verify, updateSlipImage };

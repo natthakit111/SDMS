@@ -127,50 +127,13 @@ const createFromSelfRegistration = async (conn, { userId, firstName, lastName, p
 };
 
 // ── ใช้ใน tenantController.createTenant: หา record เดิมที่ผูกกับ phone หรือ email นี้ ──
-const findMatchesByPhoneOrEmail = async (phone, email) => {
-  const [rows] = await pool.query(
-    `SELECT t.tenant_id, t.user_id, t.id_card_number, t.phone, t.email, u.username
-     FROM tenants t JOIN users u ON t.user_id = u.user_id
-     WHERE t.phone = ? OR (? IS NOT NULL AND ? != '' AND t.email = ?)`,
-    [phone, email || null, email || '', email || null]
-  );
-  return rows;
-};
-
-// ── ใช้ใน tenantController.createTenant: เช็คว่า id_card_number ชนกับ tenant คนอื่นไหม ──
+// ── ใช้ใน contractController: เช็คว่า id_card_number ชนกับ tenant คนอื่นไหม ──
 const findIdCardConflictExcluding = async (idCardNumber, excludeTenantId) => {
   const [rows] = await pool.query(
     `SELECT tenant_id FROM tenants WHERE id_card_number = ? AND tenant_id != ? LIMIT 1`,
     [idCardNumber, excludeTenantId]
   );
   return rows[0] || null;
-};
-
-// ── ใช้ใน tenantController.createTenant: อัปเกรดบัญชีที่สมัครเองไว้ก่อน (ต้องอยู่ใน transaction เดียวกับ conn) ──
-const upgradeSelfRegistered = async (conn, tenantId, userId, data) => {
-  const {
-    first_name, last_name, id_card_number, phone, email,
-    emergency_contact_name, emergency_contact_phone,
-  } = data;
-
-  await conn.query(
-    `UPDATE tenants
-     SET first_name = ?, last_name = ?, id_card_number = ?,
-         phone = ?, email = COALESCE(?, email),
-         emergency_contact_name = ?, emergency_contact_phone = ?
-     WHERE tenant_id = ?`,
-    [
-      first_name, last_name, id_card_number,
-      phone, email || null,
-      emergency_contact_name || null, emergency_contact_phone || null,
-      tenantId,
-    ]
-  );
-
-  await conn.query(
-    `UPDATE users SET username = ?, first_name = ?, last_name = ?, phone = ? WHERE user_id = ?`,
-    [phone, first_name, last_name, phone, userId]
-  );
 };
 
 // ── ใช้ใน tenantController.createTenant: สร้าง tenant ใหม่ทั้งหมด (ต้องอยู่ใน transaction เดียวกับ conn) ──
@@ -206,6 +169,5 @@ const countActiveWithTelegram = async () => {
 module.exports = {
   findAll, countAll, findById, findByUserId, findByIdCard, update,
   findConflictByPhoneOrEmail, createFromSelfRegistration,
-  findMatchesByPhoneOrEmail, findIdCardConflictExcluding,
-  upgradeSelfRegistered, createFull, countActiveWithTelegram,
+  findIdCardConflictExcluding, createFull, countActiveWithTelegram,
 };

@@ -12,8 +12,6 @@ const {
 } = require('../utils/response');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
-const PLACEHOLDER_ID_CARD_REGEX = /^REG\d{9}$/;
-
 // GET /api/tenants  — admin: list all (with optional ?search=&page=&limit=)
 const getAllTenants = async (req, res, next) => {
   try {
@@ -51,8 +49,14 @@ const getTenantById = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// POST /api/tenants  — admin only: creates user + tenant, OR upgrades an
-// existing self-registered (placeholder) account if phone OR email already matches
+// POST /api/tenants  — admin only: creates user + tenant
+// ⚠️ FIX: เดิมถ้าเบอร์/อีเมลตรงกับ tenant ที่ยังเป็น "placeholder" (สมัครเอง
+// ผ่าน /register แบบข้อมูลไม่ครบ) ระบบจะเงียบๆ เขียนทับชื่อ-นามสกุล-เลขบัตร
+// ของ record เดิมด้วยข้อมูลที่กรอกใหม่ ("อัปเกรด") — แอดมินเผลอกรอกเบอร์ซ้ำ
+// ของ tenant คนละคนโดยไม่ตั้งใจ ก็จะไปเขียนทับตัวตนของ tenant เดิมทันที
+// โดยไม่มีอะไรเตือน ตอนนี้ตัด behavior นี้ออก — เบอร์/อีเมลซ้ำ reject เสมอ
+// ไม่ว่า record เดิมจะเป็น placeholder หรือไม่ก็ตาม ถ้าต้องการเติมข้อมูลให้
+// tenant ที่สมัครเองไว้ ให้ใช้ปุ่มแก้ไข (updateTenant) กับ record เดิมแทน
 const createTenant = async (req, res, next) => {
   const conn = await pool.getConnection();
   try {
@@ -69,69 +73,13 @@ const createTenant = async (req, res, next) => {
     // flow self-register ใน authController.register
     const username = phone;
 
-    // ── ขั้นที่ 1: หา record ที่ผูกกับเบอร์นี้ "หรือ" อีเมลนี้อยู่แล้ว ──
-    const matches = await TenantModel.findMatchesByPhoneOrEmail(phone, email);
-
-    let existingTenant = null;
-
-    if (matches.length > 1) {
-      const distinctTenantIds = new Set(matches.map(m => m.tenant_id));
-      if (distinctTenantIds.size > 1) {
-        return sendBadRequest(res, 'PHONE_EMAIL_CONFLICT_DIFFERENT_TENANTS');
-      }
-      existingTenant = matches[0];
-    } else if (matches.length === 1) {
-      existingTenant = matches[0];
+    const conflict = await TenantModel.findConflictByPhoneOrEmail(phone, email);
+    if (conflict) {
+      return sendBadRequest(
+        res,
+        conflict.phone === phone ? 'PHONE_ALREADY_REGISTERED' : 'EMAIL_ALREADY_REGISTERED'
+      );
     }
-
-    // ⚠️ FIX: เปลี่ยนจาก \d{9} (fix ที่ 9 หลักพอดี) เป็น \d+ — เดิมถ้า userId
-    // โตเกิน 9 หลักในอนาคต placeholderIdCard จะยาวกว่า regex รองรับ ทำให้
-    // ระบบไม่รู้จักว่าเป็น placeholder แล้ว flow "upgrade" ใน createTenant
-    // จะเข้าใจผิดว่าเป็นบัญชีจริง
-    const PLACEHOLDER_ID_CARD_REGEX = /^(REG|OAUTH)\d+$/;
-
-    // ── ขั้นที่ 2: ถ้าเจอ record เดิม เช็คว่าเป็น "สมัครเองแบบข้อมูลไม่ครบ" หรือของจริง ──
-    if (existingTenant) {
-      const isPlaceholder = PLACEHOLDER_ID_CARD_REGEX.test(existingTenant.id_card_number);
-
-      if (!isPlaceholder) {
-        const conflictField = existingTenant.phone === phone ? 'phone' : 'email';
-        return sendBadRequest(
-          res,
-          conflictField === 'phone' ? 'PHONE_ALREADY_REGISTERED' : 'EMAIL_ALREADY_REGISTERED'
-        );
-      }
-
-      const idCardConflict = await TenantModel.findIdCardConflictExcluding(id_card_number, existingTenant.tenant_id);
-      if (idCardConflict) {
-        return sendBadRequest(res, 'ID_CARD_ALREADY_REGISTERED');
-      }
-
-      if (phone !== existingTenant.phone) {
-        const usernameOwner = await UserModel.findByUsername(phone);
-        if (usernameOwner && usernameOwner.user_id !== existingTenant.user_id) {
-          return sendBadRequest(res, 'PHONE_ALREADY_REGISTERED');
-        }
-      }
-
-      // ── อัปเกรด record เดิม แทนการสร้างใหม่ — user_id คงเดิม ──
-      await conn.beginTransaction();
-      await TenantModel.upgradeSelfRegistered(conn, existingTenant.tenant_id, existingTenant.user_id, {
-        first_name, last_name, id_card_number, phone, email,
-        emergency_contact_name, emergency_contact_phone,
-      });
-      await conn.commit();
-
-      return sendCreated(res, {
-        tenant_id: existingTenant.tenant_id,
-        user_id: existingTenant.user_id,
-        username: existingTenant.username,
-        full_name: `${first_name} ${last_name}`,
-        upgraded_from_self_registration: true,
-      }, 'อัปเดตบัญชีที่สมัครด้วยตนเองเป็นข้อมูลผู้เช่าสำเร็จ');
-    }
-
-    // ── ขั้นที่ 3: ไม่มี record เดิมผูกกับเบอร์/อีเมลนี้เลย — สร้างใหม่ตามปกติ ──
     if (await UserModel.findByUsername(username))
       return sendBadRequest(res, 'PHONE_ALREADY_REGISTERED'); // username ชนกัน = เบอร์นี้มี user อยู่แล้ว
     if (await TenantModel.findByIdCard(id_card_number))

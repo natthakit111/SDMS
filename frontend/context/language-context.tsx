@@ -408,10 +408,6 @@ const translations: Record<string, { th: string; en: string }> = {
     th: "เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว",
     en: "This ID card number is already registered",
   },
-  "errors.PHONE_EMAIL_CONFLICT_DIFFERENT_TENANTS": {
-    th: "เบอร์โทรและอีเมลผูกกับผู้เช่าคนละคน กรุณาตรวจสอบข้อมูล",
-    en: "Phone and email belong to different tenants — please check the data",
-  },
 
   // ── Contracts ──────────────────────────────────────────────────────────────
   "contracts.title": { th: "สัญญาเช่า", en: "Rental Contracts" },
@@ -1170,10 +1166,6 @@ const translations: Record<string, { th: string; en: string }> = {
   EMAIL_ALREADY_REGISTERED: {
     th: "อีเมลนี้มีผู้เช่าลงทะเบียนไว้แล้ว",
     en: "This email is already registered to a tenant",
-  },
-  PHONE_EMAIL_CONFLICT_DIFFERENT_TENANTS: {
-    th: "เบอร์โทรศัพท์และอีเมลที่กรอกตรงกับผู้เช่าคนละคนกันในระบบ กรุณาตรวจสอบข้อมูลอีกครั้ง หรือติดต่อผู้ดูแลระบบ",
-    en: "The phone and email match different tenants in the system. Please double-check the information or contact the system administrator.",
   },
 
   // ── Settings ───────────────────────────────────────────────────────────────

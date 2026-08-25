@@ -7,6 +7,7 @@ const { validationResult } = require('express-validator');
 const { pool }  = require('../config/db');
 const UserModel   = require('../models/user.model');
 const TenantModel = require('../models/tenant.model');
+const ContractModel = require('../models/contract.model');
 const {
   sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden,
 } = require('../utils/response');
@@ -217,6 +218,12 @@ const deleteTenant = async (req, res, next) => {
   try {
     const tenant = await TenantModel.findById(req.params.id);
     if (!tenant) return sendNotFound(res, 'ไม่พบผู้เช่า');
+
+    const activeContract = await ContractModel.findActiveByTenant(tenant.tenant_id);
+    if (activeContract) {
+      return sendBadRequest(res, 'ไม่สามารถลบผู้เช่าได้ เนื่องจากมีสัญญาเช่าที่ใช้งานอยู่ กรุณายกเลิกสัญญาหรือดำเนินการย้ายออกก่อน');
+    }
+
     await UserModel.deactivateUser(tenant.user_id);
     return sendSuccess(res, null, 'ปิดใช้งานบัญชีผู้เช่าสำเร็จ');
   } catch (err) { next(err); }

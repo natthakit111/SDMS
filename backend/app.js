@@ -13,7 +13,6 @@ const cookieParser = require('cookie-parser');
 
 const routes       = require('./src/routes/index');
 const errorHandler = require('./src/middlewares/errorHandler');
-const logger       = require('./src/utils/logger');
 
 const app = express();
 
@@ -25,20 +24,10 @@ const app = express();
 // trust proxy ปิดอยู่) — request chain จริงคือ browser → Vercel (Next.js
 // rewrite proxy /api/* ไปที่ Railway) → Railway edge → container นี้ จึงมี
 // 2 hop ที่ควร trust ตั้งเป็น 2 (ไม่ใช่ true/ไม่จำกัด เพราะจะเปิดช่องให้
-// ปลอม X-Forwarded-For มา bypass rate-limit ได้)
-// TODO: log ด้านล่างเป็นของชั่วคราวไว้ยืนยันว่าจำนวน hop ถูกต้องจริงจาก
-// production — ลบทิ้งได้หลังเช็คแล้วว่า req.ip ตรงกับ IP จริงของผู้ใช้
+// ปลอม X-Forwarded-For มา bypass rate-limit ได้) — ยืนยันค่านี้ถูกต้องแล้ว
+// จาก production log จริง: hop แรกใน X-Forwarded-For เปลี่ยนตาม IP ผู้ใช้
+// จริงแต่ละคน ส่วน hop ที่สองคงที่ (Vercel egress IP)
 app.set('trust proxy', 2);
-app.use((req, res, next) => {
-  if (req.headers['x-forwarded-for']) {
-    logger.info('[trust-proxy-check]', {
-      xForwardedFor: req.headers['x-forwarded-for'],
-      resolvedIp: req.ip,
-      ips: req.ips,
-    });
-  }
-  next();
-});
 
 app.use(helmet());
 

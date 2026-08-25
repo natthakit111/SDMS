@@ -242,6 +242,33 @@ const uploadContractFile = async (req, res, next) => {
   } catch (err) { next(err) }
 }
 
+// ⚠️ FIX: Cloudinary บล็อกการเข้าถึงไฟล์ resource_type: raw (PDF) แบบ
+// public เป็นค่า default ของบัญชี (นโยบายความปลอดภัยฝั่ง Cloudinary เอง
+// ไม่เกี่ยวกับโค้ดเรา) ทำให้ URL ที่เก็บไว้ตอนอัปโหลดยิงตรงแล้วได้ 401
+// เสมอแม้แต่เจ้าของไฟล์จริง — แก้โดยเซ็นลายเซ็น (sign_url) ให้ URL ก่อน
+// ดึงไฟล์ทุกครั้งที่ backend proxy ให้ ไม่ต้องเปลี่ยนวิธีอัปโหลด/ไม่ต้อง
+// re-upload ไฟล์เดิมที่มีอยู่แล้ว
+const getSignedRawUrl = (secureUrl) => {
+  // ไฟล์ที่อัปโหลดใหม่ (หลังแก้) เป็น type: authenticated เสมอ —
+  // private_download_url คือวิธีเดียวที่ยืนยันแล้วว่าได้ 200 จริง (ทดสอบ
+  // ตรงกับ Cloudinary account นี้) ส่วน type: upload (ไฟล์เก่าก่อนแก้)
+  // ยังติดนโยบายบล็อก raw/PDF แบบ public ของ Cloudinary อยู่ ไม่มีทาง sign
+  // ให้ผ่านได้จากฝั่งเราเลยแม้จะแนบลายเซ็นก็ตาม — ต้องอัปโหลดไฟล์นั้นใหม่
+  const authenticatedMatch = secureUrl.match(/\/raw\/authenticated\/(?:s--[\w-]+--\/)?v(\d+)\/(.+)$/)
+  if (authenticatedMatch) {
+    // ⚠️ public_id จริงของ raw resource รวม .pdf ต่อท้ายไปด้วยเสมอ (เพราะ
+    // ตอนอัปโหลดส่ง format:'pdf' แยกมาต่างหาก Cloudinary เลยผนวกเข้าไปเป็น
+    // ส่วนหนึ่งของ public_id) ต้องส่ง public_id เต็มรวมนามสกุลไฟล์ ไม่งั้น
+    // private_download_url จะหา resource ไม่เจอ (404) ทั้งที่มีไฟล์อยู่จริง
+    const [, , publicIdWithExt] = authenticatedMatch
+    return cloudinary.utils.private_download_url(publicIdWithExt, '', {
+      resource_type: 'raw',
+      type: 'authenticated',
+    })
+  }
+  return secureUrl // ไฟล์เก่า type: upload — ใช้ของเดิมไป (จะได้ 401 จาก Cloudinary เหมือนเดิม จนกว่าจะ re-upload)
+}
+
 // ⚠️ ใช้ https module ที่มากับ Node เอง ไม่ต้องติดตั้ง dependency เพิ่ม
 const downloadContractFile = async (req, res, next) => {
   try {
@@ -265,7 +292,7 @@ const downloadContractFile = async (req, res, next) => {
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
 
-    https.get(contract.contract_file, (cloudinaryRes) => {
+    https.get(getSignedRawUrl(contract.contract_file), (cloudinaryRes) => {
       if (cloudinaryRes.statusCode !== 200) {
         // ไฟล์หายจาก Cloudinary (ถูกลบไปแล้ว หรือ URL ผิด) — ไม่ crash server
         return sendNotFound(res, 'ไม่พบไฟล์สัญญาในระบบ (อาจถูกลบไปแล้ว)')

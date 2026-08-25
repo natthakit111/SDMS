@@ -24,8 +24,16 @@
  */
 
 const jwt = require('jsonwebtoken');
-const { sendUnauthorized } = require('../utils/response');
+const { sendUnauthorized, sendForbidden } = require('../utils/response');
 const UserModel = require('../models/user.model');
+
+// endpoint ที่ต้องเข้าถึงได้เสมอแม้ password_must_change=1 — ไม่งั้นผู้ใช้
+// จะเปลี่ยนรหัสผ่าน/ดูสถานะตัวเอง/logout ไม่ได้เลย ติดอยู่ในลูป
+const PASSWORD_CHANGE_ALLOWLIST = new Set([
+  '/api/auth/change-password',
+  '/api/auth/logout',
+  '/api/auth/me',
+]);
 
 /**
  * authenticate
@@ -49,21 +57,28 @@ const authenticate = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    let active;
+    let status;
     try {
-      active = await UserModel.isUserActive(decoded.user_id);
+      status = await UserModel.getAuthStatus(decoded.user_id);
     } catch (dbErr) {
       // ⚠️ ถ้า DB พังตอนเช็ค is_active — fail-closed (ปฏิเสธ) ปลอดภัยกว่า
       // fail-open เพราะนี่คือ auth gate ไม่ใช่แค่ feature เสริม
-      console.error('[Auth] is_active check failed:', dbErr.message);
+      console.error('[Auth] auth status check failed:', dbErr.message);
       return sendUnauthorized(res, 'Authentication check failed, please try again');
     }
 
-    if (!active) {
+    if (!status || !status.isActive) {
       res.clearCookie('token', { path: '/' });
       res.clearCookie('auth_hint', { path: '/' });
       res.clearCookie('csrf_token', { path: '/' });
       return sendUnauthorized(res, 'บัญชีนี้ถูกปิดการใช้งาน');
+    }
+
+    // บังคับเปลี่ยนรหัสผ่านตั้งต้นก่อนใช้งานเมนูอื่น — เดิมบล็อกแค่ฝั่ง
+    // frontend (redirect ไปหน้าเปลี่ยนรหัสผ่าน) เรียก API ตรงๆ ข้ามได้
+    // เช็คซ้ำที่นี่กัน bypass จริง
+    if (status.passwordMustChange && !PASSWORD_CHANGE_ALLOWLIST.has(req.originalUrl.split('?')[0])) {
+      return sendForbidden(res, 'ต้องเปลี่ยนรหัสผ่านก่อนใช้งานเมนูอื่น');
     }
 
     req.user = decoded;

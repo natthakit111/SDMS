@@ -148,6 +148,18 @@ const isUserActive = async (userId) => {
   return rows[0].is_active === 1;
 };
 
+const getAuthStatus = async (userId) => {
+  const [rows] = await pool.query(
+    'SELECT is_active, password_must_change FROM users WHERE user_id = ? LIMIT 1',
+    [userId]
+  );
+  if (!rows[0]) return null; // user ถูกลบไปแล้วจริงๆ (ไม่ใช่แค่ deactivate)
+  return {
+    isActive: rows[0].is_active === 1,
+    passwordMustChange: rows[0].password_must_change === 1,
+  };
+};
+
 module.exports = {
   findByUsername,
   findByEmail,
@@ -165,4 +177,5 @@ module.exports = {
   findAll,
   findAdmins,
   isUserActive,
+  getAuthStatus,
 };

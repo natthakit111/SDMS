@@ -9,14 +9,19 @@ const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
+const { getRateLimitStore } = require('../utils/rateLimitStore');
 
 // กัน brute-force บน endpoint ที่อ่อนไหว (login/register/forgot-password)
+// store: RedisStore ถ้าตั้งค่า REDIS_URL ไว้ (จำเป็นเมื่อ deploy หลาย
+// instance) ไม่งั้น fallback เป็น MemoryStore ของ default — ดู
+// utils/rateLimitStore.js
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many requests, please try again later.' },
+  store: getRateLimitStore(),
 });
 
 const registerValidation = [

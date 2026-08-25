@@ -29,10 +29,12 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isLoading) return;
-    if (!user || user.role !== "admin") {
+    if (!user) {
       const query = searchParams.toString();
       const fullPath = query ? `${pathname}?${query}` : pathname;
       router.replace(`/login?redirect=${encodeURIComponent(fullPath)}`);
+    } else if (user.role !== "admin") {
+      router.replace("/tenant");
     } else if (user.passwordMustChange) {
       router.replace("/change-password-required");
     }

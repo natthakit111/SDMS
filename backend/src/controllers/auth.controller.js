@@ -23,6 +23,7 @@ const { pool } = require('../config/db');
 const UserModel = require('../models/user.model');
 const TenantModel = require('../models/tenant.model');
 const { sendResetPasswordEmail } = require('../services/email.service');
+const logger = require('../utils/logger');
 const {
   sendSuccess, sendCreated, sendBadRequest, sendUnauthorized,
 } = require('../utils/response');
@@ -293,7 +294,15 @@ const forgotPassword = async (req, res, next) => {
     const token     = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 1000 * 60 * 15);
     await PasswordResetModel.createResetToken(user.user_id, token, expiresAt);
-    await sendResetPasswordEmail(user.email, user.username, token);
+
+    try {
+      await sendResetPasswordEmail(user.email, user.username, token);
+    } catch (emailErr) {
+      // Token ถูกสร้างสำเร็จแล้ว — ความล้มเหลวของการส่งอีเมล (เช่น SMTP
+      // credentials ไม่ถูกตั้งค่า) ไม่ควรทำให้ request ทั้งหมดเป็น 500
+      // และไม่ควร leak รายละเอียดการส่งอีเมลให้ client เห็น
+      logger.error('sendResetPasswordEmail failed', { userId: user.user_id, error: emailErr.message });
+    }
 
     return sendSuccess(res, null, 'ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลของคุณแล้ว');
   } catch (err) { next(err); }

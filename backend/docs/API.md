@@ -117,7 +117,7 @@ Middleware ยังรองรับ `Authorization: Bearer <token>` เป็
 | GET | `/contracts/:id` | any (เจ้าของหรือ admin) | รายละเอียดสัญญา — ถ้า tenant ไม่ใช่เจ้าของ คืน `404` (ไม่ยืนยันว่า record มีอยู่จริง) |
 | PUT | `/contracts/:id` | admin | แก้ไขสัญญา |
 | PUT | `/contracts/:id/renew` | admin | ต่อสัญญา — ต้องส่ง `end_date` ใหม่ |
-| PUT | `/contracts/:id/terminate` | admin, tenant | ยกเลิกสัญญา (tenant ยกเลิกได้เฉพาะสัญญาของตัวเอง) |
+| PUT | `/contracts/:id/terminate` | admin | ยกเลิกสัญญา — tenant ยกเลิกสัญญาตัวเองตรงๆ ไม่ได้ ต้องยื่นคำร้องย้ายออกผ่าน `/move-out` ให้แอดมินอนุมัติ |
 | POST | `/contracts/:id/upload` | admin | อัปโหลดไฟล์สัญญา (PDF/Word) |
 | GET | `/contracts/:id/file` | any (เจ้าของหรือ admin) | ดาวน์โหลดไฟล์สัญญา — ownership check ใน controller |
 

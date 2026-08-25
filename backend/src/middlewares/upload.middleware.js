@@ -45,7 +45,11 @@ const MAX_SIZE_BYTES = (parseInt(process.env.MAX_FILE_SIZE_MB) || 5) * 1024 * 10
 const FIELD_CONFIG = {
   meter_image:   { folder: 'dormflow/meter-images',   resource_type: 'image', formats: ['jpg','jpeg','png','webp'] },
   payment_slip:  { folder: 'dormflow/payment-slips',  resource_type: 'image', formats: ['jpg','jpeg','png','webp'] },
-  contract_file: { folder: 'dormflow/contracts',      resource_type: 'raw',   formats: ['pdf'] },
+  // type: 'authenticated' — Cloudinary บล็อกการเข้าถึงไฟล์ resource_type:
+  // raw (PDF) แบบ public เป็นค่า default ของบัญชี (นโยบายความปลอดภัยฝั่ง
+  // Cloudinary) ต้องอัปโหลดเป็น type: authenticated แล้วดาวน์โหลดผ่าน
+  // signed URL (cloudinary.utils.private_download_url) เท่านั้นถึงจะได้ 200
+  contract_file: { folder: 'dormflow/contracts',      resource_type: 'raw',   formats: ['pdf'], type: 'authenticated' },
   profile_image: { folder: 'dormflow/profiles',       resource_type: 'image', formats: ['jpg','jpeg','png','webp'] },
 };
 
@@ -60,6 +64,7 @@ function makeUpload(fieldname) {
       resource_type: cfg.resource_type,
       public_id:     `${Date.now()}-${Math.round(Math.random() * 1e6)}`,
       ...(cfg.resource_type === 'raw' ? { format: 'pdf' } : {}),
+      ...(cfg.type ? { type: cfg.type } : {}),
     }),
   });
 

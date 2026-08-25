@@ -32,10 +32,12 @@ function TenantLayoutInner({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isLoading) return;
-    if (!user || user.role !== "tenant") {
+    if (!user) {
       const query = searchParams.toString();
       const fullPath = query ? `${pathname}?${query}` : pathname;
       router.replace(`/login?redirect=${encodeURIComponent(fullPath)}`);
+    } else if (user.role !== "tenant") {
+      router.replace("/admin");
     } else if (user.passwordMustChange) {
       router.replace("/change-password-required");
     }

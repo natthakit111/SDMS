@@ -276,6 +276,16 @@ export default function MoveOutPage() {
                     // and produce a nonsensical negative daysRemaining in
                     // the estimate above. Block it at the picker instead.
                     minDate={toISODate(new Date())}
+                    // ✅ FIX: also cap at the contract's end date — picking a
+                    // date past it produced a negative daysRemaining with a
+                    // "no fine" message that reads as a glitch rather than
+                    // "your contract will have already ended". Backend
+                    // rejects this too (moveOut.controller.js create()).
+                    maxDate={
+                      contract?.end_date
+                        ? toISODate(new Date(contract.end_date))
+                        : undefined
+                    }
                   />
                 </Field>
 

@@ -63,6 +63,14 @@ const create = async (req, res, next) => {
 
     const { move_out_date, reason } = req.body;
 
+    // ⚠️ FIX: เดิมเช็คแค่รูปแบบวันที่ (isDate() ใน moveOut.routes.js) ไม่เช็ค
+    // ว่าอยู่ในช่วงสัญญาหรือไม่ ทำให้เลือกวันที่เกินวันสิ้นสุดสัญญาได้ ส่งผล
+    // ให้พรีวิวค่าปรับ/เงินคืนโชว์ "เหลือสัญญา -N วัน" ซึ่งเป็นข้อความที่
+    // เขียนไว้สำหรับกรณีใกล้หมดสัญญาปกติ ไม่ใช่กรณีเกินสัญญาไปแล้ว
+    if (new Date(move_out_date) > new Date(contract.end_date)) {
+      return sendBadRequest(res, 'ไม่สามารถแจ้งย้ายออกเกินวันที่สิ้นสุดสัญญาได้ กรุณาเลือกวันที่ไม่เกินวันหมดสัญญา หรือติดต่อผู้ดูแลหอพักหากต้องการต่อสัญญา');
+    }
+
     const requestId = await MoveOutModel.create({
       tenant_id:   tenant.tenant_id,
       contract_id: contract.contract_id,

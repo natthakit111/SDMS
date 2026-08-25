@@ -16,21 +16,54 @@ const buildListWhere = ({ room_id, meter_type, month, year, search } = {}) => {
   return { where: clauses.join(' AND '), params };
 };
 
+// ⚠️ FIX: หน้า /admin/meters แสดงผลแบบ "1 แถวต่อห้อง/เดือน" (รวมค่าไฟ+น้ำไว้
+// แถวเดียวกัน — ดู `grouped` ใน frontend) แต่เดิม findAll/countAll paginate
+// และนับจากตาราง meter_readings ตรงๆ ซึ่งเป็น "1 แถวต่อประเภทมิเตอร์" (ห้อง
+// ที่บันทึกครบทั้งไฟ+น้ำ = 2 แถวดิบ) ทำให้ตัวเลข total ที่โชว์เป็นสองเท่าของ
+// จำนวนห้องที่มีการบันทึกจริง และที่ร้ายกว่านั้นคือ LIMIT/OFFSET ตัดที่แถวดิบ
+// อาจตัดค่าไฟกับค่าน้ำของห้องเดียวกัน (เดือนเดียวกัน) ให้ไปคนละหน้ากันได้ถ้า
+// ดันไปอยู่คาบเกี่ยวขอบหน้าพอดี ทำให้บางห้องโชว์ข้อมูลไม่ครบในหน้าใดหน้าหนึ่ง
+//
+// แก้โดย paginate ที่ระดับกลุ่ม (room_id, reading_month, reading_year) ก่อน
+// แล้วค่อยดึงทุกแถวดิบของกลุ่มที่เลือกมาในขั้นที่สอง — กัน group ถูกตัดขาด
+// ระหว่างหน้า และนับ/แบ่งหน้าตรงกับจำนวนห้องที่แสดงจริงบนหน้าเว็บ
 const findAll = async ({ room_id, meter_type, month, year, search, limit = null, offset = 0 } = {}) => {
   const { where, params } = buildListWhere({ room_id, meter_type, month, year, search });
-  let sql = `
-    SELECT mr.*, r.room_number
+
+  let groupSql = `
+    SELECT DISTINCT mr.room_id, mr.reading_month, mr.reading_year, r.room_number
     FROM meter_readings mr
     JOIN rooms r ON mr.room_id = r.room_id
     WHERE ${where}
     ORDER BY mr.reading_year DESC, mr.reading_month DESC, r.room_number
   `;
-  const queryParams = [...params];
+  const groupParams = [...params];
   if (limit !== null) {
-    sql += ' LIMIT ? OFFSET ?';
-    queryParams.push(limit, offset);
+    groupSql += ' LIMIT ? OFFSET ?';
+    groupParams.push(limit, offset);
   }
-  const [rows] = await pool.query(sql, queryParams);
+  const [groups] = await pool.query(groupSql, groupParams);
+  if (groups.length === 0) return [];
+
+  const groupConds = groups
+    .map(() => '(mr.room_id = ? AND mr.reading_month = ? AND mr.reading_year = ?)')
+    .join(' OR ');
+  const groupValueParams = groups.flatMap((g) => [g.room_id, g.reading_month, g.reading_year]);
+
+  // ยังต้องเคารพ meter_type filter ถ้ามีคนเรียกระบุมา (เช่นอยากได้เฉพาะ
+  // ประเภทไฟฟ้า) — group ข้างบนคำนวณจาก filter เดียวกันอยู่แล้วเลย re-apply
+  // เฉพาะ meter_type ซ้ำตรงนี้พอ (room_id/month/year ล็อกจาก group แล้ว)
+  const typeClause = meter_type ? ' AND mr.meter_type = ?' : '';
+  const typeParams = meter_type ? [meter_type] : [];
+
+  const [rows] = await pool.query(
+    `SELECT mr.*, r.room_number
+     FROM meter_readings mr
+     JOIN rooms r ON mr.room_id = r.room_id
+     WHERE (${groupConds})${typeClause}
+     ORDER BY mr.reading_year DESC, mr.reading_month DESC, r.room_number`,
+    [...groupValueParams, ...typeParams]
+  );
   return rows;
 };
 
@@ -39,11 +72,15 @@ const countAll = async ({ room_id, meter_type, month, year, search } = {}) => {
   // ⚠️ FIX: ต้อง JOIN rooms เหมือน findAll เสมอ — buildListWhere ใช้ r.room_number
   // ในเงื่อนไข search ถ้าไม่ join จะพัง 500 ทุกครั้งที่มี search (เจอบั๊กนี้
   // ตอนทดสอบสดผ่านเบราว์เซอร์จริงก่อน commit)
+  // ⚠️ FIX: นับกลุ่ม (room_id, month, year) ไม่ใช่แถวดิบ — เหตุผลเดียวกับ
+  // findAll ด้านบน (ไม่งั้น total จะเป็นสองเท่าของจำนวนห้องที่แสดงจริง)
   const [rows] = await pool.query(
-    `SELECT COUNT(*) AS total
-     FROM meter_readings mr
-     JOIN rooms r ON mr.room_id = r.room_id
-     WHERE ${where}`,
+    `SELECT COUNT(*) AS total FROM (
+       SELECT DISTINCT mr.room_id, mr.reading_month, mr.reading_year
+       FROM meter_readings mr
+       JOIN rooms r ON mr.room_id = r.room_id
+       WHERE ${where}
+     ) g`,
     params
   );
   return rows[0].total;

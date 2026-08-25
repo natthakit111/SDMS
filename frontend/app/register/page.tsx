@@ -182,6 +182,8 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   required
                   disabled={isLoading}
+                  maxLength={10}
+                  inputMode="numeric"
                 />
               </Field>
               <Field>

@@ -68,11 +68,24 @@ const createUser = async (
   return result.insertId;
 };
 
-const updateProfileFields = async (userId, { firstName, lastName, email, phone }) => {
-  await pool.query(
-    `UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ? WHERE user_id = ?`,
-    [firstName || null, lastName || null, email || null, phone || null, userId]
-  );
+// ⚠️ FIX: เดิมเป็น unconditional UPDATE เซ็ตทั้ง 4 คอลัมน์ทุกครั้งที่เรียก
+// ไม่ว่าผู้เรียกจะส่ง key นั้นมาหรือไม่ (ใช้ `|| null` fallback) — จุดเรียก
+// บางจุด (เช่น tenant.controller.js updateTenant ตอนแอดมินแก้แค่เบอร์/
+// อีเมล) ส่งมาแค่ { phone, email } ไม่มี firstName/lastName เลย ทำให้
+// first_name/last_name ของ users ถูกเซ็ตเป็น NULL ทุกครั้ง ทั้งที่ไม่ได้
+// ตั้งใจแก้ชื่อเลย — เปลี่ยนเป็น partial update แบบเดียวกับ
+// TenantModel.update: อัปเดตเฉพาะ key ที่ส่งมาจริง (!== undefined) เท่านั้น
+const updateProfileFields = async (userId, { firstName, lastName, email, phone } = {}, conn = null) => {
+  const fieldMap = { first_name: firstName, last_name: lastName, email, phone };
+  const setClauses = [];
+  const params = [];
+  for (const [column, value] of Object.entries(fieldMap)) {
+    if (value !== undefined) { setClauses.push(`${column} = ?`); params.push(value); }
+  }
+  if (!setClauses.length) return;
+  params.push(userId);
+  const runner = conn || pool;
+  await runner.query(`UPDATE users SET ${setClauses.join(', ')} WHERE user_id = ?`, params);
 };
 
 const getPasswordHash = async (userId) => {

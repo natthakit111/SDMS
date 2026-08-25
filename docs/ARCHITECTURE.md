@@ -148,5 +148,5 @@ sequenceDiagram
 ## เอกสารที่เกี่ยวข้อง
 
 - API endpoints ทั้งหมด → [`backend/docs/API.md`](../backend/docs/API.md)
-- โครงสร้างตาราง/ERD → [`database/DATABASE.md`](../database/DATABASE.md)
+- โครงสร้างตาราง/ERD → [`backend/database/DATABASE.md`](../backend/database/DATABASE.md)
 - วิธี deploy → [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md)

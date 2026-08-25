@@ -13,10 +13,10 @@
 --
 --  ไฟล์นี้ไม่สร้าง/สลับฐานข้อมูลเอง — ต้องสร้างฐานข้อมูลเปล่าไว้ก่อน แล้วรันไฟล์นี้
 --  เข้าไปในฐานข้อมูลนั้นโดยตรง (ชื่อฐานข้อมูลเลือกเองได้ตามต้องการ):
---    mysql -u <user> -p <ชื่อฐานข้อมูล> < database/schema.sql
+--    mysql -u <user> -p <ชื่อฐานข้อมูล> < backend/database/schema.sql
 --  หรือใน MySQL client / Workbench (ต้อง USE ฐานข้อมูลเป้าหมายก่อน):
 --    USE <ชื่อฐานข้อมูล>;
---    SOURCE /path/to/database/schema.sql;
+--    SOURCE /path/to/backend/database/schema.sql;
 -- =============================================================================
 
 SET NAMES utf8mb4;

@@ -22,13 +22,13 @@ Vercel (Next.js frontend)  ──HTTPS + cookie──→  Railway (Express backe
 3. Import schema จริงเข้าไป — เชื่อมต่อผ่าน Railway CLI หรือ MySQL client ตัวไหนก็ได้ (เช่น TablePlus, DBeaver, mysql cli) ด้วยค่า connection ข้างต้น:
 
    ```bash
-   mysql -h <MYSQLHOST> -P <MYSQLPORT> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < database/schema.sql
-   mysql -h <MYSQLHOST> -P <MYSQLPORT> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < database/seed.sql
+   mysql -h <MYSQLHOST> -P <MYSQLPORT> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < backend/database/schema.sql
+   mysql -h <MYSQLHOST> -P <MYSQLPORT> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < backend/database/seed.sql
    ```
 
    > รัน `seed.sql` ต่อจาก `schema.sql` เข้า `<MYSQLDATABASE>` เดียวกันเสมอ (ไฟล์ไม่ได้ล็อกชื่อฐานข้อมูลไว้เอง) — ไม่งั้นจะไม่มีทางสร้างบัญชี admin เริ่มต้นได้ (ดู checklist ท้ายเอกสารนี้)
    >
-   > ดูโครงสร้างตาราง/ERD ที่ [`database/DATABASE.md`](../database/DATABASE.md)
+   > ดูโครงสร้างตาราง/ERD ที่ [`backend/database/DATABASE.md`](../backend/database/DATABASE.md)
 
 ---
 
@@ -95,8 +95,8 @@ Vercel (Next.js frontend)  ──HTTPS + cookie──→  Railway (Express backe
 
 ## Checklist ก่อนขึ้นจริง
 
-- [ ] MySQL บน Railway import schema (`database/schema.sql`) เรียบร้อย — เช็คด้วย `SHOW TABLES;`
-- [ ] รัน `database/seed.sql` ด้วย — ไม่มีทางสร้างบัญชี admin เริ่มต้นทางอื่นเลย ถ้าข้ามขั้นตอนนี้จะ login เข้าระบบครั้งแรกไม่ได้
+- [ ] MySQL บน Railway import schema (`backend/database/schema.sql`) เรียบร้อย — เช็คด้วย `SHOW TABLES;`
+- [ ] รัน `backend/database/seed.sql` ด้วย — ไม่มีทางสร้างบัญชี admin เริ่มต้นทางอื่นเลย ถ้าข้ามขั้นตอนนี้จะ login เข้าระบบครั้งแรกไม่ได้
 - [ ] รัน `npm run migrate:baseline` (จาก `backend/`) ครั้งเดียวหลัง import schema สดๆ ให้บันทึกว่าโครงสร้างล่าสุดถูกติดตั้งแล้ว (ดูรายละเอียดใน README หัวข้อ "Migration")
 - [ ] Backend service ตั้ง Root Directory = `backend`, ปิด serverless/sleep mode, replica = 1
 - [ ] Backend env ครบทุกตัว โดยเฉพาะ `FRONTEND_URL` ตรงกับ Vercel domain เป๊ะๆ (ไม่มี `/` ท้าย), `COOKIE_CROSS_SITE=true`, `COOKIE_SECURE=true`

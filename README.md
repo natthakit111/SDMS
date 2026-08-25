@@ -83,7 +83,7 @@ SDMS เป็นระบบจัดการหอพักแบบครบ
 | | `cloudinary` + `multer` | อัปโหลด/เก็บไฟล์รูปภาพ (สลิป, รูปมิเตอร์, ไฟล์สัญญา) |
 | | `nodemailer` | ส่งอีเมลลืมรหัสผ่าน |
 | | `helmet`, `express-rate-limit`, `cors` | มาตรการความปลอดภัยพื้นฐานของ API |
-| **Database** | MySQL | เก็บข้อมูลทั้งหมดแบบ Relational (ดูโครงสร้างตารางที่ [`database/DATABASE.md`](database/DATABASE.md)) |
+| **Database** | MySQL | เก็บข้อมูลทั้งหมดแบบ Relational (ดูโครงสร้างตารางที่ [`backend/database/DATABASE.md`](backend/database/DATABASE.md)) |
 
 ---
 
@@ -115,12 +115,12 @@ SDMS/
 │   │   ├── services/            # logic ที่ซับซ้อน/ใช้ร่วมกัน (บิล, PDF, cron, telegram, email)
 │   │   ├── middlewares/         # auth guard, CSRF, upload, error handler
 │   │   └── utils/                # helper ทั่วไป
+│   ├── database/                # อยู่ใน backend/ เพราะ Railway deploy แค่โฟลเดอร์นี้ (Root Directory: backend)
+│   │   ├── schema.sql           # โครงสร้างตารางทั้งหมด (รันก่อน)
+│   │   ├── seed.sql             # ข้อมูลตั้งต้น (บัญชี admin, ห้องพักตัวอย่าง)
+│   │   ├── migrations/          # migration ไล่ตามโครงสร้างล่าสุดของ schema.sql
+│   │   └── DATABASE.md          # คำอธิบายตาราง + ERD
 │   └── docs/API.md              # เอกสาร endpoint ทั้งหมด
-│
-├── database/
-│   ├── schema.sql               # โครงสร้างตารางทั้งหมด (รันก่อน)
-│   ├── seed.sql                 # ข้อมูลตั้งต้น (บัญชี admin, ห้องพักตัวอย่าง)
-│   └── DATABASE.md              # คำอธิบายตาราง + ERD
 │
 └── docs/                        # เอกสารระดับโปรเจกต์ (สถาปัตยกรรม, deploy, cron, สถานะ)
 ```
@@ -158,11 +158,11 @@ cd SDMS
 
 ```bash
 mysql -u root -p -e "CREATE DATABASE sdms"
-mysql -u root -p sdms < database/schema.sql
-mysql -u root -p sdms < database/seed.sql   # ไม่บังคับ แต่แนะนำ — ได้บัญชี admin + ห้องตัวอย่างไว้ทดสอบทันที
+mysql -u root -p sdms < backend/database/schema.sql
+mysql -u root -p sdms < backend/database/seed.sql   # ไม่บังคับ แต่แนะนำ — ได้บัญชี admin + ห้องตัวอย่างไว้ทดสอบทันที
 ```
 
-รายละเอียดแต่ละตารางดูได้ที่ [`database/DATABASE.md`](database/DATABASE.md)
+รายละเอียดแต่ละตารางดูได้ที่ [`backend/database/DATABASE.md`](backend/database/DATABASE.md)
 
 ### 3. ติดตั้ง Dependencies
 
@@ -199,14 +199,14 @@ cp .env.example .env
 
 ### 5. Migration (เฉพาะกรณีติดตั้งใหม่จาก schema.sql)
 
-`database/schema.sql` มีโครงสร้างล่าสุดอยู่แล้วเสมอ แต่ยังไม่มีการบันทึกว่า "รันโครงสร้างล่าสุดไปแล้ว" ไว้ในฐานข้อมูล — รันคำสั่งนี้ครั้งเดียวหลังติดตั้งจาก schema.sql สดๆ (ไม่ต้องรัน SQL ซ้ำ แค่บันทึกสถานะ):
+`backend/database/schema.sql` มีโครงสร้างล่าสุดอยู่แล้วเสมอ แต่ยังไม่มีการบันทึกว่า "รันโครงสร้างล่าสุดไปแล้ว" ไว้ในฐานข้อมูล — รันคำสั่งนี้ครั้งเดียวหลังติดตั้งจาก schema.sql สดๆ (ไม่ต้องรัน SQL ซ้ำ แค่บันทึกสถานะ):
 
 ```bash
 cd backend
 npm run migrate:baseline
 ```
 
-ถ้าเป็นฐานข้อมูลเก่าที่ติดตั้งไว้ก่อนหน้านี้ (ไม่ได้เพิ่งรัน schema.sql สดๆ) ให้ใช้ `npm run migrate` แทน เพื่อไล่รันไฟล์ที่ยังไม่ได้ apply ในโฟลเดอร์ [`database/migrations/`](database/migrations) ให้ตามทันโครงสร้างล่าสุด — เช็คสถานะได้ด้วย `npm run migrate:status`
+ถ้าเป็นฐานข้อมูลเก่าที่ติดตั้งไว้ก่อนหน้านี้ (ไม่ได้เพิ่งรัน schema.sql สดๆ) ให้ใช้ `npm run migrate` แทน เพื่อไล่รันไฟล์ที่ยังไม่ได้ apply ในโฟลเดอร์ [`backend/database/migrations/`](backend/database/migrations) ให้ตามทันโครงสร้างล่าสุด — เช็คสถานะได้ด้วย `npm run migrate:status`
 
 ### 6. รันโปรเจกต์
 
@@ -228,7 +228,7 @@ pnpm dev
 
 ## 🔑 บัญชีทดสอบ (Seed Data)
 
-ถ้ารัน `database/seed.sql` แล้ว จะมีบัญชี admin ตั้งต้นให้ทดสอบทันที:
+ถ้ารัน `backend/database/seed.sql` แล้ว จะมีบัญชี admin ตั้งต้นให้ทดสอบทันที:
 
 | Username | Password | Role |
 |---|---|---|
@@ -243,7 +243,7 @@ pnpm dev
 | เอกสาร | เนื้อหา |
 |---|---|
 | [`backend/docs/API.md`](backend/docs/API.md) | endpoint ทั้งหมด, role ที่ต้องใช้, รูปแบบ request/response |
-| [`database/DATABASE.md`](database/DATABASE.md) | โครงสร้างตาราง + ERD |
+| [`backend/database/DATABASE.md`](backend/database/DATABASE.md) | โครงสร้างตาราง + ERD |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Flow diagram ของระบบ (ออกบิล, สัญญา/ย้ายออก, telegram) |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | ขั้นตอน deploy จริงขึ้น production |
 | [`docs/CRON_SETUP.md`](docs/CRON_SETUP.md) | รายการ cron job ทั้งหมดและวิธีทดสอบ |

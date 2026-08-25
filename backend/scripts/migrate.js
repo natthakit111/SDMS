@@ -2,11 +2,11 @@
  * scripts/migrate.js
  *
  * ระบบ migration แบบเรียบง่าย ตรงกับสไตล์ raw-SQL ของโปรเจกต์นี้ (ไม่มี ORM)
- * — ไม่ได้แทนที่ database/schema.sql (ยังใช้ไฟล์นั้นสำหรับติดตั้งฐานข้อมูล
+ * — ไม่ได้แทนที่ backend/database/schema.sql (ยังใช้ไฟล์นั้นสำหรับติดตั้งฐานข้อมูล
  * ใหม่ตั้งแต่ต้นเหมือนเดิม ตาม README) แต่แก้ปัญหา "ไม่มีทางบอกได้ว่า
  * ฐานข้อมูลที่ติดตั้งไปแล้วตามทันโครงสร้างล่าสุดหรือยัง" — ทุกครั้งที่
- * database/schema.sql เปลี่ยน (เพิ่มคอลัมน์/index/ตาราง) ให้เพิ่มไฟล์
- * migration ใหม่ในโฟลเดอร์ database/migrations/ คู่กันไปด้วยเสมอ
+ * backend/database/schema.sql เปลี่ยน (เพิ่มคอลัมน์/index/ตาราง) ให้เพิ่มไฟล์
+ * migration ใหม่ในโฟลเดอร์ backend/database/migrations/ คู่กันไปด้วยเสมอ
  *
  * วิธีใช้:
  *   node scripts/migrate.js              รัน migration ที่ค้างอยู่ทั้งหมด
@@ -25,7 +25,7 @@ const fs = require('fs');
 const path = require('path');
 const { pool } = require('../src/config/db');
 
-const MIGRATIONS_DIR = path.join(__dirname, '..', '..', 'database', 'migrations');
+const MIGRATIONS_DIR = path.join(__dirname, '..', 'database', 'migrations');
 
 const ensureMigrationsTable = async (conn) => {
   await conn.query(`
@@ -117,7 +117,7 @@ const showStatus = async () => {
     const applied = await getAppliedNames(conn);
     const files = listMigrationFiles();
     if (files.length === 0) {
-      console.log('ยังไม่มีไฟล์ migration ในโฟลเดอร์ database/migrations/');
+      console.log('ยังไม่มีไฟล์ migration ในโฟลเดอร์ backend/database/migrations/');
       return;
     }
     for (const file of files) {

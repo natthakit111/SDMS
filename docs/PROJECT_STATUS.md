@@ -45,12 +45,12 @@ Smart Dormitory Management System (SDMS) — ระบบจัดการห�
 |---|---|
 | CI/CD pipeline | ยังไม่มี |
 | Docker / containerization | ยังไม่มี — ดูวิธี deploy แบบ manual ที่ [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md) |
-| Database schema ใน repo | เพิ่งเพิ่มเข้ามา — ดู [`database/DATABASE.md`](../database/DATABASE.md) และ `database/schema.sql` |
+| Database schema ใน repo | เพิ่งเพิ่มเข้ามา — ดู [`backend/database/DATABASE.md`](../backend/database/DATABASE.md) และ `backend/database/schema.sql` |
 
 ## เอกสารที่เกี่ยวข้อง
 
 - [`backend/docs/API.md`](../backend/docs/API.md) — API endpoints ทั้งหมด
-- [`database/DATABASE.md`](../database/DATABASE.md) — โครงสร้างตาราง/ERD
+- [`backend/database/DATABASE.md`](../backend/database/DATABASE.md) — โครงสร้างตาราง/ERD
 - [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) — system flow diagrams
 - [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md) — วิธี deploy
 - [`CRON_SETUP.md`](./CRON_SETUP.md) — cron jobs ที่ทำงานอยู่จริง

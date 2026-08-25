@@ -45,9 +45,9 @@ jobs:
 
       - name: โหลด schema + seed + CI fixture เข้า MySQL service
         run: |
-          mysql -h 127.0.0.1 -P 3306 -uroot -proot sdms < database/schema.sql
-          mysql -h 127.0.0.1 -P 3306 -uroot -proot sdms < database/seed.sql
-          mysql -h 127.0.0.1 -P 3306 -uroot -proot sdms < database/ci_fixture.sql
+          mysql -h 127.0.0.1 -P 3306 -uroot -proot sdms < backend/database/schema.sql
+          mysql -h 127.0.0.1 -P 3306 -uroot -proot sdms < backend/database/seed.sql
+          mysql -h 127.0.0.1 -P 3306 -uroot -proot sdms < backend/database/ci_fixture.sql
 
       - name: รัน backend test suite
         working-directory: backend

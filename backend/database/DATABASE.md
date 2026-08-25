@@ -1,6 +1,6 @@
 # SDMS Database Schema
 
-อ้างอิงจาก `database/schema.sql` — ถ้าแก้ schema ต้องอัปเดตเอกสารนี้ด้วยเสมอ ไม่งั้นเอกสารจะไม่ตรงกับของจริง
+อ้างอิงจาก `backend/database/schema.sql` — ถ้าแก้ schema ต้องอัปเดตเอกสารนี้ด้วยเสมอ ไม่งั้นเอกสารจะไม่ตรงกับของจริง
 
 > ทุกครั้งที่แก้ `schema.sql` (เพิ่มคอลัมน์/index/ตาราง) ให้เพิ่มไฟล์ migration คู่กันไว้ใน [`database/migrations/`](./migrations) เสมอ เพื่อให้ฐานข้อมูลที่ติดตั้งไปแล้วก่อนหน้านี้ตามทันได้ผ่าน `npm run migrate` (ดูรายละเอียดใน README หัวข้อ "Migration")
 

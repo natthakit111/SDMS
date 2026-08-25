@@ -1,11 +1,16 @@
 const { pool } = require('../config/db');
 
-// ลบ token เก่าของ user คนนี้ทิ้งก่อนเสมอ — กันกรณีขอลิงก์รีเซ็ตหลายครั้ง
-// แล้วลิงก์เก่าที่หลุด/ถูกดักไว้ (เช่น จากอีเมลที่ forward ต่อ) ยังใช้ได้อยู่
+// ⚠️ FIX: เดิมทำ DELETE ...WHERE user_id=? แล้วค่อย INSERT แยกกันคนละ query
+// ไม่ atomic — ถ้า user กดขอลิงก์รีเซ็ตรัวๆ ภายในเวลาใกล้กันมาก (AUTH-12)
+// 2 request อาจ DELETE ไม่เจออะไรให้ลบพร้อมกัน แล้ว INSERT ทับซ้อนกันจนมี
+// token ของ user คนเดียวกันมากกว่า 1 แถวพร้อมกันจริง กลายเป็นว่าลิงก์เก่า
+// ที่ควรถูกยกเลิกไปแล้วยังใช้งานได้อยู่ (ดู migration 0007 ที่เพิ่ม
+// UNIQUE KEY บน user_id) เปลี่ยนเป็น atomic upsert เดียวจบ กัน race ได้จริง
+// แม้ 2 request มาพร้อมกันเป๊ะ
 const createResetToken = async (userId, token, expiresAt) => {
-  await pool.query('DELETE FROM password_resets WHERE user_id = ?', [userId]);
   await pool.query(
-    'INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)',
+    `INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE token = VALUES(token), expires_at = VALUES(expires_at)`,
     [userId, token, expiresAt]
   );
 };

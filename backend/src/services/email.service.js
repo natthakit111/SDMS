@@ -1,46 +1,30 @@
 /**
  * services/email.service.js
- * ส่ง email ด้วย Nodemailer + Gmail
+ * ส่ง email ด้วย SendGrid (HTTPS API)
  *
- * Install:
- *   npm install nodemailer
+ * ⚠️ เดิมใช้ Nodemailer ส่งตรงผ่าน Gmail SMTP (port 465) แต่ Railway บล็อก
+ * outbound SMTP port ทั้ง IPv4/IPv6 (ยืนยันจาก production log: connection
+ * timeout เต็ม 2 นาทีทุกครั้งไม่ว่าจะบังคับ IPv4 หรือไม่ — เป็น policy
+ * ระดับ platform กันสแปม ไม่มีทาง config ฝั่ง client แก้ได้) เปลี่ยนมาใช้
+ * SendGrid ผ่าน HTTPS (port 443) แทน เพราะไม่มี platform ไหนบล็อก
  *
  * .env ที่ต้องเพิ่ม:
- *   GMAIL_USER=youremail@gmail.com
- *   GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx   ← App Password (ไม่ใช่รหัส Gmail จริง)
+ *   SENDGRID_API_KEY=SG.xxxxxxxx
+ *   SENDGRID_FROM_EMAIL=xxxxx@gmail.com   ← ต้อง verify ผ่าน SendGrid
+ *                                            Single Sender Verification ก่อน
  *   FRONTEND_URL=http://localhost:3000
  *
- * วิธีสร้าง App Password:
- *   1. myaccount.google.com → Security → 2-Step Verification (ต้องเปิดก่อน)
- *   2. App passwords → สร้างใหม่ → Copy 16 หลัก
+ * วิธีตั้งค่า SendGrid:
+ *   1. sendgrid.com → สมัครฟรี (100 อีเมล/วัน)
+ *   2. Settings → Sender Authentication → Verify a Single Sender →
+ *      กรอกอีเมลที่จะใช้ส่ง → กดลิงก์ยืนยันในอีเมลนั้น
+ *   3. Settings → API Keys → Create API Key → Restricted Access →
+ *      เปิดสิทธิ์ Mail Send เท่านั้น → copy key
  */
 
-const dns = require('dns').promises;
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 
-// ⚠️ FIX: nodemailer resolves smtp.gmail.com itself and picks a RANDOM
-// address among the IPv4+IPv6 candidates it finds. On Railway the container
-// reports an IPv6 network interface that isn't actually routable to the
-// public internet, so roughly half of connection attempts pick an
-// unreachable IPv6 address (ENETUNREACH) or hang until the SMTP connection
-// times out — even though a working IPv4 route exists. Resolve an IPv4
-// address ourselves (Node's own dns.lookup, unaffected by nodemailer's
-// resolver) and connect to that literal IP directly, which skips
-// nodemailer's resolver/random pick entirely. `tls.servername` keeps TLS
-// certificate validation checking against the real hostname.
-const createGmailTransporter = async () => {
-  const { address } = await dns.lookup('smtp.gmail.com', { family: 4 });
-  return nodemailer.createTransport({
-    host: address,
-    port: 465,
-    secure: true,
-    tls: { servername: 'smtp.gmail.com' },
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
-    },
-  });
-};
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 /**
  * ส่ง Reset Password Email
@@ -94,10 +78,9 @@ const sendResetPasswordEmail = async (toEmail, username, token) => {
     </html>
   `;
 
-  const transporter = await createGmailTransporter();
-  await transporter.sendMail({
-    from: `"SDMS" <${process.env.GMAIL_USER}>`,
+  await sgMail.send({
     to: toEmail,
+    from: { email: process.env.SENDGRID_FROM_EMAIL, name: 'SDMS' },
     subject: '🔐 รีเซ็ตรหัสผ่าน SDMS',
     html,
   });

@@ -193,7 +193,7 @@ cp .env.example .env
 | `BOT_INTERNAL_SECRET` | secret ภายในระหว่าง backend กับ telegram bot process |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | เก็บไฟล์รูป/เอกสารที่ผู้ใช้อัปโหลด |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | ปุ่ม "เข้าสู่ระบบด้วย Google" |
-| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | ส่งอีเมลลืมรหัสผ่าน (ต้องใช้ [App Password](https://myaccount.google.com/apppasswords) ของ Google ไม่ใช่รหัส Gmail จริง) |
+| `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL` | ส่งอีเมลลืมรหัสผ่านผ่าน [SendGrid](https://sendgrid.com) API (HTTPS — ส่งตรงผ่าน SMTP ไม่ได้บน platform ที่บล็อก outbound SMTP port เช่น Railway) ต้อง verify `SENDGRID_FROM_EMAIL` ผ่าน Single Sender Verification ก่อน |
 
 > ตัวแปรที่ไม่ได้ตั้งค่า ระบบจะไม่ error ทันที แต่ฟีเจอร์ที่เกี่ยวข้องจะถูกปิดเงียบๆ เท่านั้น (เช่น ไม่ตั้ง `TELEGRAM_BOT_TOKEN` → บอทไม่ทำงาน แต่เว็บส่วนอื่นยังใช้ได้ปกติ) ดูค่าทั้งหมดพร้อมคำอธิบายเต็มใน [`backend/.env.example`](backend/.env.example)
 

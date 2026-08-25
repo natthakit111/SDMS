@@ -240,21 +240,6 @@ const getPaymentsReport = async (req, res, next) => {
 
     // ── ชื่อ sheet/หัวรายงาน ปรับตามว่ามี filter เดือน/ปีไหม ──
     const periodLabel = (month && year) ? `${THAI_MONTHS[month]} ${year + 543}` : 'ทั้งหมด'
-    const sheetName = `การชำระ ${periodLabel}`.slice(0, 31) // ExcelJS จำกัดชื่อ sheet ไม่เกิน 31 ตัวอักษร
-
-    const wb = new ExcelJS.Workbook()
-    const ws = wb.addWorksheet(sheetName)
-
-    ws.mergeCells('A1:H1')
-    ws.getCell('A1').value = `รายงานการชำระเงิน ${periodLabel}`
-    ws.getCell('A1').font  = { bold: true, size: 14 }
-    ws.getCell('A1').alignment = { horizontal: 'center' }
-    ws.addRow([])
-
-    const hRow = ws.addRow(['ห้อง','ผู้เช่า','จำนวน (฿)','วิธีชำระ','วันที่ชำระ','สถานะ','ตรวจสอบโดย','เบอร์บิล'])
-    hRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
-    hRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1a1a2e' } }
-    ws.columns = [10,20,14,14,16,14,16,10].map(w => ({ width: w }))
 
     const methodMap = { qr_promptpay: 'QR PromptPay', cash: 'เงินสด', bank_transfer: 'โอนเงิน' }
     const statusMap = { pending_verify: 'รอตรวจสอบ', verified: 'ยืนยันแล้ว', rejected: 'ปฏิเสธ' }
@@ -268,30 +253,108 @@ const getPaymentsReport = async (req, res, next) => {
       const amount = parseFloat(r.amount_paid || 0)
       totalShown += amount
       if (r.status === 'verified') totalVerified += amount
-      ws.addRow([
-        excelSafe(r.room_number), excelSafe(r.tenant_name), fmt(r.amount_paid),
-        methodMap[r.payment_method] || r.payment_method,
-        new Date(r.paid_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }),
-        statusMap[r.status] || r.status,
-        excelSafe(r.verified_by) || '-',
-        r.payment_id,
-      ])
     })
-
-    ws.addRow([])
-    const totalShownRow = ws.addRow(['','ยอดรวมที่แสดง (ตาม filter)', fmt(totalShown)])
-    totalShownRow.font = { bold: true }
-    const totalVerifiedRow = ws.addRow(['','ยอดรวมที่ยืนยันแล้ว', fmt(totalVerified)])
-    totalVerifiedRow.font = { bold: true, color: { argb: 'FF15803D' } }
 
     // ── ชื่อไฟล์: ใส่เดือน/ปีถ้ามี filter, ไม่งั้นใช้วันที่ export แทน ──
     const filenameSuffix = (month && year)
       ? `${month}_${year}`
       : new Date().toISOString().slice(0, 10)
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    res.setHeader('Content-Disposition', `attachment; filename=payments_${filenameSuffix}.xlsx`)
-    await wb.xlsx.write(res)
-    return res.end()
+
+    if (format === 'excel') {
+      const sheetName = `การชำระ ${periodLabel}`.slice(0, 31) // ExcelJS จำกัดชื่อ sheet ไม่เกิน 31 ตัวอักษร
+
+      const wb = new ExcelJS.Workbook()
+      const ws = wb.addWorksheet(sheetName)
+
+      ws.mergeCells('A1:H1')
+      ws.getCell('A1').value = `รายงานการชำระเงิน ${periodLabel}`
+      ws.getCell('A1').font  = { bold: true, size: 14 }
+      ws.getCell('A1').alignment = { horizontal: 'center' }
+      ws.addRow([])
+
+      const hRow = ws.addRow(['ห้อง','ผู้เช่า','จำนวน (฿)','วิธีชำระ','วันที่ชำระ','สถานะ','ตรวจสอบโดย','เบอร์บิล'])
+      hRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+      hRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1a1a2e' } }
+      ws.columns = [10,20,14,14,16,14,16,10].map(w => ({ width: w }))
+
+      rows.forEach(r => {
+        ws.addRow([
+          excelSafe(r.room_number), excelSafe(r.tenant_name), fmt(r.amount_paid),
+          methodMap[r.payment_method] || r.payment_method,
+          new Date(r.paid_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }),
+          statusMap[r.status] || r.status,
+          excelSafe(r.verified_by) || '-',
+          r.payment_id,
+        ])
+      })
+
+      ws.addRow([])
+      const totalShownRow = ws.addRow(['','ยอดรวมที่แสดง (ตาม filter)', fmt(totalShown)])
+      totalShownRow.font = { bold: true }
+      const totalVerifiedRow = ws.addRow(['','ยอดรวมที่ยืนยันแล้ว', fmt(totalVerified)])
+      totalVerifiedRow.font = { bold: true, color: { argb: 'FF15803D' } }
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      res.setHeader('Content-Disposition', `attachment; filename=payments_${filenameSuffix}.xlsx`)
+      await wb.xlsx.write(res)
+      return res.end()
+    }
+
+    // PDF
+    const doc = new PDFDocument({ margin: 50, size: 'A4' })
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename=payments_${filenameSuffix}.pdf`)
+    doc.pipe(res)
+
+    // --- ลงทะเบียนฟอนต์ไทย (ต้องทำก่อนเรียกใช้ .font() เสมอ) ---
+    const fontRegular = path.join(__dirname, '../assets/fonts/Sarabun-Regular.ttf');
+    const fontBold = path.join(__dirname, '../assets/fonts/Sarabun-Bold.ttf');
+    doc.registerFont('Sarabun', fontRegular);
+    doc.registerFont('Sarabun-Bold', fontBold);
+
+    doc.font('Sarabun-Bold').fontSize(18).text(`รายงานการชำระเงิน ${periodLabel}`, { align: 'center' })
+    doc.font('Sarabun').fontSize(10).text(`สร้างเมื่อ: ${new Date().toLocaleDateString('th-TH')}`, { align: 'center' })
+    doc.moveDown(1.5)
+
+    const cols = [50, 85, 55, 60, 75, 55, 65, 45]
+    const headers = ['ห้อง','ผู้เช่า','จำนวน (฿)','วิธีชำระ','วันที่ชำระ','สถานะ','ตรวจสอบโดย','เบอร์บิล']
+    let x = 50, y = doc.y
+
+    // Header row
+    doc.rect(x, y, cols.reduce((a,b)=>a+b,0), 20).fill('#1a1a2e')
+    doc.font('Sarabun-Bold').fillColor('white').fontSize(8.5)
+    let cx = x
+    headers.forEach((h, i) => { doc.text(h, cx + 3, y + 5, { width: cols[i]-6 }); cx += cols[i] })
+    doc.fillColor('black')
+    y += 20
+
+    rows.forEach((r, idx) => {
+      if (y > 760) { doc.addPage(); y = 50 } // ขึ้นหน้าใหม่ถ้าเกินขอบล่าง A4
+      if (idx % 2 === 0) doc.rect(x, y, cols.reduce((a,b)=>a+b,0), 18).fill('#f8f7f4')
+      doc.font('Sarabun').fillColor('#1a1a2e').fontSize(8)
+      const row = [
+        r.room_number, r.tenant_name, fmt(r.amount_paid),
+        methodMap[r.payment_method] || r.payment_method,
+        new Date(r.paid_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }),
+        statusMap[r.status] || r.status,
+        r.verified_by || '-',
+        r.payment_id,
+      ]
+      cx = x
+      row.forEach((v, i) => { doc.text(String(v), cx + 3, y + 4, { width: cols[i]-6 }); cx += cols[i] })
+      y += 18
+    })
+
+    // Totals
+    if (y > 740) { doc.addPage(); y = 50 }
+    doc.rect(x, y, cols.reduce((a,b)=>a+b,0), 20).fill('#e8e6ff')
+    doc.font('Sarabun-Bold').fillColor('#1a1a2e').fontSize(9)
+    doc.text(`ยอดรวมที่แสดง (ตาม filter): ${Number(totalShown).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿`, x + 3, y + 5)
+    y += 20
+    doc.rect(x, y, cols.reduce((a,b)=>a+b,0), 20).fill('#e6f4ea')
+    doc.font('Sarabun-Bold').fillColor('#15803D').fontSize(9)
+    doc.text(`ยอดรวมที่ยืนยันแล้ว: ${Number(totalVerified).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿`, x + 3, y + 5)
+    doc.end()
   } catch (err) { next(err) }
 }
 

@@ -235,7 +235,7 @@ export default function PaymentsPage() {
       const dateStamp = todayDateString();
       await paymentAPI.exportExcel(params, `payments_${dateStamp}.xlsx`);
 
-      toast.success(t("payment.exportSuccess") ?? "Export สำเร็จ");
+      toast.success(t("payment.exportSuccess", { fmt: "Excel" }) ?? "Export สำเร็จ");
     } catch {
       toast.error(t("payment.exportError") ?? "Export ไม่สำเร็จ");
     } finally {

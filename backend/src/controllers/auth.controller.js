@@ -295,14 +295,15 @@ const forgotPassword = async (req, res, next) => {
     const expiresAt = new Date(Date.now() + 1000 * 60 * 15);
     await PasswordResetModel.createResetToken(user.user_id, token, expiresAt);
 
-    try {
-      await sendResetPasswordEmail(user.email, user.username, token);
-    } catch (emailErr) {
-      // Token ถูกสร้างสำเร็จแล้ว — ความล้มเหลวของการส่งอีเมล (เช่น SMTP
-      // credentials ไม่ถูกตั้งค่า) ไม่ควรทำให้ request ทั้งหมดเป็น 500
-      // และไม่ควร leak รายละเอียดการส่งอีเมลให้ client เห็น
+    // ⚠️ FIX: เดิม await ตรงนี้ — nodemailer ไม่ได้ตั้ง connectionTimeout เอง
+    // (default ของ nodemailer คือ 2 นาที) ถ้า SMTP เชื่อมต่อไม่ได้ (เช่น
+    // Railway บล็อก outbound SMTP port หรือ credentials ผิด/หมดอายุบน
+    // production) request จะค้างรอเต็ม 2 นาทีก่อน reject — นานกว่าที่ Vercel
+    // proxy รอไหว ตัดจบด้วย 502 ก่อน ทั้งที่ token ถูกสร้างสำเร็จแล้วจริงๆ
+    // เปลี่ยนเป็น fire-and-forget ไม่บล็อก response ตอบกลับผู้ใช้ทันที
+    sendResetPasswordEmail(user.email, user.username, token).catch((emailErr) => {
       logger.error('sendResetPasswordEmail failed', { userId: user.user_id, error: emailErr.message });
-    }
+    });
 
     return sendSuccess(res, null, 'ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลของคุณแล้ว');
   } catch (err) { next(err); }

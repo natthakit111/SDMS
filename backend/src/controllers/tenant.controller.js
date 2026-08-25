@@ -215,6 +215,7 @@ const updateMyProfile = async (req, res, next) => {
 
 // DELETE /api/tenants/:id  — admin soft-deactivates user account
 const deleteTenant = async (req, res, next) => {
+  const conn = await pool.getConnection();
   try {
     const tenant = await TenantModel.findById(req.params.id);
     if (!tenant) return sendNotFound(res, 'ไม่พบผู้เช่า');
@@ -224,9 +225,39 @@ const deleteTenant = async (req, res, next) => {
       return sendBadRequest(res, 'ไม่สามารถลบผู้เช่าได้ เนื่องจากมีสัญญาเช่าที่ใช้งานอยู่ กรุณายกเลิกสัญญาหรือดำเนินการย้ายออกก่อน');
     }
 
-    await UserModel.deactivateUser(tenant.user_id);
+    // ⚠️ FIX: username/phone/email มี UNIQUE constraint ทั้งใน users และ
+    // tenants ตอน deactivate เดิมไม่เคยปลด constraint นี้เลย ทำให้เบอร์/
+    // อีเมลของบัญชีที่ถูกลบไปแล้วสมัครใหม่ไม่ได้อีกตลอดกาล (แม้ admin จะ
+    // "ลบ" ไปแล้วก็ตาม) — เติม prefix ให้ค่าที่ users/tenants ทั้งคู่พร้อมกัน
+    // ในทรานแซกชันเดียว เพื่อปลดล็อกให้ค่าจริงกลับมาใช้สมัครใหม่ได้ทันที
+    // (ยังเก็บแถวเดิมไว้ครบสำหรับประวัติสัญญา/บิลเก่าที่อ้างอิง user_id)
+    await conn.beginTransaction();
+    await conn.query(
+      `UPDATE users
+       SET is_active = 0,
+           username = CONCAT('deleted_', user_id),
+           phone = IF(phone IS NULL, NULL, CONCAT('deleted_', user_id)),
+           email = IF(email IS NULL, NULL, CONCAT('deleted_', user_id, '@deleted.local'))
+       WHERE user_id = ?`,
+      [tenant.user_id]
+    );
+    await conn.query(
+      `UPDATE tenants
+       SET phone = CONCAT('deleted_', user_id),
+           email = IF(email IS NULL, NULL, CONCAT('deleted_', user_id, '@deleted.local')),
+           id_card_number = CONCAT('DEL', user_id)
+       WHERE user_id = ?`,
+      [tenant.user_id]
+    );
+    await conn.commit();
+
     return sendSuccess(res, null, 'ปิดใช้งานบัญชีผู้เช่าสำเร็จ');
-  } catch (err) { next(err); }
+  } catch (err) {
+    await conn.rollback();
+    next(err);
+  } finally {
+    conn.release();
+  }
 };
 
 module.exports = {

@@ -17,6 +17,11 @@ export const authAPI = {
   forgotPassword: (username) =>
     api.post('/auth/forgot-password', { username }).then((r) => r.data),
 
+  // เช็คว่า token รีเซ็ตรหัสผ่านยังใช้ได้จริงไหม ไม่ consume/ลบ token —
+  // ใช้เช็คตอนโหลดหน้า /reset-password ก่อนโชว์ฟอร์ม
+  verifyResetToken: (token) =>
+    api.get('/auth/verify-reset-token', { params: { token } }).then((r) => r.data),
+
   resetPassword: (token, newPassword) =>
     api.post('/auth/reset-password', { token, newPassword }).then((r) => r.data),
 

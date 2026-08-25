@@ -309,17 +309,42 @@ const forgotPassword = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// ── ใช้ร่วมกันทั้ง verifyResetToken (เช็คอย่างเดียว ไม่ consume) และ
+// resetPassword (เช็คก่อนเปลี่ยนรหัสผ่านจริง) — กันโค้ดตรวจสอบ token
+// ซ้ำกันสองที่ ⚠️ AUTH-12/13: เดิมหน้า /reset-password เช็คแค่ว่า URL มี
+// token พารามิเตอร์ไหม ไม่เช็คว่ายังใช้ได้จริง โชว์ฟอร์มกรอกรหัสผ่านใหม่
+// เต็มๆ ให้กรอกก่อนถึงจะไป error ตอนกด submit — ผู้ใช้กดลิงก์เก่า/หมดอายุ
+// เข้ามาแล้วเสียเวลากรอกฟอร์มเปล่าๆ
+const checkResetToken = async (token) => {
+  if (!token) return { ok: false, message: 'Token ไม่ถูกต้อง' };
+  const record = await PasswordResetModel.findByToken(token);
+  if (!record) return { ok: false, message: 'Token ไม่ถูกต้อง' };
+  if (new Date(record.expires_at) < new Date()) return { ok: false, message: 'Token หมดอายุ' };
+  if (!record.is_active) return { ok: false, message: 'บัญชีนี้ถูกปิดการใช้งาน' };
+  return { ok: true, record };
+};
+
+// ── GET /api/auth/verify-reset-token?token=xxx — เช็คว่า token ยังใช้ได้
+// จริงไหม ไม่ consume/ลบ token — ให้หน้า /reset-password เรียกตอนโหลดหน้า
+// ก่อนโชว์ฟอร์ม
+const verifyResetToken = async (req, res, next) => {
+  try {
+    const { token } = req.query;
+    const check = await checkResetToken(token);
+    if (!check.ok) return sendBadRequest(res, check.message);
+    return sendSuccess(res, null, 'Token ใช้งานได้');
+  } catch (err) { next(err); }
+};
+
 const resetPassword = async (req, res, next) => {
   try {
     const { token, newPassword } = req.body;
-    const record = await PasswordResetModel.findByToken(token);
-    if (!record) return sendBadRequest(res, 'Token ไม่ถูกต้อง');
-    if (new Date(record.expires_at) < new Date()) return sendBadRequest(res, 'Token หมดอายุ');
-    if (!record.is_active) return sendBadRequest(res, 'บัญชีนี้ถูกปิดการใช้งาน');
+    const check = await checkResetToken(token);
+    if (!check.ok) return sendBadRequest(res, check.message);
 
     const salt = await bcrypt.genSalt(12);
     const newHash = await bcrypt.hash(newPassword, salt);
-    await UserModel.setPasswordHash(record.user_id, newHash);
+    await UserModel.setPasswordHash(check.record.user_id, newHash);
     await PasswordResetModel.deleteToken(token);
 
     return sendSuccess(res, null, 'เปลี่ยนรหัสผ่านสำเร็จ');
@@ -328,6 +353,6 @@ const resetPassword = async (req, res, next) => {
 
 module.exports = {
   register, login, logout, getMe, updateProfile,
-  changePassword, setPassword, forgotPassword, resetPassword,
+  changePassword, setPassword, forgotPassword, verifyResetToken, resetPassword,
   signToken, setAuthCookies, clearAuthCookies, // export ไว้ให้ oauth.routes.js เรียกใช้ร่วมกัน
 };

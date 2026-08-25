@@ -73,6 +73,7 @@ router.post('/register', authLimiter, registerValidation, authController.registe
 
 router.post('/login', authLimiter, loginValidation, authController.login);
 router.post('/forgot-password', authLimiter, authController.forgotPassword);
+router.get('/verify-reset-token', authLimiter, authController.verifyResetToken);
 router.post('/reset-password', authLimiter, authController.resetPassword);
 
 // ⚠️ ใหม่: logout ต้องผ่าน backend เสมอ เพราะ cookie `token` เป็น httpOnly

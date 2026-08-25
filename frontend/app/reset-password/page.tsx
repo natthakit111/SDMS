@@ -4,7 +4,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { authAPI } from "@/lib/api/auth.api";
@@ -57,6 +57,32 @@ function ResetPasswordForm() {
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
 
+  // ⚠️ AUTH-12/13: เช็ค token ตั้งแต่โหลดหน้า ก่อนโชว์ฟอร์ม — เดิมเช็คแค่ว่า
+  // URL มี token พารามิเตอร์ไหม โชว์ฟอร์มกรอกรหัสผ่านใหม่เต็มๆ ให้กรอกก่อน
+  // ถึงจะไป error ตอนกด submit ทั้งที่ backend รู้อยู่แล้วว่า token
+  // หมดอายุ/ถูกแทนที่ไปแล้วตั้งแต่แรก
+  const [tokenCheck, setTokenCheck] = useState<
+    "checking" | "valid" | "invalid"
+  >("checking");
+  const [tokenCheckMessage, setTokenCheckMessage] = useState("");
+
+  useEffect(() => {
+    if (!token) {
+      setTokenCheck("invalid");
+      return;
+    }
+    authAPI
+      .verifyResetToken(token)
+      .then(() => setTokenCheck("valid"))
+      .catch((err: unknown) => {
+        setTokenCheck("invalid");
+        const errorMessage = (
+          err as { response?: { data?: { message?: string } } }
+        )?.response?.data?.message;
+        if (errorMessage) setTokenCheckMessage(errorMessage);
+      });
+  }, [token]);
+
   const strength = getStrength(newPassword);
 
   // ⚠️ FIX: เดิม index 0 ของ label array เป็น "" ทำให้พิมพ์รหัสผ่านสั้นๆ
@@ -84,7 +110,15 @@ function ResetPasswordForm() {
   ];
   const strengthColor = strengthColors[strength];
 
-  if (!token) {
+  if (tokenCheck === "checking") {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (tokenCheck === "invalid") {
     return (
       <div className="flex flex-col items-center gap-3 py-4 text-center">
         <div className="p-3 rounded-full bg-destructive/10">
@@ -92,7 +126,7 @@ function ResetPasswordForm() {
         </div>
         <p className="font-medium">{t("resetPassword.invalidLink")}</p>
         <p className="text-sm text-muted-foreground">
-          {t("resetPassword.invalidLinkDesc")}
+          {tokenCheckMessage || t("resetPassword.invalidLinkDesc")}
         </p>
         <Button asChild className="mt-2 w-full">
           <Link href="/forgot-password">{t("resetPassword.requestNew")}</Link>

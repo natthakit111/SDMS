@@ -312,6 +312,7 @@ export const translations: Record<string, { th: string; en: string }> = {
     en: "Edit this tenant's information",
   },
   "tenants.idCard": { th: "เลขบัตรประชาชน", en: "ID Card Number" },
+  "tenants.idCardPlaceholder": { th: "เลขบัตรประชาชน 13 หลัก", en: "13-digit ID card number" },
   "tenants.emergencyName": { th: "ผู้ติดต่อฉุกเฉิน", en: "Emergency Contact" },
   "tenants.emergencyPhone": { th: "เบอร์ติดต่อฉุกเฉิน", en: "Emergency Phone" },
   "tenants.list": { th: "รายการผู้เช่า", en: "Tenant List" },

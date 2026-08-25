@@ -523,7 +523,7 @@ export default function TenantsPage() {
                               ? "border-destructive"
                               : ""
                           }
-                          placeholder="เลขบัตรประชาชน 13 หลัก"
+                          placeholder={t("tenants.idCardPlaceholder")}
                           maxLength={17} // เผื่อ user พิมพ์ขีดคั่น
                           inputMode="numeric"
                         />

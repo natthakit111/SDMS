@@ -13,8 +13,32 @@ const cookieParser = require('cookie-parser');
 
 const routes       = require('./src/routes/index');
 const errorHandler = require('./src/middlewares/errorHandler');
+const logger       = require('./src/utils/logger');
 
 const app = express();
+
+// ⚠️ FIX: ไม่เคยตั้ง trust proxy มาก่อนเลย ทำให้ req.ip ที่ express-rate-limit
+// ใช้เป็น key แยกผู้ใช้แต่ละคน (สำหรับ authLimiter กัน brute-force login)
+// ไม่ใช่ IP จริงของผู้ใช้ แต่เป็น IP ของ proxy hop ที่ใกล้ container ที่สุด
+// แทน (ยืนยันจาก production log: express-rate-limit โยน
+// ERR_ERL_UNEXPECTED_X_FORWARDED_FOR เพราะเจอ header X-Forwarded-For แต่
+// trust proxy ปิดอยู่) — request chain จริงคือ browser → Vercel (Next.js
+// rewrite proxy /api/* ไปที่ Railway) → Railway edge → container นี้ จึงมี
+// 2 hop ที่ควร trust ตั้งเป็น 2 (ไม่ใช่ true/ไม่จำกัด เพราะจะเปิดช่องให้
+// ปลอม X-Forwarded-For มา bypass rate-limit ได้)
+// TODO: log ด้านล่างเป็นของชั่วคราวไว้ยืนยันว่าจำนวน hop ถูกต้องจริงจาก
+// production — ลบทิ้งได้หลังเช็คแล้วว่า req.ip ตรงกับ IP จริงของผู้ใช้
+app.set('trust proxy', 2);
+app.use((req, res, next) => {
+  if (req.headers['x-forwarded-for']) {
+    logger.info('[trust-proxy-check]', {
+      xForwardedFor: req.headers['x-forwarded-for'],
+      resolvedIp: req.ip,
+      ips: req.ips,
+    });
+  }
+  next();
+});
 
 app.use(helmet());
 

@@ -150,21 +150,15 @@ export default function RoomsPage() {
       resetForm();
       fetchRooms();
     } catch (err: any) {
+      // axios response interceptor (lib/api/axiosInstance.js) แปล error
+      // code เป็นข้อความสองภาษาให้แล้วอัตโนมัติทุกจุด ไม่ต้องเช็ค code
+      // ซ้ำที่นี่ (เดิมเช็ค errMessage === "ROOM_DUPLICATE" ตรงๆ แต่ตอนถึง
+      // จุดนี้ message ถูกแปลไปแล้วเสมอ เงื่อนไขนี้เลย unreachable จริง)
       const errMessage = err?.response?.data?.message;
-
-      // 💡 แปลง Error Code เป็นข้อความสองภาษา
-      if (errMessage === "ROOM_DUPLICATE") {
-        toast.error(
-          language === "th"
-            ? "หมายเลขห้องนี้มีอยู่ในระบบแล้ว"
-            : "Room number already exists",
-        );
-      } else {
-        toast.error(
-          errMessage ??
-            (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
-        );
-      }
+      toast.error(
+        errMessage ??
+          (language === "th" ? "เกิดข้อผิดพลาด" : "An error occurred"),
+      );
     } finally {
       setSubmitting(false);
     }

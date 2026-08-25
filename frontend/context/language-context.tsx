@@ -412,6 +412,10 @@ export const translations: Record<string, { th: string; en: string }> = {
     th: "เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว",
     en: "This ID card number is already registered",
   },
+  "errors.ROOM_DUPLICATE": {
+    th: "หมายเลขห้องนี้มีอยู่ในระบบแล้ว",
+    en: "This room number already exists",
+  },
   // ⚠️ ใหม่: error code กลางจาก backend/src/middlewares/errorHandler.js —
   // เดิมส่งเป็นประโยคภาษาอังกฤษ/ไทยตรงๆ ไม่แปลตามภาษาที่เลือกไว้เลย
   "errors.DUPLICATE_ENTRY": {

@@ -71,7 +71,7 @@ const sendResetPasswordEmail = async (toEmail, username, token) => {
           </p>
         </div>
         <div class="footer">
-          SDMS — ระบบบริหารจัดการหอพัก
+          SDMS — ระบบบริหารจัดการหอพักและแจ้งเตือนอัตโนมัติ
         </div>
       </div>
     </body>

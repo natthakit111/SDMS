@@ -1,4 +1,4 @@
-# 🏢 Smart Dormitory Management System (SDMS)
+# 🏢 Smart Dormitory Management System with Automated Notification (SDMS)
 
 **ระบบบริหารจัดการหอพักและแจ้งเตือนอัตโนมัติ**
 

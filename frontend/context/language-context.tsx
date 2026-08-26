@@ -72,7 +72,10 @@ export const translations: Record<string, { th: string; en: string }> = {
     th: "แสดง {from}–{to} จาก {total} รายการ",
     en: "Showing {from}–{to} of {total}",
   },
-  "pagination.pageOf": { th: "หน้า {page} / {totalPages}", en: "Page {page} of {totalPages}" },
+  "pagination.pageOf": {
+    th: "หน้า {page} / {totalPages}",
+    en: "Page {page} of {totalPages}",
+  },
   "pagination.previous": { th: "ก่อนหน้า", en: "Previous" },
   "pagination.next": { th: "ถัดไป", en: "Next" },
   "common.amount": { th: "จำนวนเงิน", en: "Amount" },
@@ -101,8 +104,8 @@ export const translations: Record<string, { th: string; en: string }> = {
 
   // ── Login ──────────────────────────────────────────────────────────────────
   "login.subtitle": {
-    th: "ระบบบริหารจัดการหอพัก",
-    en: "Dormitory Management System",
+    th: "ระบบบริหารจัดการหอพักและแจ้งเตือนอัตโนมัติ",
+    en: "Smart Dormitory Management System with AutomatedNotification",
   },
   "login.orLoginWith": { th: "หรือเข้าสู่ระบบด้วย", en: "or continue with" },
   "login.usernamePlaceholder": { th: "กรอก ชื่อผู้ใช้", en: "Enter username" },
@@ -190,7 +193,10 @@ export const translations: Record<string, { th: string; en: string }> = {
     th: "รหัสผ่านตั้งต้น",
     en: "Default Password",
   },
-  "forcePasswordChange.submit": { th: "เปลี่ยนรหัสผ่านและเข้าใช้งาน", en: "Change Password & Continue" },
+  "forcePasswordChange.submit": {
+    th: "เปลี่ยนรหัสผ่านและเข้าใช้งาน",
+    en: "Change Password & Continue",
+  },
   "forcePasswordChange.success": {
     th: "เปลี่ยนรหัสผ่านสำเร็จ กำลังเข้าสู่ระบบ...",
     en: "Password changed. Signing you in...",
@@ -312,7 +318,10 @@ export const translations: Record<string, { th: string; en: string }> = {
     en: "Edit this tenant's information",
   },
   "tenants.idCard": { th: "เลขบัตรประชาชน", en: "ID Card Number" },
-  "tenants.idCardPlaceholder": { th: "เลขบัตรประชาชน 13 หลัก", en: "13-digit ID card number" },
+  "tenants.idCardPlaceholder": {
+    th: "เลขบัตรประชาชน 13 หลัก",
+    en: "13-digit ID card number",
+  },
   "tenants.emergencyName": { th: "ผู้ติดต่อฉุกเฉิน", en: "Emergency Contact" },
   "tenants.emergencyPhone": { th: "เบอร์ติดต่อฉุกเฉิน", en: "Emergency Phone" },
   "tenants.list": { th: "รายการผู้เช่า", en: "Tenant List" },

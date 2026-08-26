@@ -95,7 +95,7 @@ SDMS/
 │   ├── app/
 │   │   ├── admin/             # หน้าฝั่งผู้ดูแล (13 โมดูล)
 │   │   ├── tenant/            # หน้าฝั่งผู้เช่า (8 โมดูล)
-│   │   ├── auth/              # callback สำหรับ Google/Telegram OAuth
+│   │   ├── auth/              # callback สำหรับ Google OAuth
 │   │   ├── login/, register/, forgot-password/, reset-password/
 │   │   └── globals.css        # design token ของทั้งระบบ (สี, radius, ธีม light/dark)
 │   ├── components/
@@ -189,7 +189,7 @@ cp .env.example .env
 |---|---|
 | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | เชื่อมต่อ MySQL ที่ตั้งไว้ในขั้นตอนที่ 2 |
 | `JWT_SECRET` | key เซ็น JWT — **ต้องเปลี่ยนเป็นค่าสุ่มยาวๆ ก่อนใช้งานจริง** |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` | สำหรับ Telegram Bot + Login Widget (ขอได้จาก [@BotFather](https://t.me/BotFather)) |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` | สำหรับ Telegram Bot ส่งการแจ้งเตือน + สร้าง deep link เชื่อมต่อบัญชี (ขอได้จาก [@BotFather](https://t.me/BotFather)) — ไม่มีการ login ด้วย Telegram |
 | `BOT_INTERNAL_SECRET` | secret ภายในระหว่าง backend กับ telegram bot process |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | เก็บไฟล์รูป/เอกสารที่ผู้ใช้อัปโหลด |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | ปุ่ม "เข้าสู่ระบบด้วย Google" |
@@ -253,7 +253,7 @@ pnpm dev
 
 ## 🔒 ความปลอดภัยของระบบ
 
-- **Authentication:** JWT เก็บใน **httpOnly cookie** (ไม่ใช่ localStorage) ป้องกัน token หลุดผ่าน XSS รองรับ login ด้วย username/password, Google OAuth, และ Telegram Login Widget
+- **Authentication:** JWT เก็บใน **httpOnly cookie** (ไม่ใช่ localStorage) ป้องกัน token หลุดผ่าน XSS รองรับ login ด้วย username/password และ Google OAuth
 - **CSRF Protection:** double-submit cookie pattern (`csrf_token` cookie + header `X-CSRF-Token`) — จำเป็นเพราะ frontend/backend อยู่คนละโดเมนกันตอน production จึงต้องใช้ `SameSite=None`
 - **Authorization:** Role-Based Access Control แยกสิทธิ์ Admin/Tenant ในทุก endpoint
 - **Data Protection:** เข้ารหัสรหัสผ่านด้วย bcrypt ก่อนบันทึกลงฐานข้อมูล ไม่เก็บ plaintext เด็ดขาด

@@ -3,12 +3,17 @@
  * Base path: /api/auth
  *
  * Google  : GET /api/auth/google  →  GET /api/auth/google/callback
- * Telegram: GET /api/auth/telegram  (Login Widget page)
- *           GET /api/auth/telegram/callback  (widget redirects here)
+ *
+ * ⚠️ Telegram Login Widget ("เข้าสู่ระบบด้วย Telegram") ถูกถอดออกทั้งหมด
+ * แล้ว — ระบบไม่มีการ login ด้วย Telegram ตั้งแต่ต้น มีแค่ "เชื่อมต่อ
+ * Telegram" เพื่อรับการแจ้งเตือนเท่านั้น (คนละ flow กันเลย ดู
+ * src/routes/telegram.routes.js — generate-link/link/unlink/status ไม่ได้
+ * ถูกแตะต้องเลย ยังทำงานปกติ) TELEGRAM_BOT_TOKEN/TELEGRAM_BOT_USERNAME
+ * ยังใช้อยู่ (bot สำหรับแจ้งเตือน + deep link เชื่อมต่อบัญชี)
  *
  * ⚠️ SECURITY FIX (สำคัญ):
- * เดิม callback ทั้งสองฝั่ง (Google/Telegram) redirect กลับ frontend พร้อม
- * JWT เต็มๆ (session token อายุ 1 วัน) ฝังใน query string ตรงๆ
+ * เดิม callback ฝั่ง Google redirect กลับ frontend พร้อม JWT เต็มๆ
+ * (session token อายุ 1 วัน) ฝังใน query string ตรงๆ
  * (?token=eyJhbGci...) ซึ่งเสี่ยงหลุดผ่าน:
  *   - Browser history (ใครก็ตามที่เข้าถึงเครื่อง/ประวัติได้ คัดลอกไป
  *     login แทนได้เลย)
@@ -24,13 +29,10 @@
  *
  * Install:
  *   npm install passport passport-google-oauth20
- *   (ไม่ต้องใช้ passport-telegram แล้ว — verify เองด้วย HMAC)
  *
  * .env:
  *   GOOGLE_CLIENT_ID=...
  *   GOOGLE_CLIENT_SECRET=...
- *   TELEGRAM_BOT_TOKEN=...
- *   TELEGRAM_BOT_USERNAME=YourBotName
  *   BACKEND_URL=http://localhost:5000/api
  *   FRONTEND_URL=http://localhost:3000
  */
@@ -38,8 +40,6 @@
 const express  = require('express');
 const passport = require('passport');
 const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
-const crypto   = require('crypto');
-const jwt      = require('jsonwebtoken');
 const router   = express.Router();
 const { pool } = require('../config/db');
 const OAuthCodeModel = require('../models/oauthCode.model');
@@ -283,103 +283,5 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     res.status(503).json({ success: false, message: 'Google login is not configured' });
   });
 }
-
-/* ═════════════════════════════════════════
-   TELEGRAM LOGIN WIDGET
-   ไม่ต้องใช้ passport — verify HMAC เอง
-   https://core.telegram.org/widgets/login
-═════════════════════════════════════════ */
-
-function verifyTelegramData(data) {
-  const { hash, ...rest } = data;
-  if (!hash) return false;
-
-  // Reject if older than 5 minutes
-  if (Date.now() / 1000 - parseInt(rest.auth_date, 10) > 300) return false;
-
-  const checkString = Object.keys(rest)
-    .sort()
-    .map((k) => `${k}=${rest[k]}`)
-    .join('\n');
-
-  const secretKey = crypto
-    .createHash('sha256')
-    .update(process.env.TELEGRAM_BOT_TOKEN)
-    .digest();
-
-  const expected = crypto
-    .createHmac('sha256', secretKey)
-    .update(checkString)
-    .digest('hex');
-
-  return expected === hash;
-}
-
-// หน้า Login Widget
-router.get('/telegram', (req, res) => {
-  const botUsername = process.env.TELEGRAM_BOT_USERNAME || '';
-  const callbackUrl = `${BACKEND_URL}/auth/telegram/callback`;
-
-  res.send(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Login with Telegram</title>
-  <style>
-    body{display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f0f2f5;font-family:sans-serif}
-    .box{background:#fff;padding:2rem;border-radius:12px;box-shadow:0 2px 16px rgba(0,0,0,.1);text-align:center}
-    p{color:#666;margin-top:.5rem;font-size:.9rem}
-  </style>
-</head>
-<body>
-  <div class="box">
-    <h2>เข้าสู่ระบบด้วย Telegram</h2>
-    <p>กดปุ่มด้านล่างเพื่ออนุญาต</p>
-    <script async
-      src="https://telegram.org/js/telegram-widget.js?22"
-      data-telegram-login="${botUsername}"
-      data-size="large"
-      data-auth-url="${callbackUrl}"
-      data-request-access="write">
-    </script>
-  </div>
-</body>
-</html>`);
-});
-
-// Callback ที่ widget redirect มา
-router.get('/telegram/callback', async (req, res) => {
-  try {
-    if (!verifyTelegramData(req.query)) {
-      return res.redirect(
-        `${FRONTEND_URL}/auth/telegram/callback?error=${encodeURIComponent('ข้อมูลจาก Telegram ไม่ถูกต้อง')}`
-      );
-    }
-
-    const { id, first_name, last_name } = req.query;
-
-    const user = await upsertOAuthUser({
-      provider:    'telegram',
-      providerId:  id,
-      email:       null,
-      displayName: [first_name, last_name].filter(Boolean).join(' '),
-    });
-
-    await pool.query(
-      'UPDATE users SET telegram_chat_id = ? WHERE user_id = ?',
-      [String(id), user.user_id]
-    );
-
-    // ⚠️ FIX: เดิม sign JWT เต็มแล้วฝังใน query ตรงๆ (?token=...) เหมือนฝั่ง
-    // Google — เปลี่ยนเป็น exchange code สั้นๆ อายุ 60 วิ ใช้ครั้งเดียวแทน
-    const code = await OAuthCodeModel.createCode(user.user_id);
-    res.redirect(`${FRONTEND_URL}/auth/telegram/callback?code=${code}`);
-  } catch (err) {
-    console.error('Telegram OAuth error:', err);
-    res.redirect(
-      `${FRONTEND_URL}/auth/telegram/callback?error=${encodeURIComponent('เกิดข้อผิดพลาด')}`
-    );
-  }
-});
 
 module.exports = router;

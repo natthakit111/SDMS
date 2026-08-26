@@ -84,12 +84,13 @@ Vercel (Next.js frontend)  ──HTTPS + cookie──→  Railway (Express backe
 
 ---
 
-## ส่วนที่ 4: อัปเดต OAuth / Telegram callback ให้ตรงโดเมนจริง
+## ส่วนที่ 4: อัปเดต Google OAuth callback ให้ตรงโดเมนจริง
 
-หลัง deploy เสร็จทั้งคู่ ต้องกลับไปแก้ 2 จุดนี้เป็นโดเมนจริงเสมอ ไม่งั้น login ผ่าน Google/Telegram จะพัง:
+หลัง deploy เสร็จทั้งคู่ ต้องกลับไปแก้จุดนี้เป็นโดเมนจริงเสมอ ไม่งั้น login ผ่าน Google จะพัง:
 
 - **Google Cloud Console** → OAuth 2.0 Client → Authorized redirect URIs → เพิ่ม `https://<railway-backend-domain>/api/auth/google/callback`
-- **Telegram BotFather** → `/setdomain` → ตั้งเป็นโดเมน Vercel จริง (widget จะปฏิเสธถ้าโดเมนไม่ตรงกับที่ตั้งไว้)
+
+(ไม่มีการ login ด้วย Telegram — ไม่ต้องตั้งค่า BotFather `/setdomain` ตัว bot เอง (token/username) ยังต้องตั้งตามปกติสำหรับส่งการแจ้งเตือน)
 
 ---
 
@@ -101,8 +102,8 @@ Vercel (Next.js frontend)  ──HTTPS + cookie──→  Railway (Express backe
 - [ ] Backend service ตั้ง Root Directory = `backend`, ปิด serverless/sleep mode, replica = 1
 - [ ] Backend env ครบทุกตัว โดยเฉพาะ `FRONTEND_URL` ตรงกับ Vercel domain เป๊ะๆ (ไม่มี `/` ท้าย), `COOKIE_CROSS_SITE=true`, `COOKIE_SECURE=true`
 - [ ] Frontend service ตั้ง Root Directory = `frontend`, `NEXT_PUBLIC_API_URL` ชี้ไป Railway backend + `/api`
-- [ ] Google OAuth redirect URI + Telegram BotFather domain อัปเดตเป็นโดเมนจริงแล้ว
-- [ ] ทดสอบ login ทั้ง 3 แบบ (username/password, Google, Telegram) บน production จริง — เช็คว่า cookie ถูกตั้งและอ่านข้ามโดเมนได้ (เปิด DevTools → Application → Cookies เช็คว่ามี `token`, `auth_hint`, `csrf_token`)
+- [ ] Google OAuth redirect URI อัปเดตเป็นโดเมนจริงแล้ว
+- [ ] ทดสอบ login ทั้ง 2 แบบ (username/password, Google) บน production จริง — เช็คว่า cookie ถูกตั้งและอ่านข้ามโดเมนได้ (เปิด DevTools → Application → Cookies เช็คว่ามี `token`, `auth_hint`, `csrf_token`)
 - [ ] ทดสอบ flow ครบวงจร: สร้างห้อง/สัญญา → จดมิเตอร์ → ออกบิล → จ่ายเงิน → แจ้งเตือน Telegram มาจริง
 - [ ] รอดูวันถัดไปว่า cron รันตามเวลาจริงไหม (เช็ค Railway deploy logs ตอน 00:05 / 01:00 / 08:00 / 08:30 / 09:00 เวลาไทย) หรือเรียกทดสอบทันทีผ่าน `__test__` helper ตามที่อธิบายไว้ใน [`CRON_SETUP.md`](./CRON_SETUP.md)
 - [ ] ตั้งการสำรองฐานข้อมูล — Railway มี backup ให้ในบาง plan แต่ควรเช็ค/ตั้งเพิ่มเองด้วย (`mysqldump` ผ่าน scheduled job ภายนอก) เผื่อไว้

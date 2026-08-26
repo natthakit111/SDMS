@@ -66,9 +66,9 @@ Middleware ยังรองรับ `Authorization: Bearer <token>` เป็
 |---|---|---|
 | GET | `/auth/google` | เริ่ม flow Google OAuth |
 | GET | `/auth/google/callback` | Google redirect กลับมาที่นี่ → ออก exchange code → redirect ไป frontend พร้อม `?code=` |
-| GET | `/auth/telegram` | หน้า Telegram Login Widget |
-| GET | `/auth/telegram/callback` | Widget redirect มาที่นี่ → verify HMAC → ออก exchange code |
 | POST | `/auth/oauth/exchange` | Public — frontend ส่ง `{ code }` ที่ได้จาก redirect มาแลกเป็น session จริง (ตั้ง cookie), คืน `{ user }` |
+
+> ไม่มีการ login ด้วย Telegram — มีแค่ "เชื่อมต่อ Telegram" เพื่อรับการแจ้งเตือนเท่านั้น (ดู `/api/telegram` ด้านล่าง คนละ flow กันเลย)
 
 > **หมายเหตุความปลอดภัย:** OAuth ไม่ส่ง JWT เต็มผ่าน URL โดยตรง (เสี่ยงหลุดผ่าน browser history/log) แต่ใช้ short-lived exchange code (60 วินาที, ใช้ได้ครั้งเดียว) ให้ frontend เอาไปแลก JWT จริงทาง POST อีกที
 

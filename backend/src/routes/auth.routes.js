@@ -20,7 +20,10 @@ const authLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Too many requests, please try again later.' },
+  // ⚠️ FIX: เดิมเป็นข้อความอังกฤษดิบ ไม่ผ่านระบบแปลภาษากลาง (axiosInstance.js
+  // translateCode) เพราะไม่ตรง pattern CODE (ตัวพิมพ์ใหญ่ล้วน) เลยขึ้นเป็น
+  // อังกฤษเสมอไม่ว่าจะเลือกภาษาไทยไว้หรือไม่ — เปลี่ยนเป็น CODE ให้แปลได้
+  message: { success: false, message: 'TOO_MANY_REQUESTS' },
   store: getRateLimitStore(),
 });
 

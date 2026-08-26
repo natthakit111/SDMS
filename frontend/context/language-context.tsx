@@ -431,6 +431,10 @@ export const translations: Record<string, { th: string; en: string }> = {
     th: "เซสชันหมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่",
     en: "Your session is invalid or has expired — please log in again",
   },
+  "errors.TOO_MANY_REQUESTS": {
+    th: "พยายามหลายครั้งเกินไป กรุณาลองใหม่อีกครั้งในภายหลัง",
+    en: "Too many requests, please try again later",
+  },
   "errors.FILE_TOO_LARGE": {
     th: "ไฟล์มีขนาดใหญ่เกินไป ขนาดสูงสุดที่รองรับคือ {mb}MB",
     en: "File too large. Maximum allowed size is {mb}MB",

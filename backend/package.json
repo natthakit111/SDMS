@@ -1,5 +1,5 @@
 {
-  "name": "smart-dormitory-backend",
+  "name": "sdms",
   "version": "1.0.0",
   "description": "Smart Dormitory Management System - Backend API",
   "main": "server.js",

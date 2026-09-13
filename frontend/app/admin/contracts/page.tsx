@@ -649,6 +649,12 @@ export default function ContractsPage() {
                             ? "กรอกเลขประจำตัวประชาชน"
                             : "Enter ID card number"
                       }
+                      // เผื่อ 17 ตัวสำหรับบัตรประชาชนที่วางมาพร้อมขีดคั่น
+                      // (X-XXXX-XXXXX-XX-X) — ตัดขีดออกทีหลังตอน validate
+                      maxLength={formData.tenant_id_type === "passport" ? 15 : 17}
+                      inputMode={
+                        formData.tenant_id_type === "passport" ? "text" : "numeric"
+                      }
                       className="pl-9"
                     />
                   </div>

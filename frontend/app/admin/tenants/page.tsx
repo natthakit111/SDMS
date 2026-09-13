@@ -605,7 +605,9 @@ export default function TenantsPage() {
                             ? t("tenants.passportPlaceholder")
                             : t("tenants.idCardPlaceholder")
                         }
-                        maxLength={20}
+                        // เผื่อ 17 ตัวสำหรับบัตรประชาชนที่วางมาพร้อมขีดคั่น
+                        // (X-XXXX-XXXXX-XX-X) — ตัดขีดออกทีหลังตอน validate
+                        maxLength={formData.id_type === "passport" ? 15 : 17}
                         inputMode={
                           formData.id_type === "passport" ? "text" : "numeric"
                         }

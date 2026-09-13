@@ -86,4 +86,116 @@ const sendResetPasswordEmail = async (toEmail, username, token) => {
   });
 };
 
-module.exports = { sendResetPasswordEmail };
+/**
+ * ส่ง Email ยืนยันความเป็นเจ้าของอีเมล (ตอนสมัคร/แก้ไขอีเมล)
+ * @param {string} toEmail  - อีเมลผู้รับ
+ * @param {string} username - ชื่อผู้ใช้
+ * @param {string} token    - verification token
+ */
+const sendVerificationEmail = async (toEmail, username, token) => {
+  const verifyLink = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+        .container { max-width: 480px; margin: 40px auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .header { background: #2563eb; padding: 32px 24px; text-align: center; }
+        .header h1 { color: #fff; margin: 0; font-size: 22px; }
+        .body { padding: 32px 24px; color: #333; }
+        .body p { line-height: 1.7; margin: 0 0 16px; }
+        .btn { display: inline-block; background: #2563eb; color: #fff !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600; margin: 8px 0 24px; }
+        .note { font-size: 13px; color: #888; border-top: 1px solid #eee; padding-top: 16px; }
+        .footer { background: #f9f9f9; padding: 16px 24px; text-align: center; font-size: 12px; color: #aaa; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🏠 SDMS</h1>
+        </div>
+        <div class="body">
+          <p>สวัสดี <strong>${username}</strong>,</p>
+          <p>กรุณายืนยันอีเมลนี้เพื่อเปิดใช้งานบัญชีของคุณ กดปุ่มด้านล่างเพื่อยืนยัน:</p>
+
+          <div style="text-align:center">
+            <a href="${verifyLink}" class="btn">ยืนยันอีเมล</a>
+          </div>
+
+          <p class="note">
+            ⏱ ลิงก์นี้จะหมดอายุใน <strong>24 ชั่วโมง</strong><br>
+            คุณจะยังเข้าสู่ระบบไม่ได้จนกว่าจะยืนยันอีเมลนี้ — หากไม่ได้เป็นผู้สมัครเอง สามารถเพิกเฉยอีเมลนี้ได้เลย
+          </p>
+        </div>
+        <div class="footer">
+          SDMS — ระบบบริหารจัดการหอพักและแจ้งเตือนอัตโนมัติ
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  await sgMail.send({
+    to: toEmail,
+    from: { email: process.env.SENDGRID_FROM_EMAIL, name: 'SDMS' },
+    subject: '✅ ยืนยันอีเมลของคุณ - SDMS',
+    html,
+  });
+};
+
+/**
+ * ส่งรหัส OTP 6 หลักยืนยันอีเมล "ก่อน" สมัครสมาชิกเอง
+ * @param {string} toEmail
+ * @param {string} code - รหัส 6 หลัก
+ */
+const sendRegistrationOtpEmail = async (toEmail, code) => {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+        .container { max-width: 480px; margin: 40px auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+        .header { background: #2563eb; padding: 32px 24px; text-align: center; }
+        .header h1 { color: #fff; margin: 0; font-size: 22px; }
+        .body { padding: 32px 24px; color: #333; text-align: center; }
+        .body p { line-height: 1.7; margin: 0 0 16px; }
+        .code { font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #2563eb; margin: 8px 0 24px; }
+        .note { font-size: 13px; color: #888; border-top: 1px solid #eee; padding-top: 16px; }
+        .footer { background: #f9f9f9; padding: 16px 24px; text-align: center; font-size: 12px; color: #aaa; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🏠 SDMS</h1>
+        </div>
+        <div class="body">
+          <p>รหัสยืนยันอีเมลสำหรับสมัครสมาชิกของคุณคือ:</p>
+          <div class="code">${code}</div>
+          <p class="note">
+            ⏱ รหัสนี้จะหมดอายุใน <strong>10 นาที</strong><br>
+            หากไม่ได้เป็นผู้สมัครเอง สามารถเพิกเฉยอีเมลนี้ได้เลย
+          </p>
+        </div>
+        <div class="footer">
+          SDMS — ระบบบริหารจัดการหอพักและแจ้งเตือนอัตโนมัติ
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  await sgMail.send({
+    to: toEmail,
+    from: { email: process.env.SENDGRID_FROM_EMAIL, name: 'SDMS' },
+    subject: `${code} คือรหัสยืนยันอีเมลของคุณ - SDMS`,
+    html,
+  });
+};
+
+module.exports = { sendResetPasswordEmail, sendVerificationEmail, sendRegistrationOtpEmail };

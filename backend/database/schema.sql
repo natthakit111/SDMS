@@ -41,6 +41,7 @@ CREATE TABLE `users` (
   `phone`                varchar(20)  DEFAULT NULL,
   `telegram_chat_id`     bigint       DEFAULT NULL,
   `is_active`            tinyint(1)   NOT NULL DEFAULT '1',
+  `email_verified`       tinyint(1)   NOT NULL DEFAULT '0' COMMENT 'ต้องกดลิงก์ยืนยันในอีเมลก่อนถึง login ได้ ถ้ามีอีเมลผูกอยู่ (ไม่กระทบบัญชีที่ไม่มีอีเมล)',
   `password_must_change` tinyint(1)   NOT NULL DEFAULT '0' COMMENT 'บังคับเปลี่ยนรหัสผ่านก่อนใช้งาน (ตั้งเป็น 1 ให้บัญชี admin ที่สร้างด้วยรหัสผ่านตั้งต้นใน seed.sql)',
   `oauth_provider`       varchar(20)  DEFAULT NULL COMMENT 'google | telegram',
   `oauth_provider_id`    varchar(100) DEFAULT NULL COMMENT 'provider user id',
@@ -366,6 +367,40 @@ CREATE TABLE `password_resets` (
   UNIQUE KEY `uq_password_resets_token` (`token`),
   UNIQUE KEY `uq_password_resets_user` (`user_id`),
   CONSTRAINT `fk_password_resets_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS `email_verifications`;
+CREATE TABLE `email_verifications` (
+  `id`           int unsigned NOT NULL AUTO_INCREMENT,
+  `user_id`      int unsigned NOT NULL,
+  `token`        varchar(255) NOT NULL,
+  `expires_at`   datetime NOT NULL,
+  `created_at`   datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_email_verifications_token` (`token`),
+  UNIQUE KEY `uq_email_verifications_user` (`user_id`),
+  CONSTRAINT `fk_email_verifications_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ยืนยันอีเมล "ก่อน" สมัครสมาชิกเอง (self-register) ด้วยรหัส OTP 6 หลัก —
+-- ต่างจาก email_verifications (ยืนยัน "หลัง" สร้างบัญชีแล้ว ใช้กับกรณี
+-- แอดมินเพิ่มผู้เช่า/แก้อีเมลทีหลัง) ไม่มี user_id เพราะยังไม่มีบัญชีจริง
+-- ตอนขอรหัส — ผูกกับอีเมลตรงๆ แทน
+-- Flow: request-otp (ตั้ง code) → verify-otp (เช็ค code, ออก ticket แทน)
+-- → register (consume ticket ครั้งเดียว, ลบทิ้ง) เหมือน oauth_exchange_codes
+DROP TABLE IF EXISTS `registration_verifications`;
+CREATE TABLE `registration_verifications` (
+  `id`                int unsigned NOT NULL AUTO_INCREMENT,
+  `email`             varchar(150) NOT NULL,
+  `code`              varchar(6)   DEFAULT NULL,
+  `code_expires_at`   datetime     DEFAULT NULL,
+  `attempts`          tinyint unsigned NOT NULL DEFAULT 0,
+  `ticket`            varchar(64)  DEFAULT NULL,
+  `ticket_expires_at` datetime     DEFAULT NULL,
+  `created_at`        datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_registration_verifications_email` (`email`),
+  UNIQUE KEY `uq_registration_verifications_ticket` (`ticket`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS `telegram_link_tokens`;

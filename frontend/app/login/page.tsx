@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
+import { authAPI } from "@/lib/api/auth.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -81,13 +82,28 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<"google" | null>(null);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendStatus, setResendStatus] = useState<
+    "idle" | "sending" | "sent"
+  >("idle");
 
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect");
 
+  const handleResend = async () => {
+    setResendStatus("sending");
+    try {
+      await authAPI.resendVerification(username);
+    } finally {
+      setResendStatus("sent");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setNeedsVerification(false);
+    setResendStatus("idle");
     setIsLoading(true);
     const result = await login(username, password, rememberMe);
 
@@ -107,6 +123,7 @@ function LoginForm() {
       }
     } else {
       setError(result.error || t("common.error"));
+      setNeedsVerification(result.code === "AUTH_EMAIL_NOT_VERIFIED");
       setPassword("");
     }
     setIsLoading(false);
@@ -257,8 +274,22 @@ function LoginForm() {
               </div>
 
               {error && (
-                <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                  {error}
+                <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md space-y-2">
+                  <p>{error}</p>
+                  {needsVerification && (
+                    <button
+                      type="button"
+                      onClick={handleResend}
+                      disabled={resendStatus !== "idle"}
+                      className="text-accent hover:underline disabled:no-underline disabled:text-muted-foreground"
+                    >
+                      {resendStatus === "sent"
+                        ? t("login.verificationResent")
+                        : resendStatus === "sending"
+                          ? t("login.resendingVerification")
+                          : t("login.resendVerification")}
+                    </button>
+                  )}
                 </div>
               )}
 

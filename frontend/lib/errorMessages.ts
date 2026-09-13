@@ -3,7 +3,8 @@ type ErrorCode =
   | "AUTH_USER_NOT_FOUND"
   | "AUTH_ACCOUNT_DISABLED"
   | "AUTH_NO_PASSWORD_SET"
-  | "AUTH_INVALID_PASSWORD";
+  | "AUTH_INVALID_PASSWORD"
+  | "AUTH_EMAIL_NOT_VERIFIED";
 
 export const errorMessages: Record<ErrorCode, { th: string; en: string }> = {
   AUTH_MISSING_CREDENTIALS: {
@@ -26,7 +27,17 @@ export const errorMessages: Record<ErrorCode, { th: string; en: string }> = {
     th: "รหัสผ่านไม่ถูกต้อง",
     en: "Incorrect password",
   },
+  AUTH_EMAIL_NOT_VERIFIED: {
+    th: "กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ กดลิงก์ในอีเมลที่เราส่งให้ หรือขอส่งลิงก์ใหม่",
+    en: "Please verify your email before logging in. Click the link we sent you, or request a new one.",
+  },
 };
+
+// ✅ เพิ่ม: ดึง error code ดิบออกมาแยกจาก message ที่แปลแล้ว — ใช้ตอนต้อง
+// ตัดสินใจ UI ตาม code เฉพาะเจาะจง (เช่น โชว์ปุ่ม "ส่งลิงก์ยืนยันอีกครั้ง"
+// เมื่อ code เป็น AUTH_EMAIL_NOT_VERIFIED) ไม่ใช่แค่โชว์ข้อความ error เฉยๆ
+export const getErrorCode = (error: any): ErrorCode | undefined =>
+  error?.response?.data?.code as ErrorCode | undefined;
 
 export const getErrorMessage = (error: any, lang: "th" | "en"): string => {
   const code = error?.response?.data?.code as ErrorCode | undefined;

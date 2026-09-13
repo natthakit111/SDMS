@@ -54,6 +54,7 @@ Login หลักของระบบ, เก็บ role และการต
 | `telegram_chat_id` | bigint, nullable | ตั้งค่าตอนผูกบัญชีผ่าน `telegram_link_tokens` |
 | `oauth_provider` / `oauth_provider_id` | nullable | `google` \| `telegram` — indexed คู่กัน |
 | `notify_bill`, `notify_overdue`, `notify_maintenance`, `notify_announcement` | tinyint(1) | toggle การแจ้งเตือนรายประเภท ผู้ใช้ปิดเองได้ (ยกเว้นประกาศฉุกเฉิน ดู `announcements.is_urgent`) |
+| `email_verified` | tinyint(1) | `0` = ต้องกดลิงก์ยืนยันในอีเมล (ดู `email_verifications`) ก่อนถึง login ได้ — เช็คเฉพาะบัญชีที่มี `email` เท่านั้น, ถูกเซ็ตกลับเป็น `0` ทุกครั้งที่เปลี่ยนอีเมล, สมัคร/แก้ผ่าน Google OAuth ถือว่ายืนยันแล้วอัตโนมัติ. Self-register (`/register`) เซ็ตเป็น `1` ทันทีตั้งแต่สร้างบัญชี เพราะบังคับยืนยันด้วย OTP ก่อนแล้ว (ดู `registration_verifications`) |
 
 ### `tenants` — ข้อมูลโปรไฟล์ผู้เช่า (1:1 กับ `users` ที่ role=tenant)
 `id_card_number`, `phone`, `email` ทั้งหมด unique — กันข้อมูลซ้ำระดับ DB ไม่ใช่แค่ฝั่ง backend validate
@@ -107,6 +108,8 @@ Login หลักของระบบ, เก็บ role และการต
 | `oauth_exchange_codes` | short-lived code (60 วิ) แลก JWT หลัง OAuth callback |
 | `telegram_link_tokens` | token ชั่วคราวสำหรับผูกบัญชี Telegram (unique ต่อ user — ผูกใหม่ = token เก่าใช้ไม่ได้) |
 | `password_resets` | token ลืมรหัสผ่าน |
+| `email_verifications` | token ยืนยันอีเมล "หลัง" สร้างบัญชีแล้ว (โครงสร้างเดียวกับ `password_resets`) — ใช้กับ admin เพิ่มผู้เช่า/แก้อีเมลทีหลัง |
+| `registration_verifications` | รหัส OTP 6 หลัก + ticket ยืนยันอีเมล "ก่อน" สร้างบัญชีจริง — เฉพาะ self-register (`/register`) เท่านั้น ผูกกับอีเมลตรงๆ (ยังไม่มี user_id ตอนขอรหัส) |
 | `notifications_log` | ประวัติการแจ้งเตือนที่ส่งออก (กันส่งซ้ำในวันเดียวกัน — cron เช็คตารางนี้ก่อนส่งทุกครั้ง) |
 
 ## จุดที่ต้องระวังเวลาแก้ schema

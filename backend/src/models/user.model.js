@@ -56,14 +56,17 @@ const getProfileById = async (userId) => {
 };
 
 const createUser = async (
-  { username, password_hash, role = 'tenant', first_name = null, last_name = null, email = null, phone = null },
+  {
+    username, password_hash, role = 'tenant', first_name = null, last_name = null,
+    email = null, phone = null, email_verified = 0,
+  },
   conn = null
 ) => {
   const runner = conn || pool;
   const [result] = await runner.query(
-    `INSERT INTO users (username, password_hash, role, first_name, last_name, email, phone)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [username, password_hash, role, first_name, last_name, email, phone]
+    `INSERT INTO users (username, password_hash, role, first_name, last_name, email, phone, email_verified)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [username, password_hash, role, first_name, last_name, email, phone, email_verified ? 1 : 0]
   );
   return result.insertId;
 };
@@ -104,6 +107,18 @@ const setPasswordHash = async (userId, hash) => {
     'UPDATE users SET password_hash = ?, password_must_change = 0 WHERE user_id = ?',
     [hash, userId]
   );
+};
+
+const setEmailVerified = async (userId) => {
+  await pool.query('UPDATE users SET email_verified = 1 WHERE user_id = ?', [userId]);
+};
+
+// เรียกทุกครั้งที่อีเมลถูกตั้ง/เปลี่ยนเป็นค่าใหม่ (สมัคร, แก้โปรไฟล์, แอดมิน
+// แก้ให้) เพื่อบังคับให้ยืนยันอีเมลใหม่อีกรอบ — ไม่งั้นเปลี่ยนอีเมลเป็นของ
+// คนอื่น/พิมพ์ผิดแล้วยังผ่าน email_verified เดิมที่ยืนยันไปตั้งแต่อีเมลก่อนหน้า
+const setEmailUnverified = async (userId, conn = null) => {
+  const runner = conn || pool;
+  await runner.query('UPDATE users SET email_verified = 0 WHERE user_id = ?', [userId]);
 };
 
 const updateTelegramChatId = async (userId, telegramChatId) => {
@@ -183,6 +198,8 @@ module.exports = {
   updateProfileFields,
   getPasswordHash,
   setPasswordHash,
+  setEmailVerified,
+  setEmailUnverified,
   updateTelegramChatId,
   getTelegramChatId,
   clearTelegramChatId,

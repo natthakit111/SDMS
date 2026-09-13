@@ -12,7 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import api from "@/lib/api/axiosInstance";
 import { useLanguage } from "@/context/language-context";
-import { getErrorMessage } from "@/lib/errorMessages";
+import { getErrorMessage, getErrorCode } from "@/lib/errorMessages";
 
 export type UserRole = "admin" | "tenant";
 
@@ -35,10 +35,10 @@ interface AuthContextType {
     username: string,
     password: string,
     rememberMe: boolean,
-  ) => Promise<{ success: boolean; error?: string; user?: User }>;
+  ) => Promise<{ success: boolean; error?: string; code?: string; user?: User }>;
   register: (
     data: RegisterData,
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<{ success: boolean; error?: string; user?: User }>;
   logout: () => Promise<void>;
   // ⚠️ ใหม่: ให้หน้า OAuth callback (Google/Telegram) เรียกหลัง exchange
   // code สำเร็จ เพื่อ sync `user` state เข้า context — จำเป็นเพราะหน้า
@@ -54,7 +54,10 @@ interface RegisterData {
   password: string;
   name?: string;
   phone?: string;
-  email?: string;
+  // ⚠️ ไม่มี email ตรงๆ อีกต่อไป — ต้องผ่านการยืนยันด้วย OTP ก่อน
+  // (ดูหน้า /register) แล้วแนบ ticket ที่ได้มาแทน อีเมลจริงถอดจาก ticket
+  // ฝั่ง backend เท่านั้น
+  ticket: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -167,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ตรงๆ — ถ้า backend ส่ง `code` มาด้วย (เช่น AUTH_INVALID_PASSWORD)
       // จะแปลตามภาษาที่เลือกได้ ถ้ายังไม่มี code (controller เก่าที่ยัง
       // ไม่ได้แก้) จะ fallback ไปใช้ message ภาษาไทยจาก backend เหมือนเดิม
-      return { success: false, error: getErrorMessage(err, language) };
+      return { success: false, error: getErrorMessage(err, language), code: getErrorCode(err) };
     }
   };
 
@@ -176,13 +179,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await api.post("/auth/register", {
         password: data.password,
         name: data.name,
-        email: data.email,
         phone: data.phone,
+        ticket: data.ticket,
         role: "tenant",
       });
       // สมัครสำเร็จแล้ว แต่ backend ไม่ set session ให้อัตโนมัติ — ต้อง login
       // ต่อทันทีด้วย username ที่ backend สร้างให้ (= เบอร์โทร) ไม่งั้นหน้า
       // /tenant ที่ redirect ไปจะเช็คแล้วไม่พบ session แล้วเด้งกลับ /login
+      //
+      // ⚠️ อีเมลผ่านการยืนยันด้วย OTP มาก่อนสมัครแล้ว (ดู ticket) login
+      // ตรงนี้จึงไม่มีทางโดน AUTH_EMAIL_NOT_VERIFIED บล็อกอีก
       return await login(data.phone ?? "", data.password, false);
     } catch (err: any) {
       return { success: false, error: getErrorMessage(err, language) };

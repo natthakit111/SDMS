@@ -16,13 +16,16 @@
 
 const crypto = require('crypto');
 const PasswordResetModel = require('../models/passwordReset.model');
+const EmailVerificationModel = require('../models/emailVerification.model');
+const RegistrationVerificationModel = require('../models/registrationVerification.model');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const { pool } = require('../config/db');
 const UserModel = require('../models/user.model');
 const TenantModel = require('../models/tenant.model');
-const { sendResetPasswordEmail } = require('../services/email.service');
+const { sendResetPasswordEmail, sendRegistrationOtpEmail } = require('../services/email.service');
+const { createVerificationToken, sendVerificationEmailAsync } = require('../services/emailVerification.service');
 const logger = require('../utils/logger');
 const {
   sendSuccess, sendCreated, sendBadRequest, sendUnauthorized,
@@ -83,6 +86,73 @@ const clearAuthCookies = (res) => {
   res.clearCookie('csrf_token', { path: '/' });
 };
 
+// ── POST /api/auth/register/request-otp — ขั้นที่ 1: กรอกแค่อีเมล ขอรหัส
+// OTP 6 หลัก ก่อนไปกรอกเบอร์โทร/ตั้งรหัสผ่าน (ต้องยืนยันความเป็นเจ้าของ
+// อีเมลให้เสร็จก่อน ถึงจะสมัครสมาชิกต่อได้ — อีเมลเลยกลายเป็น "บังคับ"
+// สำหรับ self-register ตั้งแต่ก้าวแรก ต่างจาก admin เพิ่มผู้เช่าเองที่ยัง
+// ปล่อยอีเมล optional เหมือนเดิม)
+const requestRegistrationOtp = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
+
+    const { email } = req.body;
+
+    const emailValid = await hasMxRecord(email);
+    if (!emailValid) {
+      return sendBadRequest(res, 'ไม่พบ mail server ของอีเมลนี้ กรุณาตรวจสอบว่าพิมพ์อีเมลถูกต้อง');
+    }
+
+    if (await UserModel.findByEmail(email)) {
+      return sendBadRequest(res, 'อีเมลนี้มีบัญชีอยู่ในระบบแล้ว กรุณาเข้าสู่ระบบ หรือใช้ "ลืมรหัสผ่าน"');
+    }
+
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 10); // 10 นาที
+    await RegistrationVerificationModel.upsertCode(email, code, expiresAt);
+
+    sendRegistrationOtpEmail(email, code).catch((err) => {
+      logger.error('sendRegistrationOtpEmail failed', { email, error: err.message });
+    });
+
+    return sendSuccess(res, null, 'ส่งรหัสยืนยันไปที่อีเมลของคุณแล้ว');
+  } catch (err) { next(err); }
+};
+
+// ── POST /api/auth/register/verify-otp — ขั้นที่ 2: กรอกรหัส OTP → ออก
+// "ticket" ใช้ครั้งเดียวแทน (opaque random, ไม่ใช่ JWT — เหมือน
+// oauth_exchange_codes) ให้ขั้นที่ 3 (register จริง) ใช้แทนอีเมลตรงๆ กัน
+// client ปลอมอีเมลที่ยังไม่ได้ยืนยันส่งมาตอน submit ฟอร์มสุดท้าย
+const verifyRegistrationOtp = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
+
+    const { email, code } = req.body;
+    const record = await RegistrationVerificationModel.findByEmail(email);
+
+    if (!record || !record.code) return sendBadRequest(res, 'กรุณาขอรหัสยืนยันใหม่');
+    if (new Date(record.code_expires_at) < new Date()) return sendBadRequest(res, 'รหัสหมดอายุแล้ว กรุณาขอรหัสใหม่');
+    if (record.attempts >= RegistrationVerificationModel.MAX_ATTEMPTS) {
+      return sendBadRequest(res, 'กรอกรหัสผิดเกินจำนวนที่กำหนด กรุณาขอรหัสใหม่');
+    }
+
+    if (record.code !== code) {
+      await RegistrationVerificationModel.incrementAttempts(email);
+      return sendBadRequest(res, 'รหัสยืนยันไม่ถูกต้อง');
+    }
+
+    const ticket = crypto.randomBytes(32).toString('hex');
+    const ticketExpiresAt = new Date(Date.now() + 1000 * 60 * 15); // 15 นาที
+    await RegistrationVerificationModel.markVerified(email, ticket, ticketExpiresAt);
+
+    return sendSuccess(res, { ticket }, 'ยืนยันอีเมลสำเร็จ');
+  } catch (err) { next(err); }
+};
+
+// ── POST /api/auth/register — ขั้นที่ 3: กรอกชื่อ/เบอร์/รหัสผ่าน + แนบ
+// ticket จากขั้นที่ 2 มาด้วย — อีเมลไม่ได้รับจาก client ตรงๆ อีกต่อไป แต่
+// ถอดจาก ticket ที่ยืนยันไปแล้วเท่านั้น (กันปลอมอีเมลที่ไม่ผ่าน OTP)
 const register = async (req, res, next) => {
   const conn = await pool.getConnection();
   try {
@@ -93,12 +163,19 @@ const register = async (req, res, next) => {
     // เท่านั้น เดิมรับ role จาก body ได้ ถ้าไม่มี validator จำกัดค่าไว้ก่อนหน้า
     // ใครก็ส่ง role: "admin" มาแล้วได้สิทธิ์แอดมินทันที
     const role = 'tenant';
-    const { password, name, email, phone } = req.body;
+    const { password, name, phone, ticket } = req.body;
     const autoUsername = phone;
 
-    const emailValid = await hasMxRecord(email);
-    if (!emailValid) {
-      return sendBadRequest(res, 'ไม่พบ mail server ของอีเมลนี้ กรุณาตรวจสอบว่าพิมพ์อีเมลถูกต้อง');
+    const email = await RegistrationVerificationModel.consumeTicket(ticket);
+    if (!email) {
+      return sendBadRequest(res, 'ยืนยันอีเมลหมดอายุหรือไม่ถูกต้อง กรุณาเริ่มสมัครสมาชิกใหม่');
+    }
+
+    // ⚠️ เช็คซ้ำตรงนี้อีกครั้ง เผื่อมีคนอื่นสมัครด้วยอีเมล/เบอร์เดียวกันแทรก
+    // เข้ามาระหว่างที่ผู้ใช้กำลังกรอกขั้นที่ 3 อยู่ (ticket ยืนยันแค่ความเป็น
+    // เจ้าของอีเมล ไม่ได้การันตีว่ายังไม่มีใครจองอีเมลนี้ไปก่อนหน้า)
+    if (await UserModel.findByEmail(email)) {
+      return sendBadRequest(res, 'อีเมลนี้มีบัญชีอยู่ในระบบแล้ว กรุณาเข้าสู่ระบบ หรือใช้ "ลืมรหัสผ่าน"');
     }
 
     const existing = await UserModel.findByUsername(autoUsername);
@@ -128,9 +205,12 @@ const register = async (req, res, next) => {
     // orphaned record ไว้
     await conn.beginTransaction();
 
+    // email_verified = 1 ทันที — ผ่านการยืนยันด้วย OTP มาก่อนหน้านี้แล้ว
+    // (ticket ที่เพิ่ง consume พิสูจน์ความเป็นเจ้าของอีเมลนี้ไปแล้ว)
     const userId = await UserModel.createUser({
       username: autoUsername, password_hash, role,
       first_name: firstName, last_name: lastName, email, phone,
+      email_verified: 1,
     }, conn);
 
     await TenantModel.createFromSelfRegistration(conn, {
@@ -169,6 +249,12 @@ const login = async (req, res, next) => {
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) return sendUnauthorized(res, "รหัสผ่านไม่ถูกต้อง", 'AUTH_INVALID_PASSWORD');
+
+    // ⚠️ บล็อก login จนกว่าจะกดลิงก์ยืนยันอีเมล — เช็คเฉพาะบัญชีที่มีอีเมล
+    // ผูกอยู่ (อีเมล optional ตอนสมัคร บัญชีที่ไม่มีอีเมลไม่ได้รับผลกระทบ)
+    if (user.email && !user.email_verified) {
+      return sendUnauthorized(res, "กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ กดลิงก์ในอีเมลที่เราส่งให้ หรือขอส่งลิงก์ใหม่", 'AUTH_EMAIL_NOT_VERIFIED');
+    }
 
     const { token, csrfToken } = signToken(user, rememberMe);
     setAuthCookies(res, token, csrfToken, rememberMe);
@@ -217,7 +303,8 @@ const updateProfile = async (req, res, next) => {
 
     //เช็ค MX record เฉพาะตอนอีเมลถูกเปลี่ยน (ไม่ต้องเช็คซ้ำถ้าไม่แก้)
     const currentProfile = await UserModel.getProfileById(req.user.user_id);
-    if (email && email !== currentProfile.email) {
+    const emailChanged = email && email !== currentProfile.email;
+    if (emailChanged) {
       const emailValid = await hasMxRecord(email);
       if (!emailValid) {
         return sendBadRequest(res, 'ไม่พบ mail server ของอีเมลนี้ กรุณาตรวจสอบว่าพิมพ์อีเมลถูกต้อง');
@@ -225,6 +312,16 @@ const updateProfile = async (req, res, next) => {
     }
 
     await UserModel.updateProfileFields(req.user.user_id, { firstName, lastName, email, phone });
+
+    // ⚠️ เปลี่ยนอีเมล = ต้องยืนยันใหม่เสมอ กันเปลี่ยนเป็นอีเมลของคนอื่น/พิมพ์
+    // ผิดแล้วยังถือว่ายืนยันแล้วจากอีเมลเดิม (ไม่ตัด session ปัจจุบัน แค่
+    // login ครั้งถัดไปจะโดนกันจนกว่าจะกดลิงก์ในอีเมลใหม่)
+    if (emailChanged) {
+      await UserModel.setEmailUnverified(req.user.user_id);
+      const token = await createVerificationToken(req.user.user_id);
+      sendVerificationEmailAsync(req.user.user_id, email, currentProfile.username, token);
+    }
+
     const profile = await UserModel.getProfileById(req.user.user_id);
 
     return sendSuccess(res, profile, 'อัปเดตโปรไฟล์สำเร็จ');
@@ -351,8 +448,52 @@ const resetPassword = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// ── GET /api/auth/verify-email?token=xxx — consume token, ตั้ง email_verified=1
+// ให้หน้า /verify-email เรียกตอนโหลดหน้า
+const verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.query;
+    if (!token) return sendBadRequest(res, 'Token ไม่ถูกต้อง');
+
+    const record = await EmailVerificationModel.findByToken(token);
+    if (!record) return sendBadRequest(res, 'ลิงก์ยืนยันไม่ถูกต้องหรือถูกใช้ไปแล้ว');
+    if (new Date(record.expires_at) < new Date()) return sendBadRequest(res, 'ลิงก์ยืนยันหมดอายุแล้ว กรุณาขอลิงก์ใหม่');
+    if (!record.is_active) return sendBadRequest(res, 'บัญชีนี้ถูกปิดการใช้งาน');
+
+    await UserModel.setEmailVerified(record.user_id);
+    await EmailVerificationModel.deleteToken(token);
+
+    return sendSuccess(res, null, 'ยืนยันอีเมลสำเร็จ เข้าสู่ระบบได้เลย');
+  } catch (err) { next(err); }
+};
+
+// ── POST /api/auth/resend-verification — ขอลิงก์ยืนยันอีเมลใหม่ (ตอนยังไม่มี
+// session เช่น กด login แล้วโดนบล็อกเพราะยังไม่ยืนยัน) รับ identifier เหมือน
+// forgotPassword — ตอบข้อความกลางๆ เสมอกันคนอื่นเดา user เดิม (username
+// enumeration) ยกเว้นกรณี "ยืนยันแล้ว" ที่ตอบตรงๆ ได้เพราะไม่ใช่ข้อมูลอ่อนไหว
+const resendVerification = async (req, res, next) => {
+  try {
+    const { username } = req.body;
+    const identifier = (username || '').trim();
+    if (!identifier) return sendBadRequest(res, 'กรุณากรอกอีเมลหรือเบอร์โทรศัพท์');
+
+    const user = await UserModel.findByIdentifier(identifier);
+    const generic = 'หากมีบัญชีที่ยังไม่ยืนยันตรงกับข้อมูลนี้ เราจะส่งลิงก์ยืนยันไปที่อีเมลของคุณ';
+
+    if (!user || !user.email) return sendSuccess(res, null, generic);
+    if (user.email_verified) return sendSuccess(res, null, 'อีเมลนี้ยืนยันแล้ว เข้าสู่ระบบได้เลย');
+
+    const token = await createVerificationToken(user.user_id);
+    sendVerificationEmailAsync(user.user_id, user.email, user.username, token);
+
+    return sendSuccess(res, null, generic);
+  } catch (err) { next(err); }
+};
+
 module.exports = {
+  requestRegistrationOtp, verifyRegistrationOtp,
   register, login, logout, getMe, updateProfile,
   changePassword, setPassword, forgotPassword, verifyResetToken, resetPassword,
+  verifyEmail, resendVerification,
   signToken, setAuthCookies, clearAuthCookies, // export ไว้ให้ oauth.routes.js เรียกใช้ร่วมกัน
 };

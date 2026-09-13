@@ -32,7 +32,7 @@ function Harness() {
             password: "somepassword",
             name: "สมชาย ใจดี",
             phone: "0812345678",
-            email: "somchai@gmail.com",
+            ticket: "verified-ticket-abc",
           })
         }
       >
@@ -126,8 +126,8 @@ describe("AuthProvider — login/register -> mapUser", () => {
     expect(mockPost).toHaveBeenNthCalledWith(1, "/auth/register", {
       password: "somepassword",
       name: "สมชาย ใจดี",
-      email: "somchai@gmail.com",
       phone: "0812345678",
+      ticket: "verified-ticket-abc",
       role: "tenant",
     });
     expect(mockPost).toHaveBeenNthCalledWith(2, "/auth/login", {

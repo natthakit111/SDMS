@@ -5,7 +5,18 @@
 import api from './axiosInstance';
 
 export const authAPI = {
-  // Tenant self-register — ไม่ต้องการ token
+  // ⚠️ self-register เปลี่ยนเป็น 3 ขั้นตอน — ต้องยืนยันอีเมลด้วย OTP ก่อน
+  // ถึงจะไปกรอกเบอร์/ตั้งรหัสผ่านได้:
+  //   1) requestRegistrationOtp(email) — ขอรหัส OTP 6 หลัก
+  //   2) verifyRegistrationOtp(email, code) — ยืนยันรหัส ได้ ticket กลับมา
+  //   3) register({ ticket, name, phone, password }) — สมัครจริง (ไม่ส่ง
+  //      email ตรงๆ อีกต่อไป อีเมลถอดจาก ticket ที่ยืนยันแล้วฝั่ง backend)
+  requestRegistrationOtp: (email) =>
+    api.post('/auth/register/request-otp', { email }).then((r) => r.data),
+
+  verifyRegistrationOtp: (email, code) =>
+    api.post('/auth/register/verify-otp', { email, code }).then((r) => r.data),
+
   register: (data) =>
     api.post('/auth/register', data).then((r) => r.data),
 
@@ -24,6 +35,14 @@ export const authAPI = {
 
   resetPassword: (token, newPassword) =>
     api.post('/auth/reset-password', { token, newPassword }).then((r) => r.data),
+
+  // เช็ค/consume token ยืนยันอีเมล — ใช้ตอนโหลดหน้า /verify-email
+  verifyEmail: (token) =>
+    api.get('/auth/verify-email', { params: { token } }).then((r) => r.data),
+
+  // ขอลิงก์ยืนยันอีเมลใหม่ — ใช้ตอนยัง login ไม่ได้ (โดน AUTH_EMAIL_NOT_VERIFIED)
+  resendVerification: (username) =>
+    api.post('/auth/resend-verification', { username }).then((r) => r.data),
 
   // returns: { token, user: { user_id, username, role } }
   getMe: () =>

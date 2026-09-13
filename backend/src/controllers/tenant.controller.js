@@ -8,6 +8,7 @@ const { pool }  = require('../config/db');
 const UserModel   = require('../models/user.model');
 const TenantModel = require('../models/tenant.model');
 const ContractModel = require('../models/contract.model');
+const { createVerificationToken, sendVerificationEmailAsync } = require('../services/emailVerification.service');
 const {
   sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden,
 } = require('../utils/response');
@@ -106,7 +107,20 @@ const createTenant = async (req, res, next) => {
       emergency_contact_name, emergency_contact_phone,
     });
 
+    // ⚠️ เหมือน authController.register — ถ้ามีอีเมล ต้องยืนยันก่อนถึง
+    // login ได้ (สร้าง token ในธุรกรรมเดียวกัน กัน orphaned token ถ้า
+    // commit ล้มเหลว แล้วค่อยส่งอีเมลจริงหลัง commit)
+    let verificationToken = null;
+    if (email) {
+      verificationToken = await createVerificationToken(userId, conn);
+    }
+
     await conn.commit();
+
+    if (email) {
+      sendVerificationEmailAsync(userId, email, username, verificationToken);
+    }
+
     return sendCreated(res, {
       tenant_id: tenantId,
       user_id:   userId,
@@ -144,6 +158,10 @@ const updateTenant = async (req, res, next) => {
       if (conflict) return sendBadRequest(res, 'ID_CARD_ALREADY_REGISTERED');
     }
 
+    // ⚠️ เปลี่ยนอีเมล = ต้องยืนยันใหม่เสมอ (เหมือนตอนสมัคร) กันแอดมินแก้
+    // อีเมลผิด/เป็นของคนอื่นแล้วยังถือว่ายืนยันแล้วจากอีเมลเดิม
+    const emailChanged = email !== undefined && email !== tenant.email;
+
     // ⚠️ FIX: เหตุผลเดียวกับ updateMyProfile — sync phone/email ไป users
     // ด้วยเสมอ ไม่ใช่แค่ tenants เพราะ users.username ผูกกับ phone (login)
     await conn.beginTransaction();
@@ -152,12 +170,22 @@ const updateTenant = async (req, res, next) => {
       await UserModel.updateProfileFields(tenant.user_id, { phone, email }, conn);
     }
 
+    let verificationToken = null;
+    if (emailChanged) {
+      await UserModel.setEmailUnverified(tenant.user_id, conn);
+      if (email) verificationToken = await createVerificationToken(tenant.user_id, conn);
+    }
+
     const updates = { ...req.body };
     // มีการกรอกเลขบัตร/พาสปอร์ตจริงเข้ามาแล้ว → ไม่ใช่ placeholder อีกต่อไป
     if (id_card_number !== undefined) updates.is_placeholder_id = 0;
 
     await TenantModel.update(req.params.id, updates, conn);
     await conn.commit();
+
+    if (emailChanged && email) {
+      sendVerificationEmailAsync(tenant.user_id, email, tenant.username, verificationToken);
+    }
 
     const updated = await TenantModel.findById(req.params.id);
     return sendSuccess(res, updated, 'อัปเดตข้อมูลผู้เช่าสำเร็จ');
@@ -181,6 +209,10 @@ const updateMyProfile = async (req, res, next) => {
 
     const { first_name, last_name, phone, email, emergency_contact_name, emergency_contact_phone } = req.body;
 
+    // ⚠️ เปลี่ยนอีเมล = ต้องยืนยันใหม่เสมอ (เหมือนตอนสมัคร) กัน tenant
+    // เปลี่ยนอีเมลเป็นของคนอื่น/พิมพ์ผิดแล้วยังถือว่ายืนยันแล้วจากอีเมลเดิม
+    const emailChanged = email !== undefined && email !== tenant.email;
+
     // ⚠️ FIX: เดิมอัปเดตแค่ tenants table ฝั่งเดียว — phone/email เพี้ยน
     // ออกจาก users table (ที่ใช้เป็น username/login) ไปเรื่อยๆ ทุกครั้งที่
     // tenant แก้โปรไฟล์ตัวเอง ตอนนี้ sync ทั้งสองตารางในธุรกรรมเดียวกัน
@@ -198,6 +230,12 @@ const updateMyProfile = async (req, res, next) => {
       }, conn);
     }
 
+    let verificationToken = null;
+    if (emailChanged) {
+      await UserModel.setEmailUnverified(req.user.user_id, conn);
+      if (email) verificationToken = await createVerificationToken(req.user.user_id, conn);
+    }
+
     const tenantUpdates = {};
     if (first_name !== undefined) tenantUpdates.first_name = first_name;
     if (last_name !== undefined) tenantUpdates.last_name = last_name;
@@ -211,6 +249,10 @@ const updateMyProfile = async (req, res, next) => {
     }
 
     await conn.commit();
+
+    if (emailChanged && email) {
+      sendVerificationEmailAsync(req.user.user_id, email, req.user.username, verificationToken);
+    }
 
     const updated = await TenantModel.findById(tenant.tenant_id);
     return sendSuccess(res, updated, 'อัปเดตโปรไฟล์สำเร็จ');

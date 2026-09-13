@@ -9,7 +9,10 @@
  */
 const bcrypt = require('bcrypt');
 const { pool } = require('../src/config/db');
-const { register, login, changePassword } = require('../src/controllers/auth.controller');
+const {
+  register, login, changePassword,
+  requestRegistrationOtp, verifyRegistrationOtp,
+} = require('../src/controllers/auth.controller');
 
 const mockRes = () => {
   const res = {};
@@ -32,12 +35,34 @@ describe('auth.controller — register / login / changePassword', () => {
       await pool.query('DELETE FROM tenants WHERE user_id = ?', [registeredUserId]);
       await pool.query('DELETE FROM users WHERE user_id = ?', [registeredUserId]);
     }
+    await pool.query('DELETE FROM registration_verifications WHERE email = ?', [registerEmail]);
     await pool.end();
   });
 
+  // ⚠️ self-register เปลี่ยนเป็น 3 ขั้นตอนแล้ว (request-otp → verify-otp
+  // ได้ ticket → register) — ทดสอบ end-to-end ทั้ง 3 ขั้น ไม่ได้ mock ข้าม
+  // ไปเลยตรงๆ เพื่อให้ยืนยันว่า flow จริงทำงานสอดคล้องกันทั้งสาย
   test('register สร้าง user + tenant สำเร็จ, role ถูกบังคับเป็น tenant เสมอ', async () => {
+    const otpReq = { body: { email: registerEmail } };
+    const otpRes = mockRes();
+    await requestRegistrationOtp(otpReq, otpRes, jest.fn());
+    expect(otpRes.status).toHaveBeenCalledWith(200);
+
+    const [[otpRow]] = await pool.query(
+      'SELECT code FROM registration_verifications WHERE email = ?',
+      [registerEmail]
+    );
+    expect(otpRow).toBeTruthy();
+
+    const verifyReq = { body: { email: registerEmail, code: otpRow.code } };
+    const verifyRes = mockRes();
+    await verifyRegistrationOtp(verifyReq, verifyRes, jest.fn());
+    expect(verifyRes.status).toHaveBeenCalledWith(200);
+    const { ticket } = verifyRes.json.mock.calls[0][0].data;
+    expect(ticket).toBeTruthy();
+
     const req = {
-      body: { password: 'TestPass123!', name: 'Test Register', email: registerEmail, phone: registerPhone, role: 'admin' },
+      body: { password: 'TestPass123!', name: 'Test Register', phone: registerPhone, role: 'admin', ticket },
     };
     const res = mockRes();
     const next = jest.fn();
@@ -51,8 +76,9 @@ describe('auth.controller — register / login / changePassword', () => {
     expect(payload.data.role).toBe('tenant'); // ⚠️ role จาก body ('admin') ต้องถูกเมิน
 
     registeredUserId = payload.data.user_id;
-    const [userRows] = await pool.query('SELECT role FROM users WHERE user_id = ?', [registeredUserId]);
+    const [userRows] = await pool.query('SELECT role, email_verified FROM users WHERE user_id = ?', [registeredUserId]);
     expect(userRows[0].role).toBe('tenant');
+    expect(userRows[0].email_verified).toBe(1); // ผ่าน OTP มาแล้ว ต้องถือว่ายืนยันอีเมลแล้วทันที
 
     const [tenantRows] = await pool.query('SELECT tenant_id FROM tenants WHERE user_id = ?', [registeredUserId]);
     expect(tenantRows.length).toBe(1);

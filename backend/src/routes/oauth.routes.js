@@ -88,8 +88,11 @@ async function upsertOAuthUser({ provider, providerId, email, displayName }) {
         lastName  = nameParts.slice(1).join(' ') || '';
       }
 
+      // ⚠️ Google ยืนยันความเป็นเจ้าของอีเมลนี้ให้แล้วผ่าน OAuth — ถือว่า
+      // email_verified ทันที แม้บัญชีเดิมจะยังไม่เคยกดลิงก์ยืนยันในอีเมล
+      // (เช่น สมัครเองด้วยอีเมลนี้ไว้ก่อน แล้วเพิ่งมา login ด้วย Google ทีหลัง)
       await pool.query(
-        'UPDATE users SET oauth_provider = ?, oauth_provider_id = ?, first_name = ?, last_name = ? WHERE user_id = ?',
+        'UPDATE users SET oauth_provider = ?, oauth_provider_id = ?, first_name = ?, last_name = ?, email_verified = 1 WHERE user_id = ?',
         [provider, String(providerId), firstName, lastName, existingUser.user_id]
       );
       if (!hasName && displayName) {
@@ -146,11 +149,13 @@ async function upsertOAuthUser({ provider, providerId, email, displayName }) {
   try {
     await conn.beginTransaction();
 
+    // ⚠️ email_verified = 1 ตั้งแต่สร้าง — Google ยืนยันความเป็นเจ้าของอีเมล
+    // ให้แล้วผ่าน OAuth ไม่ต้องส่งลิงก์ยืนยันซ้ำอีกรอบ
     const [result] = await conn.query(
       `INSERT INTO users
          (username, password_hash, role, first_name, last_name, email,
-          oauth_provider, oauth_provider_id, is_active)
-       VALUES (?, '', 'tenant', ?, ?, ?, ?, ?, 1)`,
+          oauth_provider, oauth_provider_id, is_active, email_verified)
+       VALUES (?, '', 'tenant', ?, ?, ?, ?, ?, 1, 1)`,
       [username, firstName, lastName, email || null, provider, String(providerId)]
     );
     const newUserId = result.insertId;

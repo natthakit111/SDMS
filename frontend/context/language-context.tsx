@@ -111,6 +111,15 @@ export const translations: Record<string, { th: string; en: string }> = {
   "login.usernamePlaceholder": { th: "กรอก ชื่อผู้ใช้", en: "Enter username" },
   "login.rememberMe": { th: "จดจำฉัน", en: "Remember me" },
   "login.forgotPassword": { th: "ลืมรหัสผ่าน?", en: "Forgot password?" },
+  "login.resendVerification": {
+    th: "ส่งลิงก์ยืนยันอีเมลอีกครั้ง",
+    en: "Resend verification email",
+  },
+  "login.resendingVerification": { th: "กำลังส่ง...", en: "Sending..." },
+  "login.verificationResent": {
+    th: "ส่งแล้ว กรุณาเช็คอีเมลของคุณ",
+    en: "Sent — please check your email",
+  },
   "login.submit": { th: "เข้าสู่ระบบ", en: "Sign In" },
   "login.loggingIn": { th: "กำลังเข้าสู่ระบบ...", en: "Signing in..." },
   "login.noAccount": { th: "ยังไม่มีบัญชี?", en: "Don't have an account?" },
@@ -179,6 +188,21 @@ export const translations: Record<string, { th: string; en: string }> = {
     en: "Redirecting to login...",
   },
   "resetPassword.loginNow": { th: "เข้าสู่ระบบเลย", en: "Login Now" },
+
+  // ── ยืนยันอีเมล ──────────────────────────────────────────────
+  "verifyEmail.title": { th: "ยืนยันอีเมล", en: "Verify Email" },
+  "verifyEmail.subtitle": {
+    th: "กำลังตรวจสอบลิงก์ยืนยันของคุณ",
+    en: "Checking your verification link",
+  },
+  "verifyEmail.success": { th: "ยืนยันอีเมลสำเร็จ!", en: "Email verified!" },
+  "verifyEmail.invalidLink": { th: "ลิงก์ไม่ถูกต้อง", en: "Invalid Link" },
+  "verifyEmail.invalidLinkDesc": {
+    th: "ลิงก์ยืนยันอีเมลหมดอายุหรือไม่ถูกต้อง กรุณาขอลิงก์ใหม่จากหน้าเข้าสู่ระบบ",
+    en: "The verification link has expired or is invalid. Please request a new one from the login page.",
+  },
+  "verifyEmail.loginNow": { th: "เข้าสู่ระบบเลย", en: "Login Now" },
+  "verifyEmail.backToLogin": { th: "กลับไปหน้าเข้าสู่ระบบ", en: "Back to login" },
 
   // ── Forced password change (บัญชีที่ยังใช้รหัสผ่านตั้งต้นอยู่) ──────────────
   "forcePasswordChange.title": {
@@ -1199,6 +1223,34 @@ export const translations: Record<string, { th: string; en: string }> = {
     en: "Already have an account?",
   },
   "register.login": { th: "เข้าสู่ระบบ", en: "Sign in" },
+
+  // ── ยืนยันอีเมลก่อนสมัคร (ขั้นตอนที่ 1-2 ของ 3) ──────────────
+  "register.stepEmailTitle": { th: "เริ่มจากอีเมลของคุณ", en: "Start with your email" },
+  "register.stepEmailDesc": {
+    th: "เราจะส่งรหัสยืนยัน 6 หลักไปที่อีเมลนี้ก่อนไปขั้นตอนถัดไป",
+    en: "We'll send a 6-digit verification code to this email before the next step.",
+  },
+  "register.sendCode": { th: "ส่งรหัสยืนยัน", en: "Send verification code" },
+  "register.sendingCode": { th: "กำลังส่งรหัส...", en: "Sending code..." },
+  "register.stepOtpTitle": { th: "กรอกรหัสยืนยัน", en: "Enter verification code" },
+  "register.stepOtpDesc": {
+    th: "เราส่งรหัส 6 หลักไปที่ {email} แล้ว",
+    en: "We've sent a 6-digit code to {email}",
+  },
+  "register.otpPlaceholder": { th: "รหัส 6 หลัก", en: "6-digit code" },
+  "register.verifyCode": { th: "ยืนยันรหัส", en: "Verify code" },
+  "register.verifyingCode": { th: "กำลังยืนยัน...", en: "Verifying..." },
+  "register.resendCode": { th: "ส่งรหัสอีกครั้ง", en: "Resend code" },
+  "register.changeEmail": { th: "แก้ไขอีเมล", en: "Change email" },
+  "register.errorRequiredEmail": { th: "กรุณากรอกอีเมล", en: "Please enter your email" },
+  "register.errorOtpLength": {
+    th: "รหัสยืนยันต้องมี 6 หลัก",
+    en: "Verification code must be 6 digits",
+  },
+  "register.stepDetailsDesc": {
+    th: "ยืนยันอีเมลสำเร็จ! กรอกข้อมูลที่เหลือให้ครบเพื่อสมัครสมาชิก",
+    en: "Email verified! Fill in the rest to finish creating your account.",
+  },
   "register.errorPasswordMismatch": {
     th: "รหัสผ่านไม่ตรงกัน",
     en: "Passwords do not match",

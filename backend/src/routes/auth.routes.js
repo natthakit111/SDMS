@@ -27,7 +27,11 @@ const authLimiter = rateLimit({
   store: getRateLimitStore(),
 });
 
+// ⚠️ ใหม่: self-register เปลี่ยนเป็น 3 ขั้นตอน — ต้องยืนยันอีเมลด้วย OTP
+// ให้เสร็จก่อน (request-otp → verify-otp ได้ ticket) ถึงจะมาถึงขั้นนี้ได้
+// อีเมลไม่ได้รับจาก client ตรงๆ ที่ขั้นนี้แล้ว (ถอดจาก ticket แทน)
 const registerValidation = [
+  body('ticket').trim().notEmpty().withMessage('Verification ticket is required'),
   body('phone').trim().notEmpty().withMessage('Phone is required')
     .matches(/^[0-9]+$/).withMessage('Phone must contain only numbers'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
@@ -35,6 +39,18 @@ const registerValidation = [
   // /register ตอนนี้ไม่รับ role จาก client แล้วทั้งที่ route/controller
   // เก็บ validator ที่ยอมรับ role ไว้เฉยๆ ไม่มีประโยชน์ และทำให้คนอ่านโค้ด
   // เข้าใจผิดว่า endpoint นี้ยังรองรับการส่ง role อยู่
+];
+
+const requestRegistrationOtpValidation = [
+  body('email').trim().notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Invalid email format'),
+];
+
+const verifyRegistrationOtpValidation = [
+  body('email').trim().notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Invalid email format'),
+  body('code').trim().isLength({ min: 6, max: 6 }).withMessage('Code must be 6 digits')
+    .matches(/^\d{6}$/).withMessage('Code must contain only numbers'),
 ];
 
 const loginValidation = [
@@ -72,12 +88,17 @@ const setPasswordValidation = [
 // ทำงานขัดกับ controller — ถ้า admin login แล้วยิง role:"admin" มาถูกต้อง
 // ตาม guard นี้ ก็ยังได้ tenant account อยู่ดี สร้างความสับสน
 // /auth/register ตอนนี้เป็น self-register สาธารณะสำหรับ tenant เท่านั้น
+router.post('/register/request-otp', authLimiter, requestRegistrationOtpValidation, authController.requestRegistrationOtp);
+router.post('/register/verify-otp', authLimiter, verifyRegistrationOtpValidation, authController.verifyRegistrationOtp);
 router.post('/register', authLimiter, registerValidation, authController.register);
 
 router.post('/login', authLimiter, loginValidation, authController.login);
 router.post('/forgot-password', authLimiter, authController.forgotPassword);
 router.get('/verify-reset-token', authLimiter, authController.verifyResetToken);
 router.post('/reset-password', authLimiter, authController.resetPassword);
+
+router.get('/verify-email', authLimiter, authController.verifyEmail);
+router.post('/resend-verification', authLimiter, authController.resendVerification);
 
 // ⚠️ ใหม่: logout ต้องผ่าน backend เสมอ เพราะ cookie `token` เป็น httpOnly
 // — JS ฝั่ง frontend แตะ/ลบเองไม่ได้อีกต่อไปหลัง migrate จาก localStorage

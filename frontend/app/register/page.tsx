@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
+import { authAPI } from "@/lib/api/auth.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -31,14 +32,24 @@ function isValidThaiPhone(phone: string) {
   return /^0\d{8,9}$/.test(digitsOnly);
 }
 
+// ⚠️ ใหม่: self-register เปลี่ยนจากฟอร์มเดียวจบเป็น 3 ขั้นตอน — ต้องยืนยัน
+// ความเป็นเจ้าของอีเมลด้วยรหัส OTP ให้เสร็จก่อน ถึงจะไปกรอกเบอร์/ตั้งรหัสผ่าน
+// ได้ (อีเมลเลยกลายเป็นบังคับกรอกสำหรับ flow นี้ ต่างจากแอดมินเพิ่มผู้เช่าเอง
+// ที่ยังปล่อยอีเมล optional เหมือนเดิม)
+type Step = "email" | "otp" | "details";
+
 export default function RegisterPage() {
   const router = useRouter();
   const { register } = useAuth();
   const { t, language, setLanguage } = useLanguage();
 
+  const [step, setStep] = useState<Step>("email");
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [ticket, setTicket] = useState("");
+
   const [formData, setFormData] = useState({
     name: "",
-    email: "",
     phone: "",
     password: "",
     confirmPassword: "",
@@ -52,13 +63,73 @@ export default function RegisterPage() {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
+  // ── ขั้นที่ 1: กรอกอีเมล → ขอรหัส OTP ──
+  const handleRequestOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
+      setError(t("register.errorRequiredEmail"));
+      return;
+    }
+    if (!EMAIL_REGEX.test(cleanEmail)) {
+      setError(t("register.errorInvalidEmail"));
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await authAPI.requestRegistrationOtp(cleanEmail);
+      setEmail(cleanEmail);
+      setStep("otp");
+    } catch (err: any) {
+      setError(err?.response?.data?.message || t("common.error"));
+    }
+    setIsLoading(false);
+  };
+
+  // ── ขั้นที่ 2: กรอกรหัส OTP → ยืนยัน ได้ ticket กลับมา ──
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    const cleanOtp = otp.trim();
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      setError(t("register.errorOtpLength"));
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await authAPI.verifyRegistrationOtp(email, cleanOtp);
+      setTicket(res.data.ticket);
+      setStep("details");
+    } catch (err: any) {
+      setError(err?.response?.data?.message || t("common.error"));
+    }
+    setIsLoading(false);
+  };
+
+  const handleResendOtp = async () => {
+    setError("");
+    setIsLoading(true);
+    try {
+      await authAPI.requestRegistrationOtp(email);
+      setOtp("");
+    } catch (err: any) {
+      setError(err?.response?.data?.message || t("common.error"));
+    }
+    setIsLoading(false);
+  };
+
+  // ── ขั้นที่ 3: กรอกชื่อ/เบอร์/รหัสผ่าน + แนบ ticket → สมัครจริง ──
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
     if (
       !formData.name.trim() ||
-      !formData.email.trim() ||
       !formData.phone.trim() ||
       !formData.password.trim() ||
       !formData.confirmPassword.trim()
@@ -67,30 +138,19 @@ export default function RegisterPage() {
       return;
     }
 
-    const cleanEmail = formData.email.trim();
     const cleanPassword = formData.password.trim();
     const cleanConfirmPassword = formData.confirmPassword.trim();
     const cleanPhone = formData.phone.trim();
     const cleanName = formData.name.trim();
 
-    // Validate ชื่อ (กันกรอกแค่ช่องว่างหรือสั้นเกินไป)
     if (cleanName.length < 2) {
       setError(t("register.errorNameLength"));
       return;
     }
-
-    // Validate อีเมลแบบเข้มขึ้น
-    if (!EMAIL_REGEX.test(cleanEmail)) {
-      setError(t("register.errorInvalidEmail"));
-      return;
-    }
-
-    // Validate เบอร์โทร
     if (!isValidThaiPhone(cleanPhone)) {
       setError(t("register.errorInvalidPhone"));
       return;
     }
-
     if (cleanPassword !== cleanConfirmPassword) {
       setError(t("register.errorPasswordMismatch"));
       return;
@@ -105,8 +165,8 @@ export default function RegisterPage() {
     const result = await register({
       password: cleanPassword,
       name: cleanName,
-      email: cleanEmail,
       phone: cleanPhone,
+      ticket,
     });
 
     if (result.success) {
@@ -138,131 +198,245 @@ export default function RegisterPage() {
               <Building2 className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl">{t("register.title")}</CardTitle>
-          <CardDescription>{t("register.subtitle")}</CardDescription>
+          <CardTitle className="text-2xl">
+            {step === "email" && t("register.stepEmailTitle")}
+            {step === "otp" && t("register.stepOtpTitle")}
+            {step === "details" && t("register.title")}
+          </CardTitle>
+          <CardDescription>
+            {step === "email" && t("register.stepEmailDesc")}
+            {step === "otp" && t("register.stepOtpDesc", { email })}
+            {step === "details" && t("register.stepDetailsDesc")}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} noValidate>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="name">{t("register.fullName")}</FieldLabel>
-                <Input
-                  id="name"
-                  name="name"
-                  type="text"
-                  placeholder={t("register.fullNamePlaceholder")}
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                  disabled={isLoading}
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="email">{t("common.email")}</FieldLabel>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder={t("register.emailPlaceholder")}
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                  disabled={isLoading}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="phone">{t("common.phone")}</FieldLabel>
-                <Input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  placeholder={t("register.phonePlaceholder")}
-                  value={formData.phone}
-                  onChange={handleChange}
-                  required
-                  disabled={isLoading}
-                  maxLength={10}
-                  inputMode="numeric"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="password">
-                  {t("common.password")}
-                </FieldLabel>
-                <div className="relative">
+          {step === "email" && (
+            <form onSubmit={handleRequestOtp} noValidate>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="email">{t("common.email")}</FieldLabel>
                   <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={formData.password}
-                    onChange={handleChange}
+                    id="email"
+                    type="email"
+                    placeholder={t("register.emailPlaceholder")}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={isLoading}
-                    className="pr-10"
+                    autoFocus
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="confirmPassword">
-                  {t("register.confirmPassword")}
-                </FieldLabel>
-                <div className="relative">
-                  <Input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    required
-                    disabled={isLoading}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </Field>
+                </Field>
 
-              {error && (
-                <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                  {error}
-                </div>
-              )}
-
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t("register.loading")}
-                  </>
-                ) : (
-                  t("register.submit")
+                {error && (
+                  <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                    {error}
+                  </div>
                 )}
-              </Button>
-            </FieldGroup>
-          </form>
+
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {t("register.sendingCode")}
+                    </>
+                  ) : (
+                    t("register.sendCode")
+                  )}
+                </Button>
+              </FieldGroup>
+            </form>
+          )}
+
+          {step === "otp" && (
+            <form onSubmit={handleVerifyOtp} noValidate>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="otp">
+                    {t("register.stepOtpTitle")}
+                  </FieldLabel>
+                  <Input
+                    id="otp"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder={t("register.otpPlaceholder")}
+                    value={otp}
+                    onChange={(e) =>
+                      setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
+                    required
+                    disabled={isLoading}
+                    autoFocus
+                    className="text-center text-lg tracking-[0.5em]"
+                  />
+                </Field>
+
+                {error && (
+                  <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                    {error}
+                  </div>
+                )}
+
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {t("register.verifyingCode")}
+                    </>
+                  ) : (
+                    t("register.verifyCode")
+                  )}
+                </Button>
+
+                <div className="flex items-center justify-between text-sm">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep("email");
+                      setOtp("");
+                      setError("");
+                    }}
+                    disabled={isLoading}
+                    className="text-muted-foreground hover:underline"
+                  >
+                    {t("register.changeEmail")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResendOtp}
+                    disabled={isLoading}
+                    className="text-primary hover:underline"
+                  >
+                    {t("register.resendCode")}
+                  </button>
+                </div>
+              </FieldGroup>
+            </form>
+          )}
+
+          {step === "details" && (
+            <>
+              <form onSubmit={handleSubmit} noValidate>
+                <FieldGroup>
+                  <Field>
+                    <FieldLabel htmlFor="name">
+                      {t("register.fullName")}
+                    </FieldLabel>
+                    <Input
+                      id="name"
+                      name="name"
+                      type="text"
+                      placeholder={t("register.fullNamePlaceholder")}
+                      value={formData.name}
+                      onChange={handleChange}
+                      required
+                      disabled={isLoading}
+                      autoFocus
+                    />
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="phone">
+                      {t("common.phone")}
+                    </FieldLabel>
+                    <Input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      placeholder={t("register.phonePlaceholder")}
+                      value={formData.phone}
+                      onChange={handleChange}
+                      required
+                      disabled={isLoading}
+                      maxLength={10}
+                      inputMode="numeric"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="password">
+                      {t("common.password")}
+                    </FieldLabel>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        name="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={formData.password}
+                        onChange={handleChange}
+                        required
+                        disabled={isLoading}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="confirmPassword">
+                      {t("register.confirmPassword")}
+                    </FieldLabel>
+                    <div className="relative">
+                      <Input
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        required
+                        disabled={isLoading}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowConfirmPassword(!showConfirmPassword)
+                        }
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </Field>
+
+                  {error && (
+                    <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                      {error}
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {t("register.loading")}
+                      </>
+                    ) : (
+                      t("register.submit")
+                    )}
+                  </Button>
+                </FieldGroup>
+              </form>
+            </>
+          )}
 
           <div className="mt-6 text-center text-sm text-muted-foreground">
             {t("register.hasAccount")}{" "}

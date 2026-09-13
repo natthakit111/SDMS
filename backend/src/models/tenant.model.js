@@ -86,7 +86,7 @@ const findByIdCard = async (idCardNumber) => {
 
 const update = async (tenantId, fields, conn = null) => {
   const allowed = [
-    'first_name', 'last_name', 'phone', 'email', 'id_card_number',
+    'first_name', 'last_name', 'phone', 'email', 'id_card_number', 'id_type', 'is_placeholder_id',
     'emergency_contact_name', 'emergency_contact_phone', 'profile_image',
   ];
   const setClauses = [];
@@ -120,8 +120,8 @@ const findConflictByPhoneOrEmail = async (phone, email) => {
 const createFromSelfRegistration = async (conn, { userId, firstName, lastName, phone, email }) => {
   const placeholderIdCard = `REG${String(userId).padStart(9, '0')}`;
   await conn.query(
-    `INSERT INTO tenants (user_id, first_name, last_name, id_card_number, phone, email)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tenants (user_id, first_name, last_name, id_card_number, is_placeholder_id, phone, email)
+     VALUES (?, ?, ?, ?, 1, ?, ?)`,
     [userId, firstName, lastName || 'ไม่ระบุ', placeholderIdCard, phone || '0000000000', email || null]
   );
 };
@@ -139,15 +139,15 @@ const findIdCardConflictExcluding = async (idCardNumber, excludeTenantId) => {
 // ── ใช้ใน tenantController.createTenant: สร้าง tenant ใหม่ทั้งหมด (ต้องอยู่ใน transaction เดียวกับ conn) ──
 const createFull = async (conn, userId, data) => {
   const {
-    first_name, last_name, id_card_number, phone, email,
+    first_name, last_name, id_card_number, id_type, phone, email,
     emergency_contact_name, emergency_contact_phone,
   } = data;
   const [result] = await conn.query(
     `INSERT INTO tenants
-       (user_id, first_name, last_name, id_card_number, phone, email,
+       (user_id, first_name, last_name, id_card_number, id_type, is_placeholder_id, phone, email,
         emergency_contact_name, emergency_contact_phone)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [userId, first_name, last_name, id_card_number, phone,
+     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+    [userId, first_name, last_name, id_card_number, id_type || 'thai_id', phone,
      email || null, emergency_contact_name || null, emergency_contact_phone || null]
   );
   return result.insertId;

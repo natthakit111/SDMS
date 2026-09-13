@@ -66,7 +66,7 @@ const createTenant = async (req, res, next) => {
 
     const {
       password, first_name, last_name,
-      id_card_number, phone, email,
+      id_card_number, id_type, phone, email,
       emergency_contact_name, emergency_contact_phone,
     } = req.body;
 
@@ -102,7 +102,7 @@ const createTenant = async (req, res, next) => {
     );
 
     const tenantId = await TenantModel.createFull(conn, userId, {
-      first_name, last_name, id_card_number, phone, email,
+      first_name, last_name, id_card_number, id_type, phone, email,
       emergency_contact_name, emergency_contact_phone,
     });
 
@@ -134,7 +134,15 @@ const updateTenant = async (req, res, next) => {
     if (req.user.role === 'tenant' && tenant.user_id !== req.user.user_id)
       return sendForbidden(res, 'คุณสามารถแก้ไขได้เฉพาะโปรไฟล์ของตนเอง');
 
-    const { phone, email } = req.body;
+    const { phone, email, id_card_number } = req.body;
+
+    // ⚠️ เลขบัตร/พาสปอร์ตมี UNIQUE constraint เหมือนเบอร์/อีเมล — เช็คก่อน
+    // update เพื่อโชว์ error ตรงจุดแทนที่จะโดน ER_DUP_ENTRY กลางๆ ด้านล่าง
+    // (ซึ่งเดิมจะขึ้นข้อความ "เบอร์/อีเมลซ้ำ" ทั้งที่จริงคือเลขบัตรซ้ำ)
+    if (id_card_number !== undefined) {
+      const conflict = await TenantModel.findIdCardConflictExcluding(id_card_number, req.params.id);
+      if (conflict) return sendBadRequest(res, 'ID_CARD_ALREADY_REGISTERED');
+    }
 
     // ⚠️ FIX: เหตุผลเดียวกับ updateMyProfile — sync phone/email ไป users
     // ด้วยเสมอ ไม่ใช่แค่ tenants เพราะ users.username ผูกกับ phone (login)
@@ -144,7 +152,11 @@ const updateTenant = async (req, res, next) => {
       await UserModel.updateProfileFields(tenant.user_id, { phone, email }, conn);
     }
 
-    await TenantModel.update(req.params.id, req.body, conn);
+    const updates = { ...req.body };
+    // มีการกรอกเลขบัตร/พาสปอร์ตจริงเข้ามาแล้ว → ไม่ใช่ placeholder อีกต่อไป
+    if (id_card_number !== undefined) updates.is_placeholder_id = 0;
+
+    await TenantModel.update(req.params.id, updates, conn);
     await conn.commit();
 
     const updated = await TenantModel.findById(req.params.id);

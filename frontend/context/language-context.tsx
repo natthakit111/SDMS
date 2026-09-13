@@ -322,6 +322,19 @@ export const translations: Record<string, { th: string; en: string }> = {
     th: "เลขบัตรประชาชน 13 หลัก",
     en: "13-digit ID card number",
   },
+  "tenants.idType": { th: "ประเภทเอกสาร", en: "Document Type" },
+  "tenants.idTypeThai": { th: "บัตรประชาชน", en: "Thai ID Card" },
+  "tenants.idTypePassport": { th: "พาสปอร์ต", en: "Passport" },
+  "tenants.passportNumber": { th: "เลขพาสปอร์ต", en: "Passport Number" },
+  "tenants.passportPlaceholder": {
+    th: "เลขพาสปอร์ต 6-15 ตัวอักษร/ตัวเลข",
+    en: "Passport number, 6-15 letters/digits",
+  },
+  "tenants.placeholderIdBadge": { th: "ยังไม่ยืนยัน", en: "Unverified" },
+  "tenants.placeholderIdWarning": {
+    th: "เลขนี้เป็นข้อมูลชั่วคราวที่ระบบสร้างให้ตอนสมัคร (ยังไม่ใช่เลขจริง) กรุณากรอกเลขบัตรประชาชนหรือพาสปอร์ตจริงของผู้เช่า",
+    en: "This is a temporary placeholder created at sign-up (not a real ID). Please enter the tenant's real ID card or passport number.",
+  },
   "tenants.emergencyName": { th: "ผู้ติดต่อฉุกเฉิน", en: "Emergency Contact" },
   "tenants.emergencyPhone": { th: "เบอร์ติดต่อฉุกเฉิน", en: "Emergency Phone" },
   "tenants.list": { th: "รายการผู้เช่า", en: "Tenant List" },
@@ -405,6 +418,22 @@ export const translations: Record<string, { th: string; en: string }> = {
   "errors.ID_CARD_FORMAT": {
     th: "เลขบัตรประชาชนต้องเป็นตัวเลขเท่านั้น",
     en: "ID card number must contain digits only",
+  },
+  "errors.ID_CARD_CHECKSUM_INVALID": {
+    th: "เลขบัตรประชาชนไม่ถูกต้อง (เลขตรวจสอบหลักสุดท้ายไม่ตรง)",
+    en: "Invalid ID card number (check digit does not match)",
+  },
+  "errors.PASSPORT_FORMAT": {
+    th: "เลขพาสปอร์ตต้องเป็นตัวอักษร A-Z หรือตัวเลข 6-15 ตัว",
+    en: "Passport number must be 6-15 letters/digits (A-Z, 0-9)",
+  },
+  "errors.PASSPORT_REQUIRED": {
+    th: "กรุณากรอกเลขพาสปอร์ต",
+    en: "Passport number is required",
+  },
+  "errors.ID_TYPE_INVALID": {
+    th: "ประเภทเอกสารไม่ถูกต้อง",
+    en: "Invalid document type",
   },
   "errors.EMERGENCY_NAME_TOO_LONG": {
     th: "ชื่อผู้ติดต่อฉุกเฉินยาวเกินไป",

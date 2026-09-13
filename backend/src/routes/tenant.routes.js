@@ -18,6 +18,7 @@ const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
 const notificationPrefController = require('../controllers/notificationPreference.controller')
 const { paginationValidation } = require('../utils/pagination')
+const { isValidThaiIdChecksum, isValidPassportFormat } = require('../utils/idValidation')
 
 // เบอร์โทรไทย: ขึ้นต้นด้วย 0, ตามด้วย 1-9, รวม 9-10 หลัก (รองรับทั้งมือถือและเบอร์บ้าน)
 const THAI_PHONE_REGEX = /^0[1-9]\d{7,8}$/;
@@ -30,12 +31,29 @@ const createValidation = [
   body('last_name').trim().notEmpty().withMessage('LAST_NAME_REQUIRED')
     .bail().isLength({ max: 100 }).withMessage('LAST_NAME_TOO_LONG'),
 
+  body('id_type')
+    .optional()
+    .trim()
+    .isIn(['thai_id', 'passport']).withMessage('ID_TYPE_INVALID'),
+
   body('id_card_number')
     .trim()
-    .customSanitizer((val) => val.replace(/-/g, ''))
-    .isLength({ min: 13, max: 13 }).withMessage('ID_CARD_LENGTH')
+    .customSanitizer((val) => val.replace(/-/g, '').toUpperCase())
+    .notEmpty().withMessage(
+      (v, { req }) => (req.body.id_type === 'passport' ? 'PASSPORT_REQUIRED' : 'ID_CARD_LENGTH')
+    )
     .bail()
-    .isNumeric().withMessage('ID_CARD_FORMAT'),
+    .custom((value, { req }) => {
+      if (req.body.id_type === 'passport') {
+        if (!isValidPassportFormat(value)) throw new Error('PASSPORT_FORMAT');
+        return true;
+      }
+      if (!/^\d{13}$/.test(value)) {
+        throw new Error(/^\d*$/.test(value) ? 'ID_CARD_LENGTH' : 'ID_CARD_FORMAT');
+      }
+      if (!isValidThaiIdChecksum(value)) throw new Error('ID_CARD_CHECKSUM_INVALID');
+      return true;
+    }),
 
   body('phone')
     .trim()
@@ -65,6 +83,33 @@ const updateValidation = [
     .bail().isLength({ max: 100 }).withMessage('FIRST_NAME_TOO_LONG'),
   body('last_name').optional().trim().notEmpty().withMessage('LAST_NAME_REQUIRED')
     .bail().isLength({ max: 100 }).withMessage('LAST_NAME_TOO_LONG'),
+
+  body('id_type')
+    .optional()
+    .trim()
+    .isIn(['thai_id', 'passport']).withMessage('ID_TYPE_INVALID'),
+
+  // ⚠️ เดิม endpoint นี้ไม่เช็ค format เลขบัตรเลยตอนแก้ไข (ต่างจากตอนสร้างที่เช็ค)
+  // ทั้งที่ TenantModel.update() รับ id_card_number อยู่ใน allowed fields จริง —
+  // ตอนนี้เพิ่มเช็คให้เหมือนกันทั้งสองทาง (ต้องส่ง id_type คู่กับ id_card_number
+  // เสมอถ้าจะแก้เลข เพื่อให้รู้ว่าจะตรวจแบบบัตรประชาชนหรือพาสปอร์ต)
+  body('id_card_number')
+    .optional()
+    .trim()
+    .customSanitizer((val) => val.replace(/-/g, '').toUpperCase())
+    .notEmpty().withMessage('ID_CARD_LENGTH')
+    .bail()
+    .custom((value, { req }) => {
+      if (req.body.id_type === 'passport') {
+        if (!isValidPassportFormat(value)) throw new Error('PASSPORT_FORMAT');
+        return true;
+      }
+      if (!/^\d{13}$/.test(value)) {
+        throw new Error(/^\d*$/.test(value) ? 'ID_CARD_LENGTH' : 'ID_CARD_FORMAT');
+      }
+      if (!isValidThaiIdChecksum(value)) throw new Error('ID_CARD_CHECKSUM_INVALID');
+      return true;
+    }),
 
   body('phone')
     .optional()

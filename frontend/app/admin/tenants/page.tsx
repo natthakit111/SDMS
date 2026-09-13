@@ -57,6 +57,7 @@ import {
   DoorOpen,
 } from "lucide-react";
 import { formatDate, type Locale } from "@/lib/utils";
+import { isValidThaiIdChecksum, isValidPassportFormat } from "@/lib/idValidation";
 import { tenantAPI } from "@/lib/api/tenant.api";
 import { toast } from "sonner";
 
@@ -67,6 +68,8 @@ interface Tenant {
   first_name: string;
   last_name: string;
   id_card_number: string;
+  id_type: "thai_id" | "passport";
+  is_placeholder_id: boolean | number;
   phone: string;
   email: string | null;
   emergency_contact_name: string | null;
@@ -85,6 +88,7 @@ interface FormData {
   email: string;
   phone: string;
   id_card_number: string;
+  id_type: "thai_id" | "passport";
   emergency_contact_name: string;
   emergency_contact_phone: string;
 }
@@ -98,6 +102,7 @@ const emptyForm: FormData = {
   email: "",
   phone: "",
   id_card_number: "",
+  id_type: "thai_id",
   emergency_contact_name: "",
   emergency_contact_phone: "",
 };
@@ -157,11 +162,20 @@ function validateForm(
     errors.email = t("errors.EMAIL_FORMAT");
   }
 
-  if (!isEditing) {
-    const idCard = data.id_card_number.replace(/-/g, "");
-    if (idCard.length !== 13 || !/^\d+$/.test(idCard)) {
-      errors.id_card_number = t("errors.ID_CARD_LENGTH");
+  // ✅ เช็คเลขบัตร/พาสปอร์ตทั้งตอนสร้างและแก้ไข — เดิมข้ามตอนแก้ไขเพราะช่องนี้
+  // ไม่เคยโชว์ตอน edit มาก่อน ตอนนี้เปิดให้แก้ไขได้แล้วจึงต้อง validate ด้วย
+  const idValue = data.id_card_number.replace(/-/g, "").toUpperCase();
+  if (data.id_type === "passport") {
+    if (!isValidPassportFormat(idValue)) {
+      errors.id_card_number = t("errors.PASSPORT_FORMAT");
     }
+  } else if (idValue.length !== 13 || !/^\d+$/.test(idValue)) {
+    errors.id_card_number = t("errors.ID_CARD_LENGTH");
+  } else if (!isValidThaiIdChecksum(idValue)) {
+    errors.id_card_number = t("errors.ID_CARD_CHECKSUM_INVALID");
+  }
+
+  if (!isEditing) {
     if (!data.password || data.password.length < 6) {
       errors.password = t("errors.PASSWORD_MIN_LENGTH");
     }
@@ -265,6 +279,8 @@ export default function TenantsPage() {
           last_name: formData.last_name,
           phone: formData.phone,
           email: formData.email,
+          id_card_number: formData.id_card_number,
+          id_type: formData.id_type,
           emergency_contact_name: formData.emergency_contact_name,
           emergency_contact_phone: formData.emergency_contact_phone,
         });
@@ -275,6 +291,7 @@ export default function TenantsPage() {
           last_name: formData.last_name,
           password: formData.password,
           id_card_number: formData.id_card_number,
+          id_type: formData.id_type,
           phone: formData.phone,
           email: formData.email || undefined,
           emergency_contact_name: formData.emergency_contact_name || undefined,
@@ -312,6 +329,7 @@ export default function TenantsPage() {
       email: tenant.email ?? "",
       phone: tenant.phone,
       id_card_number: tenant.id_card_number,
+      id_type: tenant.id_type ?? "thai_id",
       emergency_contact_name: tenant.emergency_contact_name ?? "",
       emergency_contact_phone: tenant.emergency_contact_phone ?? "",
     });
@@ -368,8 +386,14 @@ export default function TenantsPage() {
   // ⚠️ ใหม่: mask เลขบัตรประชาชนในมุมมอง list — โชว์เต็มแค่ตอน edit
   // (แสดงในฟอร์มปกติ) ป้องกัน shoulder-surfing ตอน admin เปิดดูบนมือถือ
   // ในที่สาธารณะ
-  const maskIdCard = (id: string) =>
-    id?.length === 13 ? `${id.slice(0, 1)}-XXXX-XXXXX-XX-${id.slice(-1)}` : id;
+  const maskIdCard = (id: string, idType?: "thai_id" | "passport") => {
+    if (!id) return id;
+    if (idType !== "passport" && id.length === 13) {
+      return `${id.slice(0, 1)}-XXXX-XXXXX-XX-${id.slice(-1)}`;
+    }
+    if (id.length <= 2) return id;
+    return `${id.slice(0, 1)}${"X".repeat(id.length - 2)}${id.slice(-1)}`;
+  };
 
   const FieldError = ({ field }: { field: keyof FormData }) =>
     fieldErrors[field] ? (
@@ -507,29 +531,93 @@ export default function TenantsPage() {
                       </Field>
                     </div>
 
-                    {!editingTenant && (
-                      <Field>
-                        <FieldLabel htmlFor="id_card_number">
-                          {t("tenants.idCard")}
-                          <RequiredMark />
-                        </FieldLabel>
-                        <Input
-                          id="id_card_number"
-                          value={formData.id_card_number}
-                          onChange={set("id_card_number")}
-                          aria-invalid={!!fieldErrors.id_card_number}
-                          className={
-                            fieldErrors.id_card_number
-                              ? "border-destructive"
-                              : ""
+                    <Field>
+                      <FieldLabel>
+                        {t("tenants.idType")}
+                      </FieldLabel>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={
+                            formData.id_type === "thai_id"
+                              ? "default"
+                              : "outline"
                           }
-                          placeholder={t("tenants.idCardPlaceholder")}
-                          maxLength={17} // เผื่อ user พิมพ์ขีดคั่น
-                          inputMode="numeric"
-                        />
-                        <FieldError field="id_card_number" />
-                      </Field>
-                    )}
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              id_type: "thai_id",
+                            }));
+                            setFieldErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.id_card_number;
+                              return next;
+                            });
+                          }}
+                        >
+                          {t("tenants.idTypeThai")}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={
+                            formData.id_type === "passport"
+                              ? "default"
+                              : "outline"
+                          }
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              id_type: "passport",
+                            }));
+                            setFieldErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.id_card_number;
+                              return next;
+                            });
+                          }}
+                        >
+                          {t("tenants.idTypePassport")}
+                        </Button>
+                      </div>
+                    </Field>
+
+                    <Field>
+                      <FieldLabel htmlFor="id_card_number">
+                        {formData.id_type === "passport"
+                          ? t("tenants.passportNumber")
+                          : t("tenants.idCard")}
+                        <RequiredMark />
+                      </FieldLabel>
+                      <Input
+                        id="id_card_number"
+                        value={formData.id_card_number}
+                        onChange={set("id_card_number")}
+                        aria-invalid={!!fieldErrors.id_card_number}
+                        className={
+                          fieldErrors.id_card_number
+                            ? "border-destructive"
+                            : ""
+                        }
+                        placeholder={
+                          formData.id_type === "passport"
+                            ? t("tenants.passportPlaceholder")
+                            : t("tenants.idCardPlaceholder")
+                        }
+                        maxLength={20}
+                        inputMode={
+                          formData.id_type === "passport" ? "text" : "numeric"
+                        }
+                      />
+                      <FieldError field="id_card_number" />
+                      {editingTenant?.is_placeholder_id ? (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                          <Info className="h-3 w-3 shrink-0" />
+                          {t("tenants.placeholderIdWarning")}
+                        </p>
+                      ) : null}
+                    </Field>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <Field>
@@ -716,8 +804,16 @@ export default function TenantsPage() {
                           <p className="font-medium">
                             {tenant.first_name} {tenant.last_name}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {maskIdCard(tenant.id_card_number)}
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            {maskIdCard(tenant.id_card_number, tenant.id_type)}
+                            {!!tenant.is_placeholder_id && (
+                              <span
+                                title={t("tenants.placeholderIdWarning")}
+                                className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium dark:bg-amber-950 dark:text-amber-300"
+                              >
+                                {t("tenants.placeholderIdBadge")}
+                              </span>
+                            )}
                           </p>
                         </div>
                       </TableCell>
@@ -803,8 +899,16 @@ export default function TenantsPage() {
                         <p className="font-medium truncate">
                           {tenant.first_name} {tenant.last_name}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {maskIdCard(tenant.id_card_number)}
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          {maskIdCard(tenant.id_card_number, tenant.id_type)}
+                          {!!tenant.is_placeholder_id && (
+                            <span
+                              title={t("tenants.placeholderIdWarning")}
+                              className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium dark:bg-amber-950 dark:text-amber-300"
+                            >
+                              {t("tenants.placeholderIdBadge")}
+                            </span>
+                          )}
                         </p>
                       </div>
                       {showInactive ? (

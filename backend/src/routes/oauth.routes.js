@@ -159,8 +159,8 @@ async function upsertOAuthUser({ provider, providerId, email, displayName }) {
     const placeholderPhone  = `0000${String(newUserId).padStart(6, '0')}`; // unique ต่อ user_id
 
     await conn.query(
-      `INSERT INTO tenants (user_id, first_name, last_name, id_card_number, phone, email)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tenants (user_id, first_name, last_name, id_card_number, is_placeholder_id, phone, email)
+       VALUES (?, ?, ?, ?, 1, ?, ?)`,
       [
         newUserId,
         firstName || 'ไม่ระบุ',

@@ -67,7 +67,7 @@ const createContract = async (req, res, next) => {
       return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง', errors.array())
     }
 
-    const { tenant_id, room_id, start_date, end_date, rent_amount, deposit_amount, note, tenant_id_card } = req.body                                                                                       
+    const { tenant_id, room_id, start_date, end_date, rent_amount, deposit_amount, note, tenant_id_card, tenant_id_type } = req.body
 
     const tenant = await TenantModel.findById(tenant_id)
     if (!tenant) { conn.release(); return sendNotFound(res, 'ไม่พบข้อมูลผู้เช่ารายนี้') }
@@ -103,7 +103,14 @@ const createContract = async (req, res, next) => {
         conn.release()
         return sendBadRequest(res, 'เลขประจำตัวประชาชนนี้ถูกใช้กับผู้เช่ารายอื่นแล้ว')
       }
-      await TenantModel.update(tenant_id, { id_card_number: idCard }, conn)
+      // ⚠️ ช่องนี้แก้ id_card_number ของ tenant จริงๆ เหมือนหน้าแก้ไขผู้เช่า —
+      // ต้องอัปเดต id_type และเคลียร์ is_placeholder_id ให้สอดคล้องกันด้วย
+      // ไม่งั้น badge "ยังไม่ยืนยัน" จะค้างอยู่ทั้งที่กรอกเลขจริงแล้วผ่านหน้านี้
+      await TenantModel.update(tenant_id, {
+        id_card_number: idCard,
+        id_type: tenant_id_type || 'thai_id',
+        is_placeholder_id: 0,
+      }, conn)
     }
 
     const contractId = await ContractModel.create({

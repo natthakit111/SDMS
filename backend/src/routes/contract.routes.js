@@ -11,6 +11,7 @@ const { authenticate } = require('../middlewares/auth.middleware');
 const { authorizeRoles } = require('../middlewares/role.middleware');
 const { uploadContractFile: uploadContractMiddleware } = require('../middlewares/upload.middleware');
 const { paginationValidation } = require('../utils/pagination');
+const { isValidThaiIdChecksum, isValidPassportFormat } = require('../utils/idValidation');
 
 const createContractValidation = [
   body('tenant_id').isInt({ min: 1 }),
@@ -19,6 +20,33 @@ const createContractValidation = [
   body('end_date').isDate(),
   body('deposit_amount').optional().isFloat({ min: 0 }),
   body('rent_amount').optional().isFloat({ min: 0 }),
+
+  body('tenant_id_type')
+    .optional()
+    .trim()
+    .isIn(['thai_id', 'passport']).withMessage('ID_TYPE_INVALID'),
+
+  // ⚠️ เดิมช่องนี้ไม่มี validation เลยฝั่ง backend (แค่เช็คซ้ำกับผู้เช่าอื่น)
+  // ทั้งที่ค่าที่กรอกตรงนี้ถูกเขียนทับไปที่ tenants.id_card_number จริง (ดู
+  // contract.controller.js createContract) — ใช้กฎเดียวกับ tenant.routes.js
+  // เพื่อไม่ให้มีทางลัดผ่าน validation ของเลขบัตร/พาสปอร์ตออกไปทางนี้
+  body('tenant_id_card')
+    .optional()
+    .trim()
+    .customSanitizer((val) => val.replace(/-/g, '').toUpperCase())
+    .notEmpty().withMessage('ID_CARD_LENGTH')
+    .bail()
+    .custom((value, { req }) => {
+      if (req.body.tenant_id_type === 'passport') {
+        if (!isValidPassportFormat(value)) throw new Error('PASSPORT_FORMAT');
+        return true;
+      }
+      if (!/^\d{13}$/.test(value)) {
+        throw new Error(/^\d*$/.test(value) ? 'ID_CARD_LENGTH' : 'ID_CARD_FORMAT');
+      }
+      if (!isValidThaiIdChecksum(value)) throw new Error('ID_CARD_CHECKSUM_INVALID');
+      return true;
+    }),
 ];
 
 const updateValidation = [

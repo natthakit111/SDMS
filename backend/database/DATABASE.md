@@ -57,6 +57,8 @@ Login หลักของระบบ, เก็บ role และการต
 
 ### `tenants` — ข้อมูลโปรไฟล์ผู้เช่า (1:1 กับ `users` ที่ role=tenant)
 `id_card_number`, `phone`, `email` ทั้งหมด unique — กันข้อมูลซ้ำระดับ DB ไม่ใช่แค่ฝั่ง backend validate
+- `id_type` enum(`thai_id`,`passport`) — เลขบัตรประชาชนไทย (13 หลัก + เช็ค checksum) หรือพาสปอร์ต (ตัวอักษร/ตัวเลข 6-15 ตัว ไม่มี checksum)
+- `is_placeholder_id` — `1` เมื่อ `id_card_number` เป็นค่า placeholder ที่ระบบสร้างอัตโนมัติตอนสมัครเอง (`REG...`) หรือผ่าน OAuth (`OAUTH...`) โดยผู้ใช้ยังไม่เคยกรอกเลขบัตรจริง ต้องให้แอดมินยืนยัน/แก้ไขเป็นเลขจริงทีหลัง
 
 ### `rooms` — ห้องพัก
 `room_number` unique, `status` enum(`available`,`occupied`,`maintenance`) — **ไม่มี trigger อัตโนมัติ** สถานะห้องต้องอัปเดตเองจาก backend เมื่อสร้าง/ยกเลิกสัญญา

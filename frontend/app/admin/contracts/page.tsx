@@ -47,11 +47,13 @@ import { DatePickerField } from "@/components/common/date-picker-field";
 import { PaginationFooter } from "@/components/common/pagination-footer";
 import { useConfirmDialog } from "@/components/common/confirm-dialog";
 import { toISODate, formatDate, formatCurrency } from "@/lib/utils";
+import { isValidThaiIdChecksum, isValidPassportFormat } from "@/lib/idValidation";
 import { Contract } from "@/types/index";
 
 interface FormData {
   tenant_id: string;
   tenant_id_card: string;
+  tenant_id_type: "thai_id" | "passport";
   room_id: string;
   start_date: string;
   end_date: string;
@@ -72,6 +74,7 @@ interface CheckoutFormData {
 const emptyForm: FormData = {
   tenant_id: "",
   tenant_id_card: "",
+  tenant_id_type: "thai_id",
   room_id: "",
   start_date: "",
   end_date: "",
@@ -264,7 +267,11 @@ export default function ContractsPage() {
     e.preventDefault();
     setSubmitting(true);
 
-    const idCard = formData.tenant_id_card?.trim();
+    // ⚠️ เดิมเช็คแค่ "ถ้าเป็นตัวเลขล้วนต้อง 13 หลัก" — ถ้าไม่ใช่ตัวเลขล้วน
+    // ปล่อยผ่านหมดโดยไม่เช็ค format อะไรเลย (ช่องนี้เขียนทับ tenant.id_card_number
+    // จริงตอน submit ดู contract.controller.js createContract) ตอนนี้เช็คแบบ
+    // เดียวกับหน้า admin/tenants ทุกประการ แยกตาม tenant_id_type ที่เลือก
+    const idCard = formData.tenant_id_card?.trim().replace(/-/g, "").toUpperCase() ?? "";
     if (!idCard) {
       toast.error(
         language === "th"
@@ -274,13 +281,18 @@ export default function ContractsPage() {
       setSubmitting(false);
       return;
     }
-    const isNumericOnly = /^\d+$/.test(idCard);
-    if (isNumericOnly && idCard.length !== 13) {
-      toast.error(
-        language === "th"
-          ? "เลขประจำตัวประชาชนต้องมี 13 หลัก"
-          : "ID Card must be 13 digits",
-      );
+    if (formData.tenant_id_type === "passport") {
+      if (!isValidPassportFormat(idCard)) {
+        toast.error(t("errors.PASSPORT_FORMAT"));
+        setSubmitting(false);
+        return;
+      }
+    } else if (idCard.length !== 13 || !/^\d+$/.test(idCard)) {
+      toast.error(t("errors.ID_CARD_LENGTH"));
+      setSubmitting(false);
+      return;
+    } else if (!isValidThaiIdChecksum(idCard)) {
+      toast.error(t("errors.ID_CARD_CHECKSUM_INVALID"));
       setSubmitting(false);
       return;
     }
@@ -328,6 +340,7 @@ export default function ContractsPage() {
         tenant_id: parseInt(formData.tenant_id),
         room_id: parseInt(formData.room_id),
         tenant_id_card: idCard,
+        tenant_id_type: formData.tenant_id_type,
         start_date: formData.start_date,
         end_date: formData.end_date,
         rent_amount: formData.rent_amount
@@ -562,6 +575,7 @@ export default function ContractsPage() {
                         ...p,
                         tenant_id: v,
                         tenant_id_card: selectedTenant?.id_card_number || "",
+                        tenant_id_type: selectedTenant?.id_type ?? "thai_id",
                       }));
                     }}
                   >
@@ -582,10 +596,46 @@ export default function ContractsPage() {
                 </Field>
 
                 <Field>
+                  <FieldLabel>{t("tenants.idType")}</FieldLabel>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        formData.tenant_id_type === "thai_id"
+                          ? "default"
+                          : "outline"
+                      }
+                      onClick={() =>
+                        setFormData((p) => ({ ...p, tenant_id_type: "thai_id" }))
+                      }
+                    >
+                      {t("tenants.idTypeThai")}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        formData.tenant_id_type === "passport"
+                          ? "default"
+                          : "outline"
+                      }
+                      onClick={() =>
+                        setFormData((p) => ({ ...p, tenant_id_type: "passport" }))
+                      }
+                    >
+                      {t("tenants.idTypePassport")}
+                    </Button>
+                  </div>
+                </Field>
+
+                <Field>
                   <FieldLabel>
-                    {language === "th"
-                      ? "เลขประจำตัวประชาชน / พาสปอร์ต"
-                      : "ID Card / Passport"}
+                    {formData.tenant_id_type === "passport"
+                      ? t("tenants.passportNumber")
+                      : language === "th"
+                        ? "เลขประจำตัวประชาชน"
+                        : "ID Card Number"}
                   </FieldLabel>
                   <div className="relative">
                     <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -593,13 +643,22 @@ export default function ContractsPage() {
                       value={formData.tenant_id_card}
                       onChange={set("tenant_id_card")}
                       placeholder={
-                        language === "th"
-                          ? "กรอกเลขประจำตัวประชาชน"
-                          : "Enter ID card number"
+                        formData.tenant_id_type === "passport"
+                          ? t("tenants.passportPlaceholder")
+                          : language === "th"
+                            ? "กรอกเลขประจำตัวประชาชน"
+                            : "Enter ID card number"
                       }
                       className="pl-9"
                     />
                   </div>
+                  {!!tenants.find(
+                    (tn) => String(tn.tenant_id) === formData.tenant_id,
+                  )?.is_placeholder_id && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                      {t("tenants.placeholderIdWarning")}
+                    </p>
+                  )}
                 </Field>
 
                 <Field>

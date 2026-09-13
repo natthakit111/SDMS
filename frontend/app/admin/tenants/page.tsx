@@ -605,14 +605,18 @@ export default function TenantsPage() {
                             ? t("tenants.passportPlaceholder")
                             : t("tenants.idCardPlaceholder")
                         }
-                        // เผื่อ 17 ตัวสำหรับบัตรประชาชนที่วางมาพร้อมขีดคั่น
-                        // (X-XXXX-XXXXX-XX-X) — ตัดขีดออกทีหลังตอน validate
-                        maxLength={formData.id_type === "passport" ? 15 : 17}
+                        maxLength={formData.id_type === "passport" ? 15 : 13}
                         inputMode={
                           formData.id_type === "passport" ? "text" : "numeric"
                         }
                       />
                       <FieldError field="id_card_number" />
+                      {formData.id_type !== "passport" && (
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                          <Info className="h-3 w-3 shrink-0" />
+                          {t("tenants.idCardNoDashHint")}
+                        </p>
+                      )}
                       {editingTenant?.is_placeholder_id ? (
                         <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
                           <Info className="h-3 w-3 shrink-0" />

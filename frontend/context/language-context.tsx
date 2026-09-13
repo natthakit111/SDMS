@@ -346,6 +346,10 @@ export const translations: Record<string, { th: string; en: string }> = {
     th: "เลขบัตรประชาชน 13 หลัก",
     en: "13-digit ID card number",
   },
+  "tenants.idCardNoDashHint": {
+    th: "กรอกเฉพาะตัวเลข 13 หลัก ไม่ต้องใส่ขีดคั่น (-)",
+    en: "Enter 13 digits only, no dashes (-)",
+  },
   "tenants.idType": { th: "ประเภทเอกสาร", en: "Document Type" },
   "tenants.idTypeThai": { th: "บัตรประชาชน", en: "Thai ID Card" },
   "tenants.idTypePassport": { th: "พาสปอร์ต", en: "Passport" },

@@ -57,6 +57,7 @@ interface Bill {
   due_date: string;
   status: "pending" | "paid" | "overdue" | "cancelled";
   room_number: string;
+  note?: string | null;
   meter_readings?: MeterReading[];
 }
 
@@ -385,7 +386,7 @@ export default function TenantBillsPage() {
                 {viewingBill.other_amount > 0 && (
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">
-                      {t("bills.otherAmount")}
+                      {viewingBill.note || t("bills.otherAmount")}
                     </span>
                     <span className="font-medium shrink-0">
                       {fmt(viewingBill.other_amount)}

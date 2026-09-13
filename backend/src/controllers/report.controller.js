@@ -480,7 +480,7 @@ const getSystemExport = async (req, res, next) => {
     const [bills] = await pool.query(`
       SELECT b.bill_id, r.room_number, CONCAT(t.first_name,' ',t.last_name) AS tenant_name,
              b.bill_month, b.bill_year,
-             b.rent_amount, b.electric_amount, b.water_amount, b.other_amount,
+             b.rent_amount, b.electric_amount, b.water_amount, b.other_amount, b.note,
              b.total_amount, b.status, b.due_date, b.created_at
       FROM bills b
       JOIN rooms r ON b.room_id = r.room_id
@@ -489,12 +489,13 @@ const getSystemExport = async (req, res, next) => {
       ORDER BY b.bill_year DESC, b.bill_month DESC
     `)
     addSheet('บิลค่าเช่า',
-      ['รหัสบิล','ห้อง','ผู้เช่า','เดือน','ปี(พ.ศ.)','ค่าเช่า','ค่าไฟ','ค่าน้ำ','ค่าอื่นๆ','ยอดรวม','สถานะ','กำหนดชำระ','ออกบิลเมื่อ'],
-      [10,10,20,10,10,12,12,12,12,12,12,14,18],
+      ['รหัสบิล','ห้อง','ผู้เช่า','เดือน','ปี(พ.ศ.)','ค่าเช่า','ค่าไฟ','ค่าน้ำ','ค่าอื่นๆ','รายละเอียดค่าอื่นๆ','ยอดรวม','สถานะ','กำหนดชำระ','ออกบิลเมื่อ'],
+      [10,10,20,10,10,12,12,12,12,30,12,12,14,18],
       bills.map(b => [
         b.bill_id, excelSafe(b.room_number), excelSafe(b.tenant_name),
         THAI_MONTHS[b.bill_month], b.bill_year + 543,
         fmt(b.rent_amount), fmt(b.electric_amount), fmt(b.water_amount), fmt(b.other_amount),
+        excelSafe(b.note || '-'),
         fmt(b.total_amount), b.status,
         b.due_date ? new Date(b.due_date).toLocaleDateString('th-TH') : '-',
         b.created_at ? new Date(b.created_at).toLocaleDateString('th-TH') : '-',

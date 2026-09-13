@@ -154,7 +154,9 @@ const sendBillNotification = async (bill) => {
     `  • ค่าเช่า: ${formatAmount(bill.rent_amount)} บาท`,
     `  • ค่าไฟฟ้า: ${formatAmount(bill.electric_amount)} บาท`,
     `  • ค่าน้ำ: ${formatAmount(bill.water_amount)} บาท`,
-    bill.other_amount > 0 ? `  • อื่นๆ: ${formatAmount(bill.other_amount)} บาท` : null,
+    bill.other_amount > 0
+      ? `  • ${bill.note ? escapeMarkdown(bill.note) : 'อื่นๆ'}: ${formatAmount(bill.other_amount)} บาท`
+      : null,
     ``,
     `💰 *ยอดรวม: ${formatAmount(bill.total_amount)} บาท*`,
     `📅 กำหนดชำระ: *${dueDateStr}*`,

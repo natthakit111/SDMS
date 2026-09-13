@@ -672,6 +672,16 @@ export const translations: Record<string, { th: string; en: string }> = {
   "bills.electricAmount": { th: "ค่าไฟฟ้า", en: "Electric" },
   "bills.waterAmount": { th: "ค่าน้ำ", en: "Water" },
   "bills.otherAmount": { th: "ค่าอื่นๆ", en: "Other" },
+  "bills.otherCharges": { th: "ค่าใช้จ่ายอื่นๆ", en: "Other Charges" },
+  "bills.addCharge": { th: "เพิ่มรายการ", en: "Add item" },
+  "bills.noExtraCharges": {
+    th: "ยังไม่มีรายการค่าใช้จ่ายอื่นๆ กด \"เพิ่มรายการ\" ถ้ามี เช่น ค่าตู้เย็น, ค่าโต๊ะ",
+    en: "No extra charges yet — click \"Add item\" for things like fridge or furniture fees",
+  },
+  "bills.chargeNamePlaceholder": {
+    th: "ชื่อรายการ เช่น ค่าตู้เย็น",
+    en: "Item name, e.g. Fridge fee",
+  },
   "bills.outstandingAmount": { th: "ยอดค้างชำระ", en: "Outstanding Amount" },
   "bills.list": { th: "รายการบิล", en: "Bill List" },
   "bills.cancelBill": { th: "ยกเลิกบิล", en: "Cancel Bill" },

@@ -111,7 +111,7 @@ const generateBill = async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return sendBadRequest(res, 'Validation failed', errors.array());
 
-    const { room_id, month, year, other_amount = 0, due_date: customDueDate } = req.body;
+    const { room_id, month, year, other_amount = 0, note, due_date: customDueDate } = req.body;
 
     const existingBill = await BillModel.findByRoomMonthYear(room_id, month, year);
     if (existingBill) {
@@ -158,7 +158,7 @@ const generateBill = async (req, res, next) => {
         bill_month: parseInt(month), bill_year: parseInt(year),
         rent_amount: amounts.rent_amount, electric_amount: amounts.electric_amount,
         water_amount: amounts.water_amount, other_amount: amounts.other_amount,
-        total_amount: amounts.total_amount, due_date, qr_payload: qrPayload,
+        total_amount: amounts.total_amount, due_date, note, qr_payload: qrPayload,
       });
     } catch (dbErr) {
       if (dbErr.code === 'ER_DUP_ENTRY') {

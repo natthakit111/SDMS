@@ -96,7 +96,7 @@ function renderInvoiceHtml({ bill, qrDataUrl, company, docType }) {
     },
   ];
   if (other > 0) {
-    items.push({ name: 'ค่าใช้จ่ายอื่น ๆ', qty: '-', unit: '-', rate: '-', amount: other });
+    items.push({ name: b.note || 'ค่าใช้จ่ายอื่น ๆ', qty: '-', unit: '-', rate: '-', amount: other });
   }
   // เติมแถวว่างให้ตารางดูสมส่วนเมื่อรายการน้อย (อย่างน้อย 5 แถว)
   const MIN_ROWS = 5;

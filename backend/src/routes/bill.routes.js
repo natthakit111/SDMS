@@ -17,6 +17,7 @@ const generateBillValidation = [
   body('month').isInt({ min: 1, max: 12 }),
   body('year').isInt({ min: 2000 }),
   body('other_amount').optional().isFloat({ min: 0 }),
+  body('note').optional({ checkFalsy: true }).trim().isLength({ max: 500 }),
   body('due_date').optional().isDate(),
 ];
 

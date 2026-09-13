@@ -56,6 +56,7 @@ import {
   Info,
   Home,
   Calendar,
+  Trash2,
 } from "lucide-react";
 import { billAPI } from "@/lib/api/bill.api";
 import { parseBlobErrorMessage } from "@/lib/api/axiosInstance";
@@ -98,6 +99,7 @@ interface Bill {
   due_date: string;
   status: "pending" | "paid" | "overdue" | "cancelled";
   qr_payload: string | null;
+  note?: string | null;
   meter_readings?: MeterReading[];
 }
 
@@ -112,8 +114,6 @@ interface FormData {
   room_id: string;
   month: string;
   year: string;
-  other_amount: string;
-  note: string; // เพิ่มฟิลด์หมายเหตุ
   due_date: string;
 }
 
@@ -121,10 +121,25 @@ const emptyForm: FormData = {
   room_id: "",
   month: String(new Date().getMonth() + 1),
   year: String(new Date().getFullYear()),
-  other_amount: "0",
-  note: "", // ค่าเริ่มต้น
   due_date: "",
 };
+
+// ⚠️ ใหม่: ค่าใช้จ่ายอื่นๆ เปลี่ยนจากช่องเดียว (จำนวนเงิน + คำอธิบายรวม)
+// เป็นรายการที่ตั้งชื่อเองได้หลายรายการ (เช่น ค่าตู้เย็น, ค่าโต๊ะ) แต่ละ
+// หอพักมีค่าใช้จ่ายพิเศษไม่เหมือนกัน — รวมยอดให้อัตโนมัติตอน submit แล้ว
+// ส่งเป็น other_amount (ผลรวม) + note (รายละเอียดแต่ละรายการ) เหมือนเดิม
+// ไม่ต้องแก้ backend/schema เพิ่ม เพราะ 2 ฟิลด์นี้มีอยู่แล้ว
+interface ExtraCharge {
+  id: string;
+  label: string;
+  amount: string;
+}
+
+const newExtraCharge = (): ExtraCharge => ({
+  id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  label: "",
+  amount: "",
+});
 
 const imgUrl = (path: string | null) => getMediaUrl(path, "detail");
 
@@ -146,6 +161,7 @@ export default function BillsPage() {
   const [viewingBill, setViewingBill] = useState<Bill | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>(emptyForm);
+  const [extraCharges, setExtraCharges] = useState<ExtraCharge[]>([]);
   const [exportingId, setExportingId] = useState<number | null>(null);
 
   const PAGE_SIZE = 20;
@@ -265,12 +281,31 @@ export default function BillsPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
+      // ⚠️ ตัดรายการที่กรอกไม่ครบ (ไม่มีชื่อ หรือราคา <= 0) ออกก่อนรวมยอด
+      // กันกรณีเผลอกดเพิ่มแถวไว้เฉยๆ แล้วไม่ได้กรอกอะไร
+      const validCharges = extraCharges.filter(
+        (c) => c.label.trim() && parseFloat(c.amount) > 0,
+      );
+      const other_amount = validCharges.reduce(
+        (sum, c) => sum + parseFloat(c.amount),
+        0,
+      );
+      const note =
+        validCharges.length > 0
+          ? validCharges
+              .map(
+                (c) =>
+                  `${c.label.trim()} ${parseFloat(c.amount).toLocaleString()} บาท`,
+              )
+              .join(", ")
+          : undefined;
+
       const res = await billAPI.generate({
         room_id: parseInt(formData.room_id),
         month: parseInt(formData.month),
         year: parseInt(formData.year),
-        other_amount: parseFloat(formData.other_amount) || 0,
-        note: formData.note || undefined,
+        other_amount,
+        note,
         due_date: formData.due_date || undefined,
       });
 
@@ -346,8 +381,29 @@ export default function BillsPage() {
 
   const resetForm = () => {
     setFormData(emptyForm);
+    setExtraCharges([]);
     setIsAddDialogOpen(false);
   };
+
+  const extraChargesTotal = extraCharges.reduce(
+    (sum, c) => sum + (parseFloat(c.amount) || 0),
+    0,
+  );
+
+  const addExtraCharge = () =>
+    setExtraCharges((prev) => [...prev, newExtraCharge()]);
+
+  const removeExtraCharge = (id: string) =>
+    setExtraCharges((prev) => prev.filter((c) => c.id !== id));
+
+  const updateExtraCharge = (
+    id: string,
+    field: "label" | "amount",
+    value: string,
+  ) =>
+    setExtraCharges((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, [field]: value } : c)),
+    );
 
   const currentYear = new Date().getFullYear();
   const elecReading = viewingBill?.meter_readings?.find(
@@ -463,50 +519,79 @@ export default function BillsPage() {
                   </Field>
                 </div>
 
-                {/* 💡 เพิ่มช่องหมายเหตุค่าอื่นๆ ให้อยู่บรรทัดเดียวกับจำนวนเงิน */}
-                <div className="grid grid-cols-2 gap-4">
-                  <Field>
-                    <FieldLabel htmlFor="other_amount">
-                      {t("bills.otherAmount")}
-                    </FieldLabel>
-                    <Input
-                      id="other_amount"
-                      type="number"
-                      value={formData.other_amount}
-                      onChange={(e) =>
-                        setFormData((p) => ({
-                          ...p,
-                          other_amount: e.target.value,
-                        }))
-                      }
-                      placeholder="0"
-                      min="0"
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="note">
-                      {language === "th"
-                        ? "รายละเอียดค่าอื่นๆ"
-                        : "Remark for other fees"}
-                    </FieldLabel>
-                    <Input
-                      id="note"
-                      type="text"
-                      value={formData.note}
-                      onChange={(e) =>
-                        setFormData((p) => ({
-                          ...p,
-                          note: e.target.value,
-                        }))
-                      }
-                      placeholder={
-                        language === "th"
-                          ? "เช่น ค่าปรับ, ค่าทำความสะอาด"
-                          : "e.g., Fine, Cleaning fee"
-                      }
-                    />
-                  </Field>
-                </div>
+                {/* ⚠️ ใหม่: ค่าใช้จ่ายอื่นๆ แบบ custom หลายรายการ (เช่น
+                    ค่าตู้เย็น, ค่าโต๊ะ) แทนช่องจำนวนเงิน+คำอธิบายเดี่ยวเดิม
+                    แต่ละหอพักมีค่าใช้จ่ายพิเศษไม่เหมือนกัน ตั้งชื่อเองได้เลย */}
+                <Field>
+                  <div className="flex items-center justify-between">
+                    <FieldLabel>{t("bills.otherCharges")}</FieldLabel>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addExtraCharge}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      {t("bills.addCharge")}
+                    </Button>
+                  </div>
+
+                  {extraCharges.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      {t("bills.noExtraCharges")}
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {extraCharges.map((charge) => (
+                        <div key={charge.id} className="flex gap-2">
+                          <Input
+                            type="text"
+                            value={charge.label}
+                            onChange={(e) =>
+                              updateExtraCharge(
+                                charge.id,
+                                "label",
+                                e.target.value,
+                              )
+                            }
+                            placeholder={t("bills.chargeNamePlaceholder")}
+                            className="flex-1"
+                          />
+                          <Input
+                            type="number"
+                            min="0"
+                            value={charge.amount}
+                            onChange={(e) =>
+                              updateExtraCharge(
+                                charge.id,
+                                "amount",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="0"
+                            className="w-28"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeExtraCharge(charge.id)}
+                            aria-label={t("common.delete")}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {extraCharges.length > 0 && (
+                    <div className="flex justify-between text-sm font-medium pt-1 border-t">
+                      <span>{t("bills.otherAmount")}</span>
+                      <span>{formatCurrency(extraChargesTotal)}</span>
+                    </div>
+                  )}
+                </Field>
 
                 <Field>
                   <FieldLabel htmlFor="due_date">
@@ -860,7 +945,7 @@ export default function BillsPage() {
                 {viewingBill.other_amount > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">
-                      {t("bills.otherAmount")}
+                      {viewingBill.note || t("bills.otherAmount")}
                     </span>
                     <span>{formatCurrency(viewingBill.other_amount)}</span>
                   </div>

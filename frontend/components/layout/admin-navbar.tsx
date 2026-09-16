@@ -28,6 +28,12 @@ export function AdminNavbar() {
   const { language, setLanguage, t } = useLanguage();
   const router = useRouter();
   const [unreadCount, setUnreadCount] = useState(0);
+  // ⚠️ FIX: เดิมกระดิ่งเช็คของใหม่จาก payments+maintenance แต่กดแล้วพาไป
+  // /admin/announcements เสมอ — ไม่ว่าของใหม่จริงๆ จะเป็นสลิปรอตรวจหรือ
+  // แจ้งซ่อมใหม่ก็ตาม ตอนนี้จำไว้ว่ารายการล่าสุดที่ยังไม่อ่านเป็นประเภทไหน
+  // แล้วพาไปหน้านั้นแทน (ถ้าไม่มีของใหม่เลย ยังคง fallback ไปหน้าประกาศ
+  // เหมือนพฤติกรรมเดิม)
+  const [notifyTarget, setNotifyTarget] = useState("/admin/announcements");
 
   useEffect(() => {
     const ADMIN_KEY = "admin_notif_last_seen";
@@ -43,11 +49,24 @@ export function AdminNavbar() {
       const maintenance =
         maintRes.status === "fulfilled" ? (maintRes.value.data ?? []) : [];
 
-      const hasNew = [...payments, ...maintenance].some((item: any) => {
-        const d = new Date(item.created_at || item.submitted_at || 0);
-        return d > lastSeenDate;
-      });
-      setUnreadCount(hasNew ? 1 : 0);
+      const newestOf = (items: any[]) =>
+        items.reduce((max: Date | null, item: any) => {
+          const d = new Date(item.created_at || item.submitted_at || 0);
+          return !max || d > max ? d : max;
+        }, null as Date | null);
+
+      const candidates = [
+        { date: newestOf(payments), path: "/admin/payments" },
+        { date: newestOf(maintenance), path: "/admin/maintenance" },
+      ].filter((c): c is { date: Date; path: string } => !!c.date && c.date > lastSeenDate);
+
+      if (candidates.length === 0) {
+        setUnreadCount(0);
+        return;
+      }
+      candidates.sort((a, b) => b.date.getTime() - a.date.getTime());
+      setNotifyTarget(candidates[0].path);
+      setUnreadCount(1);
     });
   }, []);
 
@@ -87,11 +106,11 @@ export function AdminNavbar() {
               new Date().toISOString(),
             );
             setUnreadCount(0);
-            // เดิมชี้ไป /admin/notifications ซึ่งเป็นหน้าซ้ำซ้อนกับ
-            // /admin/announcements (ฟอร์มสร้างประกาศไม่ครบฟิลด์ + นอกขอบเขต
-            // เอกสารโปรเจกต์) — ลบหน้านั้นทิ้งแล้ว ให้กระดิ่งพาไปหน้าประกาศ
-            // จริงที่มีฟีเจอร์ครบแทน (floor targeting, urgent bypass, expiry)
-            router.push("/admin/announcements");
+            // พาไปหน้าของรายการที่ยังไม่อ่านล่าสุด (สลิปรอตรวจ → /admin/payments,
+            // แจ้งซ่อมใหม่ → /admin/maintenance) ถ้าไม่มีของใหม่เลย fallback
+            // ไปหน้าประกาศเหมือนเดิม (เดิมชี้ไป /admin/notifications ซึ่งเป็น
+            // หน้าซ้ำซ้อนกับ /admin/announcements — ลบหน้านั้นทิ้งไปแล้ว)
+            router.push(notifyTarget);
           }}
         >
           <Bell className="h-5 w-5" />

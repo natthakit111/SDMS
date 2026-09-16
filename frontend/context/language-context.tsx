@@ -926,6 +926,11 @@ export const translations: Record<string, { th: string; en: string }> = {
     th: "ชื่อช่างหรือผู้รับผิดชอบ",
     en: "Technician or responsible person",
   },
+  "maintenance.technicianName": { th: "ชื่อช่าง/ผู้รับผิดชอบ", en: "Technician / Responsible Person" },
+  "maintenance.technicianNamePlaceholder": {
+    th: "กรอกชื่อช่างหรือผู้รับผิดชอบ (ถ้าไม่มีบัญชีในระบบ)",
+    en: "Enter technician or responsible person's name (if not a system account)",
+  },
   "maintenance.notePlaceholder": {
     th: "บันทึกเพิ่มเติม...",
     en: "Additional notes...",

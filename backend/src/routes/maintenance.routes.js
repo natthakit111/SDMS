@@ -23,6 +23,8 @@ const updateStatusValidation = [
   body('admin_note').optional().trim().isLength({ max: 1000 }),
   body('assigned_to').optional({ nullable: true }).isInt({ min: 1 })
     .withMessage('assigned_to ต้องเป็น user_id ของแอดมิน (ตัวเลข)'),
+  body('assigned_technician_name').optional({ nullable: true, checkFalsy: true })
+    .trim().isLength({ max: 100 }).withMessage('ชื่อช่างต้องไม่เกิน 100 ตัวอักษร'),
 ];
 
 // ── Specific paths FIRST ──────────────────────────────────────

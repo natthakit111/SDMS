@@ -137,6 +137,7 @@ export interface MaintenanceRequest {
   priority: "low" | "medium" | "high";
   status: "pending" | "in_progress" | "resolved" | "cancelled";
   assigned_to_user_id: number | null;
+  assigned_technician_name: string | null;
   resolved_at: string | null;
   admin_note: string | null;
   created_at: string;

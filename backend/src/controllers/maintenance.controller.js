@@ -107,7 +107,7 @@ const updateStatus = async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return sendBadRequest(res, 'ข้อมูลไม่ถูกต้อง', errors.array());
 
-    const { status, admin_note, assigned_to } = req.body;
+    const { status, admin_note, assigned_to, assigned_technician_name } = req.body;
 
     const request = await MaintenanceModel.findById(req.params.id);
     if (!request) return sendNotFound(res, 'ไม่พบคำร้องแจ้งซ่อม');
@@ -123,7 +123,7 @@ const updateStatus = async (req, res, next) => {
       }
     }
 
-    await MaintenanceModel.updateStatus(req.params.id, status, admin_note || null, assigned_to || null);
+    await MaintenanceModel.updateStatus(req.params.id, status, admin_note || null, assigned_to || null, assigned_technician_name || null);
     const updated = await MaintenanceModel.findById(req.params.id);
 
     TelegramService.sendMaintenanceUpdate(updated).catch(() => {});

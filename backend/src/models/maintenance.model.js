@@ -106,15 +106,16 @@ const create = async ({ tenant_id, room_id, category, description, image_path, p
   return result.insertId;
 };
 
-const updateStatus = async (requestId, status, adminNote = null, assignedToUserId = null) => {
+const updateStatus = async (requestId, status, adminNote = null, assignedToUserId = null, assignedTechnicianName = null) => {
   const resolved_at = status === 'resolved' ? new Date() : null;
   const [result] = await pool.query(
     `UPDATE maintenance_requests
      SET status = ?, admin_note = COALESCE(?, admin_note),
          assigned_to_user_id = COALESCE(?, assigned_to_user_id),
+         assigned_technician_name = COALESCE(?, assigned_technician_name),
          resolved_at = COALESCE(?, resolved_at)
      WHERE request_id = ?`,
-    [status, adminNote, assignedToUserId, resolved_at, requestId]
+    [status, adminNote, assignedToUserId, assignedTechnicianName, resolved_at, requestId]
   );
   return result.affectedRows;
 };

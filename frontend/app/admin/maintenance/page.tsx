@@ -52,6 +52,7 @@ import { PaginationFooter } from "@/components/common/pagination-footer";
 interface UpdateData {
   status: string;
   assigned_to: string; // user_id เป็น string (ใช้กับ Select) หรือ "" = ยังไม่มอบหมาย
+  assigned_technician_name: string; // ชื่อช่าง/ผู้รับผิดชอบแบบข้อความอิสระ แยกจาก assigned_to
   admin_note: string;
 }
 
@@ -113,6 +114,7 @@ export default function MaintenancePage() {
   const [updateData, setUpdateData] = useState<UpdateData>({
     status: "",
     assigned_to: "",
+    assigned_technician_name: "",
     admin_note: "",
   });
   const [admins, setAdmins] = useState<AdminUser[]>([]);
@@ -190,6 +192,7 @@ export default function MaintenancePage() {
           updateData.assigned_to && updateData.assigned_to !== UNASSIGNED
             ? Number(updateData.assigned_to)
             : undefined,
+        assigned_technician_name: updateData.assigned_technician_name || undefined,
       });
       toast.success(t("maintenance.updateSuccess"));
       setViewingRequest(null);
@@ -208,6 +211,7 @@ export default function MaintenancePage() {
       assigned_to: request.assigned_to_user_id
         ? String(request.assigned_to_user_id)
         : "",
+      assigned_technician_name: request.assigned_technician_name ?? "",
       admin_note: request.admin_note ?? "",
     });
   };
@@ -539,6 +543,20 @@ export default function MaintenancePage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </Field>
+                  <Field>
+                    <FieldLabel>{t("maintenance.technicianName")}</FieldLabel>
+                    <Input
+                      value={updateData.assigned_technician_name}
+                      onChange={(e) =>
+                        setUpdateData((p) => ({
+                          ...p,
+                          assigned_technician_name: e.target.value,
+                        }))
+                      }
+                      placeholder={t("maintenance.technicianNamePlaceholder")}
+                      maxLength={100}
+                    />
                   </Field>
                   <Field>
                     <FieldLabel>{t("common.note")}</FieldLabel>

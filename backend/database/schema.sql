@@ -292,6 +292,7 @@ CREATE TABLE `maintenance_requests` (
   `priority`      enum('low','medium','high') NOT NULL DEFAULT 'medium',
   `status`        enum('pending','in_progress','resolved','cancelled') NOT NULL DEFAULT 'pending',
   `assigned_to_user_id` int unsigned DEFAULT NULL,
+  `assigned_technician_name` varchar(100) DEFAULT NULL,
   `resolved_at`   datetime DEFAULT NULL,
   `admin_note`    text DEFAULT NULL,
   `created_at`    datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,

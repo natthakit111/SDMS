@@ -38,5 +38,5 @@ export const maintenanceAPI = {
   // ✅ ส่ง status, admin_note, assigned_to ครบ
   updateStatus: (id, data) =>
     api.put(`/maintenance/${id}/status`, data).then((r) => r.data),
-  // data: { status, admin_note?, assigned_to? }
+  // data: { status, admin_note?, assigned_to?, assigned_technician_name? }
 };

@@ -53,6 +53,7 @@ interface Request {
   admin_note: string | null;
   image_path: string | null;
   assigned_username?: string | null;
+  assigned_technician_name?: string | null;
   resolved_at: string | null;
   room_number: string;
 }
@@ -601,12 +602,16 @@ export default function TenantMaintenancePage() {
                 </div>
               )}
 
-              {viewingRequest.assigned_username && (
+              {(viewingRequest.assigned_username || viewingRequest.assigned_technician_name) && (
                 <div className="text-sm">
                   <p className="text-muted-foreground">
                     {t("maintenance.assignedTo")}
                   </p>
-                  <p className="font-medium">{viewingRequest.assigned_username}</p>
+                  <p className="font-medium">
+                    {[viewingRequest.assigned_username, viewingRequest.assigned_technician_name]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
                 </div>
               )}
 

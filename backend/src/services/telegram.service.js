@@ -326,12 +326,20 @@ const sendMaintenanceUpdate = async (request) => {
   };
   const s = statusMap[request.status] || { icon: '📋', label: request.status };
 
+  // ผู้รับผิดชอบอาจมาจาก assigned_username (บัญชี admin ในระบบ) และ/หรือ
+  // assigned_technician_name (ชื่อช่างข้อความอิสระ ไม่มีบัญชีในระบบ) —
+  // โชว์ทั้งคู่ถ้ามีทั้งสอง เหมือนหน้ารายละเอียดฝั่งผู้เช่า
+  const assignee = [request.assigned_username, request.assigned_technician_name]
+    .filter(Boolean)
+    .join(' · ');
+
   const message = [
     `${s.icon} *อัปเดตคำร้องแจ้งซ่อม*`,
     ``,
     `ห้อง: *${escapeMarkdown(request.room_number)}*`,
     `หมวด: ${escapeMarkdown(request.category)}`,
     `สถานะ: *${s.label}*`,
+    assignee ? `🧑‍🔧 ผู้รับผิดชอบ: ${escapeMarkdown(assignee)}` : null,
     request.admin_note ? `📝 หมายเหตุจากผู้ดูแล: ${escapeMarkdown(request.admin_note)}` : null,
   ].filter(Boolean).join('\n');
 

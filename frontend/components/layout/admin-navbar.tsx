@@ -5,7 +5,6 @@
 import { useAuth } from "@/context/auth-context";
 import { useLanguage } from "@/context/language-context";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,55 +19,13 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Bell, LogOut, User, Settings } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Separator } from "@/components/ui/separator";
-import { paymentAPI } from "@/lib/api/payment.api";
-import { maintenanceAPI } from "@/lib/api/maintenance.api";
+import { useAdminNotification } from "@/context/admin-notification-context";
 
 export function AdminNavbar() {
   const { user, logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const router = useRouter();
-  const [unreadCount, setUnreadCount] = useState(0);
-  // ⚠️ FIX: เดิมกระดิ่งเช็คของใหม่จาก payments+maintenance แต่กดแล้วพาไป
-  // /admin/announcements เสมอ — ไม่ว่าของใหม่จริงๆ จะเป็นสลิปรอตรวจหรือ
-  // แจ้งซ่อมใหม่ก็ตาม ตอนนี้จำไว้ว่ารายการล่าสุดที่ยังไม่อ่านเป็นประเภทไหน
-  // แล้วพาไปหน้านั้นแทน (ถ้าไม่มีของใหม่เลย ยังคง fallback ไปหน้าประกาศ
-  // เหมือนพฤติกรรมเดิม)
-  const [notifyTarget, setNotifyTarget] = useState("/admin/announcements");
-
-  useEffect(() => {
-    const ADMIN_KEY = "admin_notif_last_seen";
-    const lastSeen = localStorage.getItem(ADMIN_KEY);
-    const lastSeenDate = lastSeen ? new Date(lastSeen) : new Date(0);
-
-    Promise.allSettled([
-      paymentAPI.getAll({ status: "pending_verify" }),
-      maintenanceAPI.getAll({ status: "pending" }),
-    ]).then(([payRes, maintRes]) => {
-      const payments =
-        payRes.status === "fulfilled" ? (payRes.value.data ?? []) : [];
-      const maintenance =
-        maintRes.status === "fulfilled" ? (maintRes.value.data ?? []) : [];
-
-      const newestOf = (items: any[]) =>
-        items.reduce((max: Date | null, item: any) => {
-          const d = new Date(item.created_at || item.submitted_at || 0);
-          return !max || d > max ? d : max;
-        }, null as Date | null);
-
-      const candidates = [
-        { date: newestOf(payments), path: "/admin/payments" },
-        { date: newestOf(maintenance), path: "/admin/maintenance" },
-      ].filter((c): c is { date: Date; path: string } => !!c.date && c.date > lastSeenDate);
-
-      if (candidates.length === 0) {
-        setUnreadCount(0);
-        return;
-      }
-      candidates.sort((a, b) => b.date.getTime() - a.date.getTime());
-      setNotifyTarget(candidates[0].path);
-      setUnreadCount(1);
-    });
-  }, []);
+  const { hasUnread, markAllAsRead } = useAdminNotification();
 
   const handleLogout = () => {
     logout();
@@ -101,20 +58,12 @@ export function AdminNavbar() {
           size="icon"
           className="relative shrink-0"
           onClick={() => {
-            localStorage.setItem(
-              "admin_notif_last_seen",
-              new Date().toISOString(),
-            );
-            setUnreadCount(0);
-            // พาไปหน้าของรายการที่ยังไม่อ่านล่าสุด (สลิปรอตรวจ → /admin/payments,
-            // แจ้งซ่อมใหม่ → /admin/maintenance) ถ้าไม่มีของใหม่เลย fallback
-            // ไปหน้าประกาศเหมือนเดิม (เดิมชี้ไป /admin/notifications ซึ่งเป็น
-            // หน้าซ้ำซ้อนกับ /admin/announcements — ลบหน้านั้นทิ้งไปแล้ว)
-            router.push(notifyTarget);
+            markAllAsRead();
+            router.push("/admin/notifications");
           }}
         >
           <Bell className="h-5 w-5" />
-          {unreadCount > 0 && (
+          {hasUnread && (
             <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
           )}
         </Button>

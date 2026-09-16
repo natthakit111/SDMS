@@ -2081,6 +2081,18 @@ export const translations: Record<string, { th: string; en: string }> = {
   },
   "notifications.empty": { th: "ไม่มีการแจ้งเตือน", en: "No notifications" },
   "notifications.new": { th: "ใหม่", en: "New" },
+  "notifications.newMaintenance": {
+    th: "แจ้งซ่อมใหม่",
+    en: "New maintenance request",
+  },
+  "notifications.pendingPayment": {
+    th: "สลิปรอตรวจสอบ",
+    en: "Payment slip pending verification",
+  },
+  "notifications.newMoveOut": {
+    th: "คำขอย้ายออกใหม่",
+    en: "New move-out request",
+  },
 
   // ── Empty states (tenant ใหม่) — ✅ เพิ่มใหม่ ──────────────────────────────
   "empty.noBills": { th: "ยังไม่มีบิล", en: "No bills yet" },

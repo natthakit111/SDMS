@@ -9,9 +9,17 @@
 import { billAPI } from "@/lib/api/bill.api";
 import { maintenanceAPI } from "@/lib/api/maintenance.api";
 import { announcementAPI } from "@/lib/api/announcement.api";
-import type { Bill, MaintenanceRequest, Announcement } from "@/types/index";
+import { paymentAPI } from "@/lib/api/payment.api";
+import { moveOutAPI } from "@/lib/api/moveOut.api";
+import type {
+  Bill,
+  MaintenanceRequest,
+  Announcement,
+  Payment,
+  MoveOutRequest,
+} from "@/types/index";
 
-export type NotifType = "bill" | "maintenance" | "announcement";
+export type NotifType = "bill" | "maintenance" | "announcement" | "payment" | "moveout";
 
 export interface NotificationItem {
   id: string;
@@ -105,6 +113,87 @@ export async function buildNotifications(
       href: "/tenant/announcements",
       isRead: false,
       sortDate: ann.published_at,
+    });
+  }
+
+  const actions = loadActions(userId);
+  const withActions = items
+    .filter((item) => actions[item.id] !== "deleted")
+    .map((item) => ({ ...item, isRead: actions[item.id] === "read" }));
+
+  return withActions.sort(
+    (a, b) => new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime(),
+  );
+}
+
+export interface AdminNotificationLabels {
+  newMaintenance: string;
+  pendingPayment: string;
+  newMoveOut: string;
+  room: string;
+}
+
+// Admin-side counterpart of buildNotifications() above: feeds the admin bell
+// icon + /admin/notifications page from items that need admin attention
+// (new maintenance requests, slips pending verification, new move-out
+// requests) instead of the tenant's own bills/maintenance/announcements.
+export async function buildAdminNotifications(
+  userId: string,
+  fmtDate: (isoDate: string) => string,
+  labels: AdminNotificationLabels,
+): Promise<NotificationItem[]> {
+  const [maintRes, payRes, moveRes] = await Promise.all([
+    maintenanceAPI
+      .getAll({ status: "pending" })
+      .catch(() => ({ data: [] as MaintenanceRequest[] })),
+    paymentAPI
+      .getAll({ status: "pending_verify" })
+      .catch(() => ({ data: [] as Payment[] })),
+    moveOutAPI.getAll().catch(() => ({ data: [] as MoveOutRequest[] })),
+  ]);
+
+  const items: NotificationItem[] = [];
+
+  for (const req of (maintRes.data || []) as MaintenanceRequest[]) {
+    if (req.status !== "pending") continue;
+    items.push({
+      id: `admin-maint-${req.request_id}`,
+      type: "maintenance",
+      title: labels.newMaintenance,
+      message: `${req.tenant_name || "-"} · ${labels.room} ${req.room_number || "-"} — ${req.category}`,
+      timestamp: fmtDate(req.created_at),
+      href: "/admin/maintenance",
+      isRead: false,
+      sortDate: req.created_at,
+    });
+  }
+
+  for (const p of (payRes.data || []) as Payment[]) {
+    if (p.status !== "pending_verify") continue;
+    items.push({
+      id: `admin-pay-${p.payment_id}`,
+      type: "payment",
+      title: labels.pendingPayment,
+      message: `${p.tenant_name || "-"} · ${labels.room} ${p.room_number || "-"} — ${p.amount_paid}`,
+      timestamp: fmtDate(p.paid_at),
+      href: "/admin/payments",
+      isRead: false,
+      sortDate: p.paid_at,
+    });
+  }
+
+  for (const m of (moveRes.data || []) as MoveOutRequest[]) {
+    if (m.status !== "pending") continue;
+    const name = [m.first_name, m.last_name].filter(Boolean).join(" ");
+    items.push({
+      id: `admin-move-${m.request_id}`,
+      type: "moveout",
+      title: labels.newMoveOut,
+      message: `${name || "-"} · ${labels.room} ${m.room_number || "-"}`,
+      timestamp: fmtDate(m.created_at),
+      href: "/admin/move-out",
+      isRead: false,
+      sortDate: m.created_at,
     });
   }
 

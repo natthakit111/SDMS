@@ -336,16 +336,8 @@ export default function AnnouncementsPage() {
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
-                              {/* <SelectItem value="all">
-                                {t("announcements.everyone")}
-                              </SelectItem> */}
-                              <SelectItem value="tenant">
-                                {t("announcements.tenantOnly")}
-                              </SelectItem>
-                              {/* <SelectItem value="admin">
-                                {t("announcements.adminOnly")}
-                              </SelectItem> */}
+                            <SelectContent value="tenant">
+                              {t("announcements.tenantOnly")}
                             </SelectContent>
                           </Select>
                         </Field>

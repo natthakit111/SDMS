@@ -969,8 +969,8 @@ export const translations: Record<string, { th: string; en: string }> = {
   "announcements.others": { th: "ประกาศอื่น", en: "Other Announcements" },
   "announcements.empty": { th: "ยังไม่มีประกาศ", en: "No announcements yet" },
   "announcements.floor": {
-    th: "ส่งเฉพาะชั้น (ไม่บังคับ)",
-    en: "Target floor (optional)",
+    th: "ส่งเฉพาะชั้น",
+    en: "Target floor",
   },
   "announcements.floorPlaceholder": {
     th: "เว้นว่าง = ส่งทุกชั้น",

@@ -410,7 +410,7 @@ export default function AnnouncementsPage() {
                               }))
                             }
                           />
-                          <div className="grid gap-1 leading-none">
+                          {/* <div className="grid gap-1 leading-none">
                             <FieldLabel
                               htmlFor="is_urgent"
                               className="flex items-center gap-1.5 text-destructive"
@@ -421,7 +421,7 @@ export default function AnnouncementsPage() {
                             <p className="text-xs text-muted-foreground">
                               {t("announcements.urgentDesc")}
                             </p>
-                          </div>
+                          </div> */}
                         </div>
                       )}
 

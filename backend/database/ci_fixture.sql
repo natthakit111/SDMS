@@ -20,8 +20,11 @@ INSERT INTO `tenants` (`user_id`, `first_name`, `last_name`, `id_card_number`, `
 VALUES (@ci_user_id, 'CI', 'Tenant', '1111111111111', '0810000001', 'ci_tenant@example.com');
 SET @ci_tenant_id = LAST_INSERT_ID();
 
-SET @ci_room_id = (SELECT `room_id` FROM `rooms` WHERE `room_number` = '101' LIMIT 1);
-UPDATE `rooms` SET `status` = 'occupied' WHERE `room_id` = @ci_room_id;
+SET NAMES utf8mb4;
+
+INSERT INTO `rooms` (`room_number`, `floor`, `room_type`, `base_rent`, `status`)
+VALUES ('CI-101', 1, 'air', 3800.00, 'occupied');
+SET @ci_room_id = LAST_INSERT_ID();
 
 INSERT INTO `contracts` (`tenant_id`, `room_id`, `start_date`, `end_date`, `rent_amount`, `deposit_amount`, `status`)
 VALUES (@ci_tenant_id, @ci_room_id, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 1 YEAR), 2500.00, 2500.00, 'active');

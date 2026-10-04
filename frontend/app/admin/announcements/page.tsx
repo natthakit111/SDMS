@@ -398,32 +398,32 @@ export default function AnnouncementsPage() {
                         />
                       </div>
 
-                      {/* {formData.target_audience !== "admin" && (
-                        // <div className="flex items-start gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-                        //   <Checkbox
-                        //     id="is_urgent"
-                        //     checked={formData.is_urgent}
-                        //     onCheckedChange={(checked) =>
-                        //       setFormData((p) => ({
-                        //         ...p,
-                        //         is_urgent: checked === true,
-                        //       }))
-                        //     }
-                        //   />
-                        //   {/* <div className="grid gap-1 leading-none">
-                        //     <FieldLabel
-                        //       htmlFor="is_urgent"
-                        //       className="flex items-center gap-1.5 text-destructive"
-                        //     >
-                        //       <AlertTriangle className="h-4 w-4" />
-                        //       {t("announcements.urgent")}
-                        //     </FieldLabel>
-                        //     <p className="text-xs text-muted-foreground">
-                        //       {t("announcements.urgentDesc")}
-                        //     </p>
-                        //   </div> */}
-                        {/* // </div> */}
-                      )} */}
+                      {formData.target_audience !== "admin" && (
+                        <div className="flex items-start gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+                          <Checkbox
+                            id="is_urgent"
+                            checked={formData.is_urgent}
+                            onCheckedChange={(checked) =>
+                              setFormData((p) => ({
+                                ...p,
+                                is_urgent: checked === true,
+                              }))
+                            }
+                          />
+                          <div className="grid gap-1 leading-none">
+                            <FieldLabel
+                              htmlFor="is_urgent"
+                              className="flex items-center gap-1.5 text-destructive"
+                            >
+                              <AlertTriangle className="h-4 w-4" />
+                              {t("announcements.urgent")}
+                            </FieldLabel>
+                            <p className="text-xs text-muted-foreground">
+                              {t("announcements.urgentDesc")}
+                            </p>
+                          </div>
+                        </div>
+                      )}
 
                       <Field>
                         <FieldLabel

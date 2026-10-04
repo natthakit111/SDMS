@@ -13,7 +13,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
@@ -177,7 +176,7 @@ export default function AnnouncementsPage() {
       target_audience: ann.target_audience,
       target_floor: ann.target_floor ? String(ann.target_floor) : "",
       is_pinned: ann.is_pinned === 1,
-      is_urgent: ann.is_urgent === 1,
+      is_urgent: false,
       expires_at: ann.expires_at ? ann.expires_at.split("T")[0] : "",
     });
     setIsAddDialogOpen(true);
@@ -336,8 +335,16 @@ export default function AnnouncementsPage() {
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent value="tenant">
-                              {t("announcements.tenantOnly")}
+                            <SelectContent>
+                              {/* <SelectItem value="all">
+                                {t("announcements.everyone")}
+                              </SelectItem> */}
+                              <SelectItem value="tenant">
+                                {t("announcements.tenantOnly")}
+                              </SelectItem>
+                              {/* <SelectItem value="admin">
+                                {t("announcements.adminOnly")}
+                              </SelectItem> */}
                             </SelectContent>
                           </Select>
                         </Field>
@@ -390,33 +397,6 @@ export default function AnnouncementsPage() {
                         />
                       </div>
 
-                      {formData.target_audience !== "admin" && (
-                        <div className="flex items-start gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-                          <Checkbox
-                            id="is_urgent"
-                            checked={formData.is_urgent}
-                            onCheckedChange={(checked) =>
-                              setFormData((p) => ({
-                                ...p,
-                                is_urgent: checked === true,
-                              }))
-                            }
-                          />
-                          <div className="grid gap-1 leading-none">
-                            <FieldLabel
-                              htmlFor="is_urgent"
-                              className="flex items-center gap-1.5 text-destructive"
-                            >
-                              <AlertTriangle className="h-4 w-4" />
-                              {t("announcements.urgent")}
-                            </FieldLabel>
-                            <p className="text-xs text-muted-foreground">
-                              {t("announcements.urgentDesc")}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
                       <Field>
                         <FieldLabel
                           htmlFor="expires_at"
@@ -460,11 +440,6 @@ export default function AnnouncementsPage() {
                         </p>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {t("announcements.telegramMuteWarning")} &quot;
-                      {t("announcements.urgent")}&quot;{" "}
-                      {t("announcements.telegramMuteWarningTail")}
-                    </p>
                   </TabsContent>
                 </Tabs>
               </div>

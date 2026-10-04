@@ -53,7 +53,7 @@ import {
 import { moveOutAPI } from "@/lib/api/moveOut.api";
 import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
-import { todayDateString } from "@/lib/utils";
+import { todayDateString, toISODate } from "@/lib/utils";
 import { DatePickerField } from "@/components/common/date-picker-field";
 import { useConfirmDialog } from "@/components/common/confirm-dialog";
 import { MoveOutRequest } from "@/types/index";
@@ -66,6 +66,8 @@ interface DepositPreview {
   net_refund: number;
   checkout_date_used?: string; // ⚠️ ใหม่
   tenant_requested_date?: string; // ⚠️ ใหม่
+  notice_days_given?: number;
+  notice_date?: string;
 }
 
 const fmtDate = (d: string, lang: string) =>
@@ -221,25 +223,25 @@ export default function AdminMoveOutPage() {
     setViewingRequest(r);
     setAdminNote(r.admin_note ?? "");
     setDeductionExtra("0");
-    setDeductionExtraNote("");
-    setDepositPreview(null);
-    // ⚠️ ใหม่: reset เป็นวันนี้ทุกครั้งที่เปิด dialog ใหม่
-    const today = todayDateString();
-    setActualCheckoutDate(today);
+  setDeductionExtraNote("");
+  setDepositPreview(null);
+  // เดิม: const today = todayDateString(); setActualCheckoutDate(today);
+  const initialDate = toISODate(new Date(r.move_out_date));
+  setActualCheckoutDate(initialDate);
 
-    if (r.status === "pending") {
-      setPreviewLoading(true);
-      try {
-        const res = await moveOutAPI.getDepositPreview(r.request_id, today);
-        setDepositPreview(res.data ?? null);
-      } catch (err: any) {
-        toast.error(
-          err?.response?.data?.message ?? t("moveout.depositPreviewError"),
-        );
-      } finally {
-        setPreviewLoading(false);
-      }
-    }
+  if (r.status === "pending") {
+    setPreviewLoading(true);
+    try {
+      const res = await moveOutAPI.getDepositPreview(r.request_id, initialDate);
+    setDepositPreview(res.data ?? null);
+  } catch (err: any) {
+    toast.error(
+      err?.response?.data?.message ?? t("moveout.depositPreviewError"),
+    );
+  } finally {
+    setPreviewLoading(false);
+  }
+}
   };
 
   // ⚠️ ใหม่: เรียก preview ใหม่ทุกครั้งที่ admin แก้วันที่ย้ายออกจริง
@@ -590,6 +592,21 @@ export default function AdminMoveOutPage() {
                               {fmtCurrency(depositPreview.deposit_amount)}
                             </span>
                           </div>
+
+                          {depositPreview.notice_days_given !== undefined && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">
+                                {language === "th"
+                                  ? "แจ้งล่วงหน้า"
+                                  : "Notice given"}
+                              </span>
+                              <span>
+                                {depositPreview.notice_days_given}{" "}
+                                {language === "th" ? "วัน" : "days"}
+                              </span>
+                            </div>
+                          )}
+
                           {depositPreview.fine_amount > 0 && (
                             <div className="flex justify-between text-destructive">
                               <span>

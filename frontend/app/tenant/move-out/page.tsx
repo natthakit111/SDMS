@@ -45,6 +45,15 @@ interface ContractInfo {
 
 type MoveOutStatus = "pending" | "approved" | "rejected";
 
+// ต้องตรงกับ NOTICE_DAYS ใน backend moveOut.controller.js
+const NOTICE_DAYS = 30;
+
+// แปลง 'YYYY-MM-DD' เป็น Date ตาม local (ไม่ใช้ new Date(string) ที่ตีเป็น UTC)
+const parseLocalDate = (s: string) => {
+  const [y, m, d] = s.slice(0, 10).split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function MoveOutPage() {
@@ -60,9 +69,8 @@ export default function MoveOutPage() {
     "all",
   );
 
-  // ── ข้อมูลสัญญาจริง (ดึงจาก contract API) — ต้องใช้ทั้ง end_date และ
-  //    rent_amount ไม่ใช่แค่ deposit_amount เพราะสูตรค่าปรับอ้างอิงทั้งสามค่านี้
-  //    ให้ตรงกับ contractController.terminateContract บน backend เป๊ะ ──────
+  // ── ข้อมูลสัญญาจริง (ดึงจาก contract API) — ใช้ rent_amount/deposit_amount
+  //    คำนวณค่าปรับ และ end_date จำกัดวันที่เลือกสูงสุดใน date picker ─────────
   const [contract, setContract] = useState<ContractInfo | null>(null);
   const [loadingContract, setLoadingContract] = useState(true);
 
@@ -84,26 +92,26 @@ export default function MoveOutPage() {
   }, []);
 
   // ── คำนวณค่าปรับ/เงินประกันคืนโดยประมาณ ────────────────────────────────
-  // ⚠️ ต้องตรงกับ backend's calcDepositRefund() เป๊ะ (เดิมไฟล์นี้คำนวณจาก
-  //    "วันนี้ → วันย้ายออก" แล้วริบเงินประกันทั้งหมดถ้า notice < 30 วัน ซึ่ง
-  //    เป็นคนละสูตรกับ backend จริง — backend นับ "วันย้ายออก → วันหมดสัญญา"
-  //    (days_remaining) แล้วปรับแค่ค่าเช่า 1 เดือนถ้า days_remaining > 30
-  //    ของเดิมจะโชว์ preview ผิดพลาดให้ tenant เห็น จึงแก้ให้ใช้สูตรเดียวกัน)
-  const daysRemaining =
-    formData.moveOutDate && contract?.end_date
-      ? Math.ceil(
-          (new Date(contract.end_date).getTime() -
-            new Date(formData.moveOutDate).getTime()) /
-            (1000 * 60 * 60 * 24),
-        )
-      : null;
+  // ⚠️ ต้องตรงกับ backend's calcDepositRefund():
+  //    แจ้งล่วงหน้า (วันที่ส่งคำร้อง = วันนี้ → วันย้ายออก) น้อยกว่า 30 วัน
+  //    = ปรับค่าเช่า 1 เดือน (ไม่เกินเงินประกัน) — ไม่เกี่ยวกับวันสิ้นสุดสัญญา
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const isEarlyTermination = daysRemaining !== null && daysRemaining > 30;
-  const fineAmount = isEarlyTermination ? (contract?.rent_amount ?? 0) : 0;
-  const estimatedRefund = Math.max(
-    0,
-    (contract?.deposit_amount ?? 0) - fineAmount,
-  );
+  const noticeDays = formData.moveOutDate
+    ? Math.round(
+        (parseLocalDate(formData.moveOutDate).getTime() -
+          todayStart.getTime()) /
+          (1000 * 60 * 60 * 24),
+      )
+    : null;
+
+  const isShortNotice = noticeDays !== null && noticeDays < NOTICE_DAYS;
+  const depositAmount = contract?.deposit_amount ?? 0;
+  const fineAmount = isShortNotice
+    ? Math.min(contract?.rent_amount ?? 0, depositAmount)
+    : 0;
+  const estimatedRefund = Math.max(0, depositAmount - fineAmount);
 
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString(language === "th" ? "th-TH" : "en-GB", {
@@ -270,17 +278,9 @@ export default function MoveOutPage() {
                     }
                     language={language}
                     required
-                    // ✅ FIX: backend (moveOut.routes.js) validates
-                    // move_out_date with only `.isDate()` — no future-date
-                    // check — so a past date would otherwise submit fine
-                    // and produce a nonsensical negative daysRemaining in
-                    // the estimate above. Block it at the picker instead.
+                    // ห้ามเลือกวันที่ผ่านมาแล้ว (backend ก็ปฏิเสธเช่นกัน)
                     minDate={toISODate(new Date())}
-                    // ✅ FIX: also cap at the contract's end date — picking a
-                    // date past it produced a negative daysRemaining with a
-                    // "no fine" message that reads as a glitch rather than
-                    // "your contract will have already ended". Backend
-                    // rejects this too (moveOut.controller.js create()).
+                    // ห้ามเลือกเกินวันสิ้นสุดสัญญา (backend ปฏิเสธเช่นกัน)
                     maxDate={
                       contract?.end_date
                         ? toISODate(new Date(contract.end_date))
@@ -289,18 +289,17 @@ export default function MoveOutPage() {
                   />
                 </Field>
 
-                {/* ส่วนคำนวณค่าปรับ/เงินประกันคืนโดยประมาณ — ใช้สูตรเดียวกับ
-                    backend's calcDepositRefund() (ดู comment ด้านบนของ
-                    daysRemaining) */}
+                {/* ส่วนประเมินค่าปรับ/เงินประกันคืน — ใช้กฎเดียวกับ backend
+                    calcDepositRefund() (ดู comment ด้านบนของ noticeDays) */}
                 {formData.moveOutDate && (
                   <div
                     className={`rounded-lg border p-3 flex gap-3 ${
-                      isEarlyTermination
+                      isShortNotice
                         ? "bg-destructive/10 border-destructive/30"
                         : "bg-success/10 border-success/30"
                     }`}
                   >
-                    {isEarlyTermination ? (
+                    {isShortNotice ? (
                       <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
                     ) : (
                       <Wallet className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -313,31 +312,25 @@ export default function MoveOutPage() {
                             ? "กำลังดึงข้อมูลสัญญา..."
                             : "Loading contract info..."}
                         </p>
-                      ) : !contract?.end_date ? (
-                        <p className="text-muted-foreground">
-                          {language === "th"
-                            ? "ไม่พบข้อมูลวันหมดสัญญา ไม่สามารถประเมินค่าปรับได้"
-                            : "Contract end date not found — can't estimate a fine."}
-                        </p>
-                      ) : isEarlyTermination ? (
+                      ) : isShortNotice ? (
                         <>
                           <p className="font-medium text-destructive">
                             {language === "th"
-                              ? `ย้ายออกก่อนหมดสัญญา ${daysRemaining} วัน (เกิน 30 วัน มีค่าปรับ)`
-                              : `${daysRemaining} days remain on your contract (over 30 — early termination fine applies)`}
+                              ? `แจ้งล่วงหน้า ${noticeDays} วัน (ไม่ครบ ${NOTICE_DAYS} วัน มีค่าปรับ)`
+                              : `${noticeDays} days' notice (less than ${NOTICE_DAYS} — a fine applies)`}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {language === "th"
-                              ? `ค่าปรับผิดสัญญาโดยประมาณ ฿${fmtBaht(fineAmount)} (ค่าเช่า 1 เดือน) หักจากเงินประกัน คาดว่าจะได้รับคืนประมาณ ฿${fmtBaht(estimatedRefund)} (ยังไม่รวมค่าน้ำ-ไฟและค่าเสียหายที่จะคำนวณจริงตอนตรวจสอบห้อง)`
-                              : `Estimated early-termination fine: ฿${fmtBaht(fineAmount)} (1 month's rent), deducted from your deposit. Estimated refund: ฿${fmtBaht(estimatedRefund)} (before utility & damage deductions, finalized at move-out inspection)`}
+                              ? `ค่าปรับโดยประมาณ ฿${fmtBaht(fineAmount)} (ค่าเช่า 1 เดือน) หักจากเงินประกัน คาดว่าจะได้รับคืนประมาณ ฿${fmtBaht(estimatedRefund)} (ยังไม่รวมค่าน้ำ-ไฟและค่าเสียหายที่คำนวณจริงตอนตรวจสอบห้อง) หากเลือกวันย้ายออกให้ห่างจากวันนี้อย่างน้อย ${NOTICE_DAYS} วัน จะไม่มีค่าปรับ`
+                              : `Estimated fine: ฿${fmtBaht(fineAmount)} (1 month's rent), deducted from your deposit. Estimated refund: ฿${fmtBaht(estimatedRefund)} (before utility & damage deductions, finalized at move-out inspection). Choose a move-out date at least ${NOTICE_DAYS} days from today to avoid the fine.`}
                           </p>
                         </>
                       ) : (
                         <>
                           <p className="font-medium text-green-700 dark:text-green-400">
                             {language === "th"
-                              ? `เหลือสัญญา ${daysRemaining} วัน (ไม่เกิน 30 วัน) ไม่มีค่าปรับ`
-                              : `${daysRemaining} days remain on your contract (30 or fewer) — no early-termination fine`}
+                              ? `แจ้งล่วงหน้า ${noticeDays} วัน (ครบ ${NOTICE_DAYS} วัน) ไม่มีค่าปรับ`
+                              : `${noticeDays} days' notice (${NOTICE_DAYS}+ days) — no fine`}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {language === "th"
@@ -346,10 +339,9 @@ export default function MoveOutPage() {
                           </p>
                         </>
                       )}
-                      {/* ⚠️ สำคัญ: ยอดจริงที่ admin ใช้อนุมัติ อ้างอิงจาก "วันที่ตรวจ
-                          สอบห้อง/อนุมัติจริง" ไม่ใช่วันที่เลือกในฟอร์มนี้ — เผื่อ
-                          คำร้องค้างหลายวันกว่าจะได้รับอนุมัติ ตัวเลขจริงอาจต่างจากนี้
-                          จึงต้องบอก tenant ให้ชัดว่านี่เป็นแค่ตัวเลขอ้างอิง */}
+                      {/* ⚠️ ยอดจริงที่ admin ใช้อนุมัติ อ้างอิงจากวันย้ายออกจริงที่
+                          แอดมินยืนยัน อาจต่างจากวันที่เลือกในฟอร์มนี้ จึงต้องบอก
+                          tenant ให้ชัดว่านี่เป็นแค่ตัวเลขอ้างอิง */}
                       <p className="text-xs text-muted-foreground italic pt-1 border-t border-current/10 mt-1">
                         {language === "th"
                           ? "ตัวเลขนี้เป็นเพียงการประมาณการจากวันที่คุณเลือกไว้เท่านั้น ยอดจริงจะคำนวณจากวันที่แอดมินตรวจสอบและยืนยันการย้ายออก ซึ่งอาจแตกต่างจากตัวเลขนี้"
@@ -408,10 +400,7 @@ export default function MoveOutPage() {
         </Dialog>
       </div>
 
-      {/* ✅ FIX: เปลี่ยนจาก grid-cols-3 การ์ดตายตัว (แน่นเกินบนมือถือ, comment
-          เดิมบอก grid-cols-1 sm:grid-cols-3 แต่โค้ดจริงไม่ได้ทำ) เป็น pill
-          strip แนวนอนแบบเดียวกับหน้า maintenance เพื่อความ consistent และ
-          ประหยัดพื้นที่จอ — ยังกดกรอง list ด้านล่างได้เหมือนเดิม */}
+      {/* pill strip แนวนอนแบบเดียวกับหน้า maintenance — กดกรอง list ด้านล่างได้ */}
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
         {statCards.map(({ key, label, color }) => {
           const isActive = statusFilter === key;
@@ -533,10 +522,6 @@ export default function MoveOutPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          {/* ✅ FIX: เดิมโชว์แค่ moveout.fine / moveout.refund ที่เป็น label
-              สั้นๆ (แค่คำว่า "ค่าปรับ" / "ยอดคืนเงินประกัน" เฉยๆ) เหมือนเป็น
-              คำอธิบาย แต่จริงๆ เป็น label สำหรับคู่กับตัวเลขในตาราง ไม่มีเนื้อหา
-              อธิบายอะไรเลย — เปลี่ยนมาใช้ key ใหม่ที่เป็นประโยคเต็มแทน */}
           <p>{t("moveout.notice30")}</p>
           <p>{t("moveout.infoFine")}</p>
           <p>{t("moveout.infoRefund")}</p>

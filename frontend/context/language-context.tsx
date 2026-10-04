@@ -202,7 +202,10 @@ export const translations: Record<string, { th: string; en: string }> = {
     en: "The verification link has expired or is invalid. Please request a new one from the login page.",
   },
   "verifyEmail.loginNow": { th: "เข้าสู่ระบบเลย", en: "Login Now" },
-  "verifyEmail.backToLogin": { th: "กลับไปหน้าเข้าสู่ระบบ", en: "Back to login" },
+  "verifyEmail.backToLogin": {
+    th: "กลับไปหน้าเข้าสู่ระบบ",
+    en: "Back to login",
+  },
 
   // ── Forced password change (บัญชีที่ยังใช้รหัสผ่านตั้งต้นอยู่) ──────────────
   "forcePasswordChange.title": {
@@ -675,8 +678,8 @@ export const translations: Record<string, { th: string; en: string }> = {
   "bills.otherCharges": { th: "ค่าใช้จ่ายอื่นๆ", en: "Other Charges" },
   "bills.addCharge": { th: "เพิ่มรายการ", en: "Add item" },
   "bills.noExtraCharges": {
-    th: "ยังไม่มีรายการค่าใช้จ่ายอื่นๆ กด \"เพิ่มรายการ\" ถ้ามี เช่น ค่าตู้เย็น, ค่าโต๊ะ",
-    en: "No extra charges yet — click \"Add item\" for things like fridge or furniture fees",
+    th: 'ยังไม่มีรายการค่าใช้จ่ายอื่นๆ กด "เพิ่มรายการ" ถ้ามี เช่น ค่าตู้เย็น, ค่าโต๊ะ',
+    en: 'No extra charges yet — click "Add item" for things like fridge or furniture fees',
   },
   "bills.chargeNamePlaceholder": {
     th: "ชื่อรายการ เช่น ค่าตู้เย็น",
@@ -926,7 +929,10 @@ export const translations: Record<string, { th: string; en: string }> = {
     th: "ชื่อช่างหรือผู้รับผิดชอบ",
     en: "Technician or responsible person",
   },
-  "maintenance.technicianName": { th: "ชื่อช่าง/ผู้รับผิดชอบ", en: "Technician / Responsible Person" },
+  "maintenance.technicianName": {
+    th: "ชื่อช่าง/ผู้รับผิดชอบ",
+    en: "Technician / Responsible Person",
+  },
   "maintenance.technicianNamePlaceholder": {
     th: "กรอกชื่อช่างหรือผู้รับผิดชอบ (ถ้าไม่มีบัญชีในระบบ)",
     en: "Enter technician or responsible person's name (if not a system account)",
@@ -1244,14 +1250,20 @@ export const translations: Record<string, { th: string; en: string }> = {
   "register.login": { th: "เข้าสู่ระบบ", en: "Sign in" },
 
   // ── ยืนยันอีเมลก่อนสมัคร (ขั้นตอนที่ 1-2 ของ 3) ──────────────
-  "register.stepEmailTitle": { th: "เริ่มจากอีเมลของคุณ", en: "Start with your email" },
+  "register.stepEmailTitle": {
+    th: "เริ่มจากอีเมลของคุณ",
+    en: "Start with your email",
+  },
   "register.stepEmailDesc": {
     th: "เราจะส่งรหัสยืนยัน 6 หลักไปที่อีเมลนี้ก่อนไปขั้นตอนถัดไป",
     en: "We'll send a 6-digit verification code to this email before the next step.",
   },
   "register.sendCode": { th: "ส่งรหัสยืนยัน", en: "Send verification code" },
   "register.sendingCode": { th: "กำลังส่งรหัส...", en: "Sending code..." },
-  "register.stepOtpTitle": { th: "กรอกรหัสยืนยัน", en: "Enter verification code" },
+  "register.stepOtpTitle": {
+    th: "กรอกรหัสยืนยัน",
+    en: "Enter verification code",
+  },
   "register.stepOtpDesc": {
     th: "เราส่งรหัส 6 หลักไปที่ {email} แล้ว",
     en: "We've sent a 6-digit code to {email}",
@@ -1261,7 +1273,10 @@ export const translations: Record<string, { th: string; en: string }> = {
   "register.verifyingCode": { th: "กำลังยืนยัน...", en: "Verifying..." },
   "register.resendCode": { th: "ส่งรหัสอีกครั้ง", en: "Resend code" },
   "register.changeEmail": { th: "แก้ไขอีเมล", en: "Change email" },
-  "register.errorRequiredEmail": { th: "กรุณากรอกอีเมล", en: "Please enter your email" },
+  "register.errorRequiredEmail": {
+    th: "กรุณากรอกอีเมล",
+    en: "Please enter your email",
+  },
   "register.errorOtpLength": {
     th: "รหัสยืนยันต้องมี 6 หลัก",
     en: "Verification code must be 6 digits",
@@ -1753,8 +1768,8 @@ export const translations: Record<string, { th: string; en: string }> = {
     en: "Actual Check-out Date",
   },
   "moveout.actualCheckoutDateHint": {
-    th: "ใช้วันที่นี้คำนวณค่าปรับและเงินคืนประกัน (ไม่ใช่วันที่ผู้เช่าแจ้งไว้)",
-    en: "Use this date to calculate penalties and deposit refunds (not the date requested by the tenant)",
+    th: "ค่าตั้งต้นคือวันที่ผู้เช่าขอย้ายออก แก้ไขได้หากวันย้ายออกจริงต่างไป ระบบจะคำนวณค่าปรับจากจำนวนวันที่แจ้งล่วงหน้าถึงวันนี้",
+    en: "Defaults to the tenant's requested date. Edit it if the actual move-out differs; the fine is calculated from the notice period up to this date.",
   },
 
   // ── Move-out Clearance & Deposit Refund ─────────────────────────────
@@ -1889,8 +1904,8 @@ export const translations: Record<string, { th: string; en: string }> = {
     en: "Please give at least 30 days advance notice before your intended move-out date so we can prepare.",
   },
   "moveout.infoFine": {
-    th: "หากย้ายออกขณะที่สัญญาเช่ายังเหลือมากกว่า 30 วัน จะมีค่าปรับผิดสัญญาเท่ากับค่าเช่า 1 เดือน หักจากเงินประกัน",
-    en: "If you move out with more than 30 days remaining on your contract, an early-termination fine equal to one month's rent will be deducted from your deposit.",
+    th: "หากแจ้งย้ายออกล่วงหน้าไม่ครบ 30 วัน (นับจากวันที่ส่งคำร้องถึงวันที่ย้ายออก) จะมีค่าปรับเท่ากับค่าเช่า 1 เดือน หักจากเงินประกัน",
+    en: "If you give less than 30 days' notice (counted from the day you submit this request to your move-out date), a fine equal to one month's rent will be deducted from your deposit.",
   },
   "moveout.infoRefund": {
     th: "เงินประกันส่วนที่เหลือ (หลังหักค่าปรับ ถ้ามี) จะคืนให้หลังหักค่าน้ำ-ไฟงวดสุดท้ายและค่าเสียหาย (ถ้ามี) ซึ่งจะคำนวณจริงตอนตรวจสอบห้องวันย้ายออก",
@@ -1904,8 +1919,8 @@ export const translations: Record<string, { th: string; en: string }> = {
   },
   "moveout.depositTitle": { th: "เงินประกัน", en: "Security Deposit" },
   "moveout.fineAmount": {
-    th: "ค่าปรับออกก่อนกำหนด",
-    en: "Early Termination Fine",
+    th: "ค่าปรับแจ้งล่วงหน้าไม่ครบ",
+    en: "Short Notice Fine",
   },
   "moveout.deductionExtraLabel": {
     th: "หักเพิ่มเติม (ถ้ามี)",

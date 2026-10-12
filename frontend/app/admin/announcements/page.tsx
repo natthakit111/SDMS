@@ -23,13 +23,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -52,23 +45,10 @@ import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 import { DatePickerField } from "@/components/common/date-picker-field";
 import { useConfirmDialog } from "@/components/common/confirm-dialog";
-import { formatDate } from "@/lib/utils";
+import { formatDate, toISODate } from "@/lib/utils";
 import { Announcement } from "@/types/index";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-// interface Announcement {
-//   announcement_id: number;
-//   title: string;
-//   content: string;
-//   target_audience: "all" | "admin" | "tenant";
-//   target_floor: number | null;
-//   is_pinned: number;
-//   is_urgent: number;
-//   published_by: number;
-//   published_at: string;
-//   expires_at: string | null;
-// }
 
 interface FormData {
   title: string;
@@ -80,14 +60,24 @@ interface FormData {
   expires_at: string;
 }
 
+// ระบบมีแต่ผู้เช่า จึงตั้งค่าเริ่มต้นเป็น "tenant" (ตรงกับตัวเลือกเดียวที่เคยมีใน dropdown)
 const emptyForm: FormData = {
   title: "",
   content: "",
-  target_audience: "all",
+  target_audience: "tenant",
   target_floor: "",
   is_pinned: false,
   is_urgent: false,
   expires_at: "",
+};
+
+// วันพรุ่งนี้ (local) — ใช้เป็นวันหมดอายุเร็วสุดที่เลือกได้ เพราะ backend
+// ซ่อนประกันที่ expires_at < NOW() ซึ่งวันที่ล้วนๆ = 00:00 ของวันนั้น
+// เลือก "วันนี้" ประกาศจะหายทันที
+const tomorrowDateString = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return toISODate(d);
 };
 
 // ── Telegram preview helpers ──────────────────────────────────────────────────
@@ -117,6 +107,16 @@ export default function AnnouncementsPage() {
   const [editingAnn, setEditingAnn] = useState<Announcement | null>(null);
   const [formData, setFormData] = useState<FormData>(emptyForm);
 
+  // ── สรุปว่าประกาศจะถึงใคร ─────────────────────────────────────────────────
+  // ผู้รับจริง = ผู้เช่าที่มีสัญญา active (ทั้งในแอปและ Telegram)
+  const audienceSummary = formData.target_floor
+    ? language === "th"
+      ? `ผู้เช่าที่มีสัญญา ชั้น ${formData.target_floor}`
+      : `Tenants with active contracts on floor ${formData.target_floor}`
+    : language === "th"
+      ? "ผู้เช่าที่มีสัญญาทุกชั้น"
+      : "All tenants with active contracts";
+
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchAnnouncements = useCallback(async () => {
     try {
@@ -137,6 +137,17 @@ export default function AnnouncementsPage() {
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // ข้อความที่ส่งเข้า Telegram แล้วเรียกคืนไม่ได้ — ถามยืนยันเฉพาะตอนสร้างใหม่
+    if (!editingAnn) {
+      const ok = await confirm(
+        language === "th"
+          ? `ส่งประกาศนี้ถึง "${audienceSummary}" ผ่าน Telegram ใช่ไหม?\nข้อความที่ส่งแล้วไม่สามารถเรียกคืนได้`
+          : `Send this announcement to "${audienceSummary}" via Telegram?\nSent messages can't be recalled.`,
+      );
+      if (!ok) return;
+    }
+
     setSubmitting(true);
     try {
       const payload: any = {
@@ -146,14 +157,21 @@ export default function AnnouncementsPage() {
         is_pinned: formData.is_pinned ? 1 : 0,
         is_urgent: formData.is_urgent ? 1 : 0,
       };
-      if (formData.target_floor)
-        payload.target_floor = parseInt(formData.target_floor);
-      if (formData.expires_at) payload.expires_at = formData.expires_at;
+
+      const floor = formData.target_floor
+        ? parseInt(formData.target_floor)
+        : null;
+      const expires = formData.expires_at || null;
 
       if (editingAnn) {
+        // ตอนแก้ไขต้องส่ง null เพื่อ "ล้าง" ค่าเดิมได้ (backend อัปเดตเฉพาะฟิลด์ที่ส่งมา)
+        payload.target_floor = floor;
+        payload.expires_at = expires;
         await announcementAPI.update(editingAnn.announcement_id, payload);
         toast.success(t("announcements.updated"));
       } else {
+        if (floor) payload.target_floor = floor;
+        if (expires) payload.expires_at = expires;
         await announcementAPI.create(payload);
         toast.success(t("announcements.created"));
       }
@@ -176,15 +194,19 @@ export default function AnnouncementsPage() {
       target_audience: ann.target_audience,
       target_floor: ann.target_floor ? String(ann.target_floor) : "",
       is_pinned: ann.is_pinned === 1,
-      is_urgent: false,
-      expires_at: ann.expires_at ? ann.expires_at.split("T")[0] : "",
+      is_urgent: false, // ไม่ได้ใช้งานฟีเจอร์ด่วนในหน้านี้
+      // ใช้ local date แทน split("T") — DATE จาก API เป็น ISO ของวันก่อนหน้า (UTC)
+      // ทำให้วันถอยหลัง 1 วันทุกครั้งที่กดแก้ไข
+      expires_at: ann.expires_at ? toISODate(new Date(ann.expires_at)) : "",
     });
     setIsAddDialogOpen(true);
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async (ann: Announcement) => {
-    if (!(await confirm(`${t("announcements.confirmDelete")} "${ann.title}" ?`)))
+    if (
+      !(await confirm(`${t("announcements.confirmDelete")} "${ann.title}" ?`))
+    )
       return;
 
     try {
@@ -262,8 +284,12 @@ export default function AnnouncementsPage() {
               </DialogTitle>
               <DialogDescription>
                 {editingAnn
-                  ? t("announcements.edit")
-                  : t("announcements.create")}
+                  ? language === "th"
+                    ? "แก้ไขเฉพาะในระบบ ข้อความที่ส่งเข้า Telegram ไปแล้วจะไม่ถูกแก้ตาม"
+                    : "Edits apply in the app only. Messages already sent to Telegram are not changed."
+                  : language === "th"
+                    ? "ประกาศจะถูกส่งเข้า Telegram ของผู้เช่าทันทีที่กดส่ง"
+                    : "The announcement is sent to tenants on Telegram as soon as you submit."}
               </DialogDescription>
             </DialogHeader>
 
@@ -274,10 +300,7 @@ export default function AnnouncementsPage() {
                     <TabsTrigger value="form">
                       {t("announcements.formTab")}
                     </TabsTrigger>
-                    <TabsTrigger
-                      value="preview"
-                      disabled={formData.target_audience === "admin"}
-                    >
+                    <TabsTrigger value="preview">
                       <Send className="h-3.5 w-3.5 mr-1.5" />
                       {t("announcements.telegramPreviewTab")}
                     </TabsTrigger>
@@ -314,6 +337,8 @@ export default function AnnouncementsPage() {
                       </Field>
                     </FieldGroup>
 
+                    {/* ผู้รับ: ระบบมีแต่ผู้เช่า จึงไม่ต้องเลือกกลุ่มเป้าหมาย
+                        เหลือแค่เลือกชั้น (ว่าง = ทุกชั้น) */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                         <Users className="h-4 w-4" />
@@ -321,53 +346,28 @@ export default function AnnouncementsPage() {
                       </div>
                       <FieldGroup>
                         <Field>
-                          <FieldLabel>{t("announcements.audience")}</FieldLabel>
-                          <Select
-                            value={formData.target_audience}
-                            onValueChange={(v) =>
-                              setFormData((p) => ({
-                                ...p,
-                                target_audience:
-                                  v as FormData["target_audience"],
-                              }))
-                            }
+                          <FieldLabel
+                            htmlFor="target_floor"
+                            className="flex items-center gap-1.5"
                           >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {/* <SelectItem value="all">
-                                {t("announcements.everyone")}
-                              </SelectItem> */}
-                              <SelectItem value="tenant">
-                                {t("announcements.tenantOnly")}
-                              </SelectItem>
-                              {/* <SelectItem value="admin">
-                                {t("announcements.adminOnly")}
-                              </SelectItem> */}
-                            </SelectContent>
-                          </Select>
+                            <Building2 className="h-3.5 w-3.5" />
+                            {t("announcements.floor")}
+                          </FieldLabel>
+                          <Input
+                            id="target_floor"
+                            type="number"
+                            min={1}
+                            placeholder={t("announcements.floorPlaceholder")}
+                            value={formData.target_floor}
+                            onChange={set("target_floor")}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {language === "th" ? "ส่งถึง: " : "Sent to: "}
+                            <span className="font-medium text-foreground">
+                              {audienceSummary}
+                            </span>
+                          </p>
                         </Field>
-
-                        {formData.target_audience !== "admin" && (
-                          <Field>
-                            <FieldLabel
-                              htmlFor="target_floor"
-                              className="flex items-center gap-1.5"
-                            >
-                              <Building2 className="h-3.5 w-3.5" />
-                              {t("announcements.floor")}
-                            </FieldLabel>
-                            <Input
-                              id="target_floor"
-                              type="number"
-                              min={1}
-                              placeholder={t("announcements.floorPlaceholder")}
-                              value={formData.target_floor}
-                              onChange={set("target_floor")}
-                            />
-                          </Field>
-                        )}
                       </FieldGroup>
                     </div>
 
@@ -419,7 +419,17 @@ export default function AnnouncementsPage() {
                           placeholder={
                             language === "th" ? "เลือกวันที่" : "Select date"
                           }
+                          // ตอนสร้างใหม่เลือกได้ตั้งแต่พรุ่งนี้ (ประกาศจะหายตอน 00:00
+                          // ของวันที่เลือก) ตอนแก้ไขไม่จำกัด กันประกาศเก่าเปิดไม่ได้
+                          minDate={
+                            editingAnn ? undefined : tomorrowDateString()
+                          }
                         />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {language === "th"
+                            ? "ประกาศจะหายจากรายการตั้งแต่ 00:00 ของวันที่เลือก (ถ้าต้องการให้แสดงถึงวันงาน ให้เลือกวันถัดไป)"
+                            : "The announcement disappears at 00:00 on the chosen date (pick the day after your event to keep it visible through the event day)."}
+                        </p>
                       </Field>
                     </div>
                   </TabsContent>

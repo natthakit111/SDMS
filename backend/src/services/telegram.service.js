@@ -17,7 +17,6 @@
  * says "contact the admin" since that genuinely requires a human (new
  * paperwork/negotiation), not a self-service action.
  */
-const QRCode = require('qrcode');
 const { thaiDateBangkok } = require('../utils/dateHelper');
 const TelegramBot = require('node-telegram-bot-api');
 const { pool }    = require('../config/db');
@@ -161,32 +160,15 @@ const sendBillNotification = async (bill) => {
     `💰 *ยอดรวม: ${formatAmount(bill.total_amount)} บาท*`,
     `📅 กำหนดชำระ: *${dueDateStr}*`,
     ``,
-    `กรุณาชำระผ่าน QR Code PromptPay บนเว็บไซต์`,
+    `กรุณาชำระเงินและอัปโหลดสลิปบนเว็บไซต์`,
   ].filter(Boolean).join('\n');
 
   const payUrl = buildPaymentUrl(bill.bill_id);
 
-  try {
-    await instance.sendMessage(bill.telegram_chat_id, message, {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [[{ text: '📄 ดูบิลและชำระเงิน', url: payUrl }]],
-      },
-    });
-
-    if (bill.qr_payload) {
-      const qrBuffer = await QRCode.toBuffer(bill.qr_payload, { margin: 1, width: 400 });
-      await instance.sendPhoto(bill.telegram_chat_id, qrBuffer, {
-        caption: 'สแกนเพื่อชำระผ่าน PromptPay',
-      });
-    }
-
-    if (bill.user_id) await logNotification(bill.user_id, 'bill_notification', message, bill.bill_id, 'sent');
-    console.log(`[Telegram] ✅ Sent bill notification to chatId ${bill.telegram_chat_id}`);
-  } catch (err) {
-    console.error(`[Telegram] ❌ Failed to send bill notification:`, err.message);
-    if (bill.user_id) await logNotification(bill.user_id, 'bill_notification', message, bill.bill_id, 'failed');
-  }
+  await sendMessageWithButton(
+    bill.telegram_chat_id, message, '📄 ดูบิลและชำระเงิน', payUrl,
+    bill.user_id || null, 'bill_notification', bill.bill_id
+  );
 };
 
 // ════════════════════════════════════════════════════════════════

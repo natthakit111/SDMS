@@ -166,8 +166,17 @@ const updateTenant = async (req, res, next) => {
     // ด้วยเสมอ ไม่ใช่แค่ tenants เพราะ users.username ผูกกับ phone (login)
     await conn.beginTransaction();
 
-    if (phone !== undefined || email !== undefined) {
-      await UserModel.updateProfileFields(tenant.user_id, { phone, email }, conn);
+    const { first_name, last_name } = req.body;
+    if (
+      first_name !== undefined || last_name !== undefined ||
+      phone !== undefined || email !== undefined
+    ) {
+      await UserModel.updateProfileFields(tenant.user_id, {
+        firstName: first_name,
+        lastName: last_name,
+        phone,
+        email,
+      }, conn);
     }
 
     let verificationToken = null;

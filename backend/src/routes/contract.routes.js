@@ -74,6 +74,7 @@ router.get('/my/active', authorizeRoles('tenant'), ctrl.getMyContract); // alias
 // ── Admin list ────────────────────────────────────────────────
 router.get('/',   authorizeRoles('admin'), paginationValidation, ctrl.getAllContracts);
 router.post('/',  authorizeRoles('admin'), createContractValidation, ctrl.createContract);
+router.get('/years', authorizeRoles('admin'), ctrl.getContractYears);
 
 // ── Wildcard paths LAST ───────────────────────────────────────
 router.get('/:id',              ctrl.getContractById);

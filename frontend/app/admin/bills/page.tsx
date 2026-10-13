@@ -69,6 +69,7 @@ import { useRouter } from "next/navigation";
 // 💡 1. Import Component กลางเข้ามาใช้งาน
 import { DatePickerField } from "@/components/common/date-picker-field";
 import { formatCurrency } from "@/lib/utils";
+import { useContractYears } from "@/hooks/use-contract-years";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -150,6 +151,7 @@ const imgUrl = (path: string | null) => getMediaUrl(path, "detail");
 export default function BillsPage() {
   const { t, language } = useLanguage();
   const { confirm, ConfirmDialog } = useConfirmDialog();
+  const contractYears = useContractYears();
   const [bills, setBills] = useState<Bill[]>([]);
   const [occupiedRooms, setOccupiedRooms] = useState<Room[]>([]);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
@@ -405,7 +407,6 @@ export default function BillsPage() {
       prev.map((c) => (c.id === id ? { ...c, [field]: value } : c)),
     );
 
-  const currentYear = new Date().getFullYear();
   const elecReading = viewingBill?.meter_readings?.find(
     (r) => r.meter_type === "electric",
   );
@@ -509,7 +510,7 @@ export default function BillsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {[currentYear, currentYear - 1].map((y) => (
+                        {contractYears.map((y) => (
                           <SelectItem key={y} value={String(y)}>
                             {y}
                           </SelectItem>

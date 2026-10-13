@@ -14,6 +14,11 @@ export const contractAPI = {
   getAll: (params) =>
     api.get('/contracts', { params }).then((r) => r.data),
 
+  
+  getYears: () =>
+    api.get('/contracts/years').then((r) => r.data),
+  // คืน [{ start_year, end_year }, ...] — admin only
+
   getById: (id) =>
     api.get(`/contracts/${id}`).then((r) => r.data),
 

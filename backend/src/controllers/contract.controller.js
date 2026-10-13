@@ -30,6 +30,13 @@ const getAllContracts = async (req, res, next) => {
   } catch (err) { next(err) }
 }
 
+const getContractYears = async (req, res, next) => {
+  try {
+    const ranges = await ContractModel.getYearRanges()
+    return sendSuccess(res, ranges)
+  } catch (err) { next(err) }
+}
+
 const getContractById = async (req, res, next) => {
   try {
     const contract = await ContractModel.findById(req.params.id)
@@ -313,7 +320,7 @@ const downloadContractFile = async (req, res, next) => {
 }
 
 module.exports = {
-  getAllContracts, getContractById, getMyContract,
+  getAllContracts, getContractYears, getContractById, getMyContract,
   createContract, updateContract, renewContract, terminateContract,
   uploadContractFile, downloadContractFile,
 }

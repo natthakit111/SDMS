@@ -130,4 +130,14 @@ const updateStatus = async (contractId, status, executor = pool) => {
   return result.affectedRows;
 };
 
-module.exports = { findAll, countAll, findById, findActiveByRoom, findActiveByTenant, create, update, updateStatus };
+// คืนช่วงปีของสัญญา (DISTINCT) ให้ frontend ไล่ปีเอง
+// ใช้ YEAR() ใน SQL เพื่อเลี่ยงปัญหา timezone ตอน serialize DATE เป็น JSON
+const getYearRanges = async () => {
+  const [rows] = await pool.query(
+    `SELECT DISTINCT YEAR(start_date) AS start_year, YEAR(end_date) AS end_year
+     FROM contracts`
+  );
+  return rows;
+};
+
+module.exports = { findAll, countAll, findById, findActiveByRoom, findActiveByTenant, create, update, updateStatus, getYearRanges };

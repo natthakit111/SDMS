@@ -60,6 +60,7 @@ import { useLanguage } from "@/context/language-context";
 import { settingsAPI } from "@/lib/api/settings.api";
 import { Room, Reading } from "@/types/index";
 import { PaginationFooter } from "@/components/common/pagination-footer";
+import { useContractYears } from "@/hooks/use-contract-years";
 
 // จัดกลุ่ม readings ตาม room+month+year
 interface GroupedReading {
@@ -123,6 +124,7 @@ const now = new Date();
 
 export default function MetersPage() {
   const { t } = useLanguage();
+  const contractYears = useContractYears();
   const MONTHS = Array.from({ length: 12 }, (_, i) => t(`month.${i + 1}`));
   const [readings, setReadings] = useState<Reading[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -460,9 +462,10 @@ export default function MetersPage() {
     }
   };
 
-  const years = Array.from({ length: 3 }, (_, i) =>
-    String(now.getFullYear() - i + 1),
-  );
+  // รวมปีที่เลือกอยู่เข้าไปด้วย กันช่องปีว่างตอนแก้ไขรายการที่ปีหลุดจากช่วงสัญญา
+  const yearOptions = Array.from(new Set([...contractYears, Number(year)]))
+    .sort((a, b) => b - a)
+    .map(String);
 
   return (
     <div className="space-y-6">
@@ -830,7 +833,7 @@ export default function MetersPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {years.map((y) => (
+                    {yearOptions.map((y) => (
                       <SelectItem key={y} value={y}>
                         {y}
                       </SelectItem>

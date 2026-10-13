@@ -108,6 +108,19 @@ const findLatestByRoomAndType = async (roomId, meterType) => {
   return rows[0] || null;
 };
 
+// ค่าล่าสุด "ก่อน" เดือน/ปีที่ระบุ
+const findLatestBefore = async (roomId, meterType, month, year) => {
+  const [rows] = await pool.query(
+    `SELECT * FROM meter_readings
+     WHERE room_id = ? AND meter_type = ?
+       AND (reading_year < ? OR (reading_year = ? AND reading_month < ?))
+     ORDER BY reading_year DESC, reading_month DESC
+     LIMIT 1`,
+    [roomId, meterType, year, year, month]
+  );
+  return rows[0] || null;
+};
+
 // Find reading for a specific room/type/month/year
 const findByRoomMonthYear = async (roomId, meterType, month, year) => {
   const [rows] = await pool.query(
@@ -135,7 +148,7 @@ const create = async ({ room_id, meter_type, reading_month, reading_year,
 };
 
 const update = async (readingId, fields) => {
-  const allowed = ['current_unit', 'rate_per_unit', 'image_path'];
+  const allowed = ['previous_unit', 'current_unit', 'rate_per_unit', 'image_path'];
   const keys = Object.keys(fields).filter(k => allowed.includes(k));
   if (keys.length === 0) return 0;
   // Recalculate previous_unit stays, only current_unit / rate changes
@@ -174,6 +187,6 @@ const findAvailableRoomsForMeter = async (month, year) => {
 };
 
 module.exports = {
-  findAll, countAll, findById, findLatestByRoomAndType,
-  findByRoomMonthYear, create, update,findAvailableRoomsForMeter,
+  findAll, countAll, findById, findLatestByRoomAndType, findLatestBefore,
+  findByRoomMonthYear, create, update, findAvailableRoomsForMeter,
 };

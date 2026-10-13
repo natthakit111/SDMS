@@ -116,10 +116,20 @@ const createReading = async (req, res, next) => {
       rate_per_unit = currentRate.rate_per_unit;
     }
 
-    // ── 4. เลขปัจจุบันต้องไม่น้อยกว่าก่อนหน้า ───────────────────────────
-    const previousReading = await MeterModel.findLatestByRoomAndType(room_id, meter_type);
-    const previous_unit = previousReading ? parseFloat(previousReading.current_unit) : 0;
-
+    // ── 4. เลขก่อนหน้า: ใช้ค่าที่ admin กรอก ถ้าไม่กรอกค่อย fallback ──────
+    const { previous_unit: bodyPrev } = req.body;
+    let previous_unit;
+    if (bodyPrev !== undefined && bodyPrev !== '') {
+      previous_unit = parseFloat(bodyPrev);
+    } else {
+      const prevRow = await MeterModel.findLatestBefore(
+        room_id, meter_type, parseInt(reading_month), parseInt(reading_year)
+      );
+      previous_unit = prevRow ? parseFloat(prevRow.current_unit) : 0;
+    }
+    if (Number.isNaN(previous_unit) || previous_unit < 0) {
+      return sendBadRequestCoded(res, 'meters.error.invalidPrev', 'เลขก่อนหน้าไม่ถูกต้อง');
+    }
     if (parseFloat(current_unit) < previous_unit) {
       return sendBadRequestCoded(
         res,
@@ -174,23 +184,32 @@ const updateReading = async (req, res, next) => {
     if (!reading)
       return sendNotFoundCoded(res, 'meters.error.notFound', 'ไม่พบข้อมูลการอ่านมิเตอร์');
 
-    const { current_unit, rate_per_unit } = req.body;
+        const { current_unit, previous_unit, rate_per_unit } = req.body;
     // ✅ Cloudinary: req.file.path คือ URL เต็ม ไม่ต้อง replace backslash
     const image_path = req.file ? req.file.path : undefined;
 
     const updates = {};
-    if (current_unit !== undefined) {
-      if (parseFloat(current_unit) < parseFloat(reading.previous_unit)) {
-        return sendBadRequestCoded(
-          res,
-          'meters.error.unitLessThanPrev',
-          `ค่ามิเตอร์ปัจจุบันต้องไม่น้อยกว่าค่ามิเตอร์ก่อนหน้า (${reading.previous_unit})`,
-        );
+    if (previous_unit !== undefined && previous_unit !== '') {
+      const p = parseFloat(previous_unit);
+      if (Number.isNaN(p) || p < 0) {
+        return sendBadRequestCoded(res, 'meters.error.invalidPrev', 'เลขก่อนหน้าไม่ถูกต้อง');
       }
-      updates.current_unit = parseFloat(current_unit);
+      updates.previous_unit = p;
     }
+    if (current_unit !== undefined) updates.current_unit = parseFloat(current_unit);
     if (rate_per_unit !== undefined) updates.rate_per_unit = parseFloat(rate_per_unit);
     if (image_path    !== undefined) updates.image_path = image_path;
+
+    // ตรวจรวม: ตัวที่ไม่ได้ส่งมาให้ใช้ค่าเดิมในฐานข้อมูล
+    const newPrev = updates.previous_unit ?? parseFloat(reading.previous_unit);
+    const newCurr = updates.current_unit  ?? parseFloat(reading.current_unit);
+    if (newCurr < newPrev) {
+      return sendBadRequestCoded(
+        res,
+        'meters.error.unitLessThanPrev',
+        `ค่ามิเตอร์ปัจจุบันต้องไม่น้อยกว่าค่ามิเตอร์ก่อนหน้า (${newPrev})`,
+      );
+    }
 
     await MeterModel.update(req.params.id, updates);
     const updated = await MeterModel.findById(req.params.id);

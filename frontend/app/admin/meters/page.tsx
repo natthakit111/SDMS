@@ -406,44 +406,52 @@ export default function MetersPage() {
 
       // บันทึกไฟฟ้า
       if (elecCurr) {
-        const data = {
-          room_id: roomId,
-          meter_type: "electric",
-          reading_month: month,
-          reading_year: year,
-          current_unit: elecCurr,
-        };
+        const prevField = elecPrev !== "" ? { previous_unit: elecPrev } : {};
         if (editingElectric) {
           await meterAPI.update(
             editingElectric.reading_id,
-            { current_unit: elecCurr },
+            { current_unit: elecCurr, ...prevField },
             elecImage || undefined,
           );
         } else {
-          await meterAPI.create(data, elecImage || undefined);
+          await meterAPI.create(
+            {
+              room_id: roomId,
+              meter_type: "electric",
+              reading_month: month,
+              reading_year: year,
+              current_unit: elecCurr,
+              ...prevField,
+            },
+            elecImage || undefined,
+          );
         }
       }
 
       // บันทึกน้ำ
       if (waterCurr) {
-        const data = {
-          room_id: roomId,
-          meter_type: "water",
-          reading_month: month,
-          reading_year: year,
-          current_unit: waterCurr,
-        };
+        const prevField = waterPrev !== "" ? { previous_unit: waterPrev } : {};
         if (editingWater) {
           await meterAPI.update(
             editingWater.reading_id,
-            { current_unit: waterCurr },
+            { current_unit: waterCurr, ...prevField },
             waterImage || undefined,
           );
         } else {
-          await meterAPI.create(data, waterImage || undefined);
+          await meterAPI.create(
+            {
+              room_id: roomId,
+              meter_type: "water",
+              reading_month: month,
+              reading_year: year,
+              current_unit: waterCurr,
+              ...prevField,
+            },
+            waterImage || undefined,
+          );
         }
       }
-
+      
       toast.success(
         isEditing ? t("meters.updateSuccess") : t("meters.saveSuccess"),
       );

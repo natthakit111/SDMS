@@ -16,8 +16,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bell, LogOut, User, Settings } from "lucide-react";
+import { Bell, LogOut, User, Settings, BookOpen } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { USER_GUIDE_URL } from "@/lib/user-guide";
 import { Separator } from "@/components/ui/separator";
 import { useAdminNotification } from "@/context/admin-notification-context";
 
@@ -104,6 +105,13 @@ export function AdminNavbar() {
             <DropdownMenuItem onClick={() => router.push("/admin/settings")}>
               <Settings className="mr-2 h-4 w-4" />
               {t("common.settings")}
+            </DropdownMenuItem>
+
+            <DropdownMenuItem asChild>
+              <a href={USER_GUIDE_URL} target="_blank" rel="noopener noreferrer">
+                <BookOpen className="mr-2 h-4 w-4" />
+                {t("menu.userGuide")}
+              </a>
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />

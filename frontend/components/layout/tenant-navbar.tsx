@@ -17,8 +17,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bell, LogOut, User, DoorOpen } from "lucide-react";
+import { Bell, LogOut, User, DoorOpen, BookOpen } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { USER_GUIDE_URL } from "@/lib/user-guide";
 import { Separator } from "@/components/ui/separator";
 import { contractAPI } from "@/lib/api/contract.api";
 import { useNotification } from "@/context/notification-context";
@@ -118,6 +119,13 @@ export function TenantNavbar() {
             <DropdownMenuItem onClick={() => router.push("/tenant/profile")}>
               <User className="mr-2 h-4 w-4" />
               {t("common.profile")}
+            </DropdownMenuItem>
+
+            <DropdownMenuItem asChild>
+              <a href={USER_GUIDE_URL} target="_blank" rel="noopener noreferrer">
+                <BookOpen className="mr-2 h-4 w-4" />
+                {t("menu.userGuide")}
+              </a>
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />

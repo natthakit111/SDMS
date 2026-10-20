@@ -31,10 +31,12 @@ import {
   Settings,
   LogOut,
   Languages,
+  BookOpen,
   UserCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { USER_GUIDE_URL } from "@/lib/user-guide";
 
 export function AdminSidebar() {
   const pathname = usePathname();
@@ -140,6 +142,21 @@ export function AdminSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
+          {/* User Guide — เปิดเว็บคู่มือในแท็บใหม่ */}
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <a
+                href={USER_GUIDE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => isMobile && setOpenMobile(false)}
+              >
+                <BookOpen className="h-4 w-4" />
+                <span>{t("menu.userGuide")}</span>
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
           {/* Theme Toggle */}
           <SidebarMenuItem>
             <div className="flex items-center gap-2 px-2 py-1.5">

@@ -100,13 +100,8 @@ const initBot = () => {
           req.end();
         });
 
-        // FIX: there was previously NO success message at all — the tenant
-        // pressed the link and got total silence if it worked.
-        bot.sendMessage(
-          chatId,
-          `✅ *เชื่อมต่อ Telegram สำเร็จ!*\n\nคุณจะได้รับแจ้งเตือนบิลค่าเช่า ค่าเช่าค้างชำระ และประกาศจากหอพักผ่านช่องทางนี้\n\nพิมพ์ /status เพื่อดูบิลค้างชำระได้ทุกเมื่อ`,
-          { parse_mode: 'Markdown' }
-        );
+        // ข้อความต้อนรับส่งจาก TelegramService.confirmLink() ฝั่ง backend แล้ว
+        // (แยกข้อความตาม role ผู้เช่า/admin) — ไม่ส่งซ้ำตรงนี้อีก
       } catch (err) {
         bot.sendMessage(chatId, `❌ เกิดข้อผิดพลาด\n\nลิงก์อาจหมดอายุแล้ว กรุณากลับไปสร้างลิงก์ใหม่ที่แอป`);
       }
@@ -125,6 +120,33 @@ const initBot = () => {
       const chatId = msg.chat.id;
       const { pool } = require('./db');
       try {
+        const [linked] = await pool.query(
+          'SELECT role FROM users WHERE telegram_chat_id = ? AND is_active = 1 LIMIT 1',
+          [String(chatId)]
+        );
+        if (linked[0]?.role === 'admin') {
+          // admin ไม่มีบิล — สรุปงานที่รอดำเนินการแทน
+          const [[counts]] = await pool.query(`
+            SELECT
+              (SELECT COUNT(*) FROM payments WHERE status = 'pending_verify')                  AS pending_payments,
+              (SELECT COUNT(*) FROM maintenance_requests WHERE status = 'pending')             AS pending_maintenance,
+              (SELECT COUNT(*) FROM move_out_requests WHERE status = 'pending')                AS pending_move_outs,
+              (SELECT COUNT(*) FROM bills WHERE status = 'overdue')                            AS overdue_bills
+          `);
+          return bot.sendMessage(
+            chatId,
+            [
+              '📊 *งานที่รอดำเนินการ*',
+              '',
+              `💳 สลิปรอตรวจ: *${counts.pending_payments}*`,
+              `🔧 แจ้งซ่อมรอรับเรื่อง: *${counts.pending_maintenance}*`,
+              `🚪 คำร้องขอย้ายออกรออนุมัติ: *${counts.pending_move_outs}*`,
+              `🔴 บิลค้างชำระ: *${counts.overdue_bills}*`,
+            ].join('\n'),
+            { parse_mode: 'Markdown' }
+          );
+        }
+
         const [bills] = await pool.query(`
           SELECT b.bill_month, b.bill_year, b.total_amount, b.status, r.room_number
           FROM bills b

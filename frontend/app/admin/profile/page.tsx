@@ -18,6 +18,7 @@ import { Save, Lock, Loader2, User } from "lucide-react";
 import { authAPI } from "@/lib/api/auth.api";
 import { useLanguage } from "@/context/language-context";
 import { useAuth } from "@/context/auth-context";
+import { AdminTelegramCard } from "@/components/common/admin-telegram-card";
 
 // ── Validation helpers ─────────────────────────────────────
 const isValidEmail = (value: string) =>
@@ -234,6 +235,9 @@ export default function ProfilePage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Telegram */}
+      <AdminTelegramCard />
 
       {/* Change Password */}
       <Card>

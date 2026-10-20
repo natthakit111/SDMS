@@ -8,6 +8,7 @@ const TenantModel      = require('../models/tenant.model');
 const ContractModel    = require('../models/contract.model');
 const RoomModel        = require('../models/room.model');
 const DepositModel     = require('../models/deposit.model');
+const TelegramService  = require('../services/telegram.service');
 const logger = require('../utils/logger');
 const {
   sendSuccess, sendCreated, sendBadRequest, sendNotFound, sendForbidden,
@@ -141,6 +142,10 @@ const create = async (req, res, next) => {
     });
 
     const created = await MoveOutModel.findById(requestId);
+
+    // แจ้ง admin แบบ fire-and-forget ไม่ให้ Telegram ล่มแล้วทำให้ยื่นคำร้องไม่สำเร็จ
+    if (created) TelegramService.notifyAdminNewMoveOut(created).catch(() => {});
+
     return sendCreated(
       res,
       { ...created, notice_days_given: noticeDaysGiven, fine_possible: finePossible },

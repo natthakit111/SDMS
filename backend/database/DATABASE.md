@@ -54,6 +54,7 @@ Login หลักของระบบ, เก็บ role และการต
 | `telegram_chat_id` | bigint, nullable | ตั้งค่าตอนผูกบัญชีผ่าน `telegram_link_tokens` |
 | `oauth_provider` / `oauth_provider_id` | nullable | `google` \| `telegram` — indexed คู่กัน |
 | `notify_bill`, `notify_overdue`, `notify_maintenance`, `notify_announcement` | tinyint(1) | toggle การแจ้งเตือนรายประเภท ผู้ใช้ปิดเองได้ (ยกเว้นประกาศฉุกเฉิน ดู `announcements.is_urgent`) |
+| `notify_admin_payment`, `notify_admin_maintenance`, `notify_admin_move_out`, `notify_admin_registration` | tinyint(1) | toggle แจ้งเตือนฝั่ง admin (สลิปใหม่, แจ้งซ่อมใหม่, ขอย้ายออก, สมัครบัญชีใหม่) ใช้เฉพาะ role=admin — ส่งหา admin ทุกคนที่ผูก Telegram ไว้ ถ้ายังไม่มีใครผูกจะส่งไปที่ `ADMIN_TELEGRAM_CHAT_ID` แทน |
 | `email_verified` | tinyint(1) | `0` = ต้องกดลิงก์ยืนยันในอีเมล (ดู `email_verifications`) ก่อนถึง login ได้ — เช็คเฉพาะบัญชีที่มี `email` เท่านั้น, ถูกเซ็ตกลับเป็น `0` ทุกครั้งที่เปลี่ยนอีเมล, สมัคร/แก้ผ่าน Google OAuth ถือว่ายืนยันแล้วอัตโนมัติ. Self-register (`/register`) เซ็ตเป็น `1` ทันทีตั้งแต่สร้างบัญชี เพราะบังคับยืนยันด้วย OTP ก่อนแล้ว (ดู `registration_verifications`) |
 
 ### `tenants` — ข้อมูลโปรไฟล์ผู้เช่า (1:1 กับ `users` ที่ role=tenant)

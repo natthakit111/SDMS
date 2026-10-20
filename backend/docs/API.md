@@ -95,8 +95,8 @@ Middleware ยังรองรับ `Authorization: Bearer <token>` เป็
 |---|---|---|---|
 | GET | `/tenants/me/profile` | tenant | โปรไฟล์ของตัวเอง |
 | PUT | `/tenants/me/profile` | tenant | แก้ไขโปรไฟล์ตัวเอง |
-| GET | `/tenants/notification-preferences` | tenant | ดูการตั้งค่าแจ้งเตือนของตัวเอง |
-| PUT | `/tenants/notification-preferences` | tenant | แก้ไขการตั้งค่าแจ้งเตือน |
+| GET | `/tenants/notification-preferences` | tenant, admin | ดูการตั้งค่าแจ้งเตือนของตัวเอง (admin ได้เฉพาะ `notify_admin_*`) |
+| PUT | `/tenants/notification-preferences` | tenant, admin | แก้ไขการตั้งค่าแจ้งเตือน (admin ได้เฉพาะ `notify_admin_*`) |
 | GET | `/tenants` | admin | รายชื่อผู้เช่าทั้งหมด (`?search=`) |
 | GET | `/tenants/:id` | admin | รายละเอียดผู้เช่า |
 | POST | `/tenants` | admin | เพิ่มผู้เช่าใหม่ — ต้องมี `password`, `first_name`, `last_name`, `id_card_number` (13 หลัก), `phone` (รูปแบบเบอร์ไทย) |

@@ -295,6 +295,7 @@ export const translations: Record<string, { th: string; en: string }> = {
   "menu.maintenance": { th: "แจ้งซ่อม", en: "Maintenance" },
   "menu.announcements": { th: "ประกาศ", en: "Announcements" },
   "menu.settings": { th: "ตั้งค่า", en: "Settings" },
+  "menu.userGuide": { th: "คู่มือการใช้งาน", en: "User Guide" },
   "menu.group.main": { th: "หลัก", en: "Main" },
   "menu.group.rooms": { th: "จัดการห้องพัก", en: "Room Management" },
   "menu.group.finance": { th: "การเงิน", en: "Finance" },

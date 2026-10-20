@@ -31,6 +31,7 @@ const {
   sendSuccess, sendCreated, sendBadRequest, sendUnauthorized,
 } = require('../utils/response');
 const { hasMxRecord } = require('../utils/emailValidator');
+const TelegramService = require('../services/telegram.service');
 
 // frontend และ backend อยู่คนละโดเมนกันแน่ๆ ตอน production (เช่น
 // frontend บน Vercel, backend บน Railway/Render) ตั้ง COOKIE_CROSS_SITE=true
@@ -218,6 +219,10 @@ const register = async (req, res, next) => {
     });
 
     await conn.commit();
+
+    TelegramService.notifyAdminNewRegistration({
+      username: autoUsername, first_name: firstName, last_name: lastName, phone, email,
+    }).catch(() => {});
 
     return sendCreated(res, { user_id: userId, username: autoUsername, role }, 'ลงทะเบียนบัญชีสำเร็จ');
   } catch (err) {

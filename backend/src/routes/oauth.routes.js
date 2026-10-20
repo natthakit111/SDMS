@@ -43,6 +43,7 @@ const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
 const router   = express.Router();
 const { pool } = require('../config/db');
 const OAuthCodeModel = require('../models/oauthCode.model');
+const TelegramService = require('../services/telegram.service');
 const logger   = require('../utils/logger');
 const { sendSuccess, sendBadRequest } = require('../utils/response');
 // ⚠️ ใช้ signToken + setAuthCookies ตัวเดียวกับ authController.js เสมอ —
@@ -182,6 +183,7 @@ async function upsertOAuthUser({ provider, providerId, email, displayName }) {
       'SELECT * FROM users WHERE user_id = ? LIMIT 1',
       [newUserId]
     );
+    TelegramService.notifyAdminNewRegistration(newUser[0]).catch(() => {});
     return newUser[0];
   } catch (err) {
     await conn.rollback();

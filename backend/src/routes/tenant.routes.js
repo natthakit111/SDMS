@@ -138,8 +138,9 @@ const updateValidation = [
 // Tenant self-service (must come BEFORE /:id to avoid route conflict)
 router.get('/me/profile',   authenticate, authorizeRoles('tenant'), ctrl.getMyProfile);
 router.put('/me/profile',   authenticate, authorizeRoles('tenant'), ctrl.updateMyProfile);
-router.get('/notification-preferences', authenticate, authorizeRoles('tenant'), notificationPrefController.getPreferences);
-router.put('/notification-preferences', authenticate, authorizeRoles('tenant'), notificationPrefController.updatePreferences);
+// admin ใช้ได้ด้วย (ตั้งค่าแจ้งเตือน Telegram ฝั่ง admin) — controller เลือกคอลัมน์ตาม role
+router.get('/notification-preferences', authenticate, authorizeRoles('tenant', 'admin'), notificationPrefController.getPreferences);
+router.put('/notification-preferences', authenticate, authorizeRoles('tenant', 'admin'), notificationPrefController.updatePreferences);
 
 // Admin routes
 router.get('/',       authenticate, authorizeRoles('admin'), paginationValidation, ctrl.getAllTenants);

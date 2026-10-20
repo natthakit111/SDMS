@@ -10,6 +10,11 @@
  * muteable (financial/legal evidence). Urgent announcements (is_urgent=1)
  * always bypass the notify_announcement mute.
  *
+ * Admin alerts (new slip, new maintenance request, new move-out request,
+ * new tenant account) go to every active admin who linked Telegram, each
+ * filtered by their own notify_admin_* toggle. ADMIN_TELEGRAM_CHAT_ID (env)
+ * is only a fallback for when no admin has linked yet.
+ *
  * Every message that requires the tenant to take a self-service action in
  * the app (pay a bill, re-upload a rejected slip) includes an inline
  * keyboard button linking straight to the relevant page — consistent across
@@ -346,13 +351,48 @@ const sendContractExpired = async (contract) => {
   await sendMessage(contract.telegram_chat_id, message, contract.user_id || null, 'contract_expired', null);
 };
 
+// ── Admin recipients ──────────────────────────────────────────
+const ADMIN_PREF_COLUMNS = new Set([
+  'notify_admin_payment',
+  'notify_admin_maintenance',
+  'notify_admin_move_out',
+  'notify_admin_registration',
+]);
+
+// ส่งหา admin ทุกคนที่ผูก Telegram ไว้และไม่ได้ปิดแจ้งเตือนประเภทนี้
+// ถ้ายังไม่มี admin คนไหนผูกเลย ใช้ ADMIN_TELEGRAM_CHAT_ID (env) เดิมเป็นตัวสำรอง
+// — แต่ถ้ามี admin ผูกแล้วและทุกคนปิดประเภทนี้ไว้ ถือว่าตั้งใจปิด ไม่ส่ง env ซ้ำ
+const sendToAdmins = async (prefColumn, message, type) => {
+  if (!ADMIN_PREF_COLUMNS.has(prefColumn)) throw new Error(`Unknown admin pref column: ${prefColumn}`);
+
+  let admins = [];
+  try {
+    const [rows] = await pool.query(
+      `SELECT user_id, telegram_chat_id, ${prefColumn} AS allowed
+       FROM users
+       WHERE role = 'admin' AND is_active = 1 AND telegram_chat_id IS NOT NULL`
+    );
+    admins = rows;
+  } catch (err) {
+    console.error('[Telegram] Failed to load admin recipients:', err.message);
+  }
+
+  if (admins.length === 0) {
+    const fallbackChatId = process.env.ADMIN_TELEGRAM_CHAT_ID;
+    if (fallbackChatId) await sendMessage(fallbackChatId, message, null, type);
+    return;
+  }
+
+  for (const admin of admins) {
+    if (admin.allowed === 0) continue;
+    await sendMessage(admin.telegram_chat_id, message, admin.user_id, type);
+  }
+};
+
 // ════════════════════════════════════════════════════════════════
-// 8. NEW PAYMENT SLIP SUBMITTED  (sent to admin chat)
+// 8. NEW PAYMENT SLIP SUBMITTED  (sent to admins)
 // ════════════════════════════════════════════════════════════════
 const notifyAdminNewPayment = async (payment) => {
-  const adminChatId = process.env.ADMIN_TELEGRAM_CHAT_ID;
-  if (!adminChatId) return;
-
   const message = [
     `💳 *มีการแจ้งชำระเงินใหม่*`,
     ``,
@@ -364,16 +404,13 @@ const notifyAdminNewPayment = async (payment) => {
     `กรุณาตรวจสอบและยืนยันการชำระเงินในระบบ`,
   ].join('\n');
 
-  await sendMessage(adminChatId, message, null, 'admin_payment_alert');
+  await sendToAdmins('notify_admin_payment', message, 'admin_payment_alert');
 };
 
 // ════════════════════════════════════════════════════════════════
-// 9. NEW MAINTENANCE REQUEST  (sent to admin chat)
+// 9. NEW MAINTENANCE REQUEST  (sent to admins)
 // ════════════════════════════════════════════════════════════════
 const notifyAdminNewMaintenance = async (request) => {
-  const adminChatId = process.env.ADMIN_TELEGRAM_CHAT_ID;
-  if (!adminChatId) return;
-
   const PRIORITY_DISPLAY = {
     high:   { icon: '🔴', label: 'สูง' },
     medium: { icon: '🟡', label: 'ปานกลาง' },
@@ -392,7 +429,46 @@ const notifyAdminNewMaintenance = async (request) => {
     `📝 รายละเอียด: ${escapeMarkdown(request.description)}`,
   ].join('\n');
 
-  await sendMessage(adminChatId, message, null, 'admin_maintenance_alert');
+  await sendToAdmins('notify_admin_maintenance', message, 'admin_maintenance_alert');
+};
+
+// ════════════════════════════════════════════════════════════════
+// 9.1 NEW MOVE-OUT REQUEST  (sent to admins)
+// ════════════════════════════════════════════════════════════════
+const notifyAdminNewMoveOut = async (request) => {
+  const tenantName = [request.first_name, request.last_name].filter(Boolean).join(' ');
+  const message = [
+    `🚪 *คำร้องขอย้ายออกใหม่*`,
+    ``,
+    `ห้อง: *${escapeMarkdown(request.room_number)}*`,
+    `ผู้เช่า: ${escapeMarkdown(tenantName)}`,
+    `วันที่ต้องการย้ายออก: ${thaiDateBangkok(request.move_out_date)}`,
+    request.reason ? `📝 เหตุผล: ${escapeMarkdown(request.reason)}` : null,
+    ``,
+    `กรุณาตรวจสอบและอนุมัติคำร้องในระบบ`,
+  ].filter((line) => line !== null).join('\n');
+
+  await sendToAdmins('notify_admin_move_out', message, 'admin_move_out_alert');
+};
+
+// ════════════════════════════════════════════════════════════════
+// 9.2 NEW TENANT ACCOUNT  (sent to admins — self-register หรือ Google)
+// ════════════════════════════════════════════════════════════════
+const notifyAdminNewRegistration = async (user) => {
+  const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+  const channel = user.oauth_provider === 'google' ? 'Google' : 'สมัครผ่านเว็บ';
+  const message = [
+    `🆕 *มีผู้เช่าสมัครบัญชีใหม่*`,
+    ``,
+    `ชื่อ: *${escapeMarkdown(fullName || user.username)}*`,
+    user.phone ? `เบอร์โทร: ${escapeMarkdown(user.phone)}` : null,
+    user.email ? `อีเมล: ${escapeMarkdown(user.email)}` : null,
+    `ช่องทาง: ${channel}`,
+    ``,
+    `ตรวจสอบข้อมูลและทำสัญญาเช่าให้ผู้เช่าได้ในระบบ`,
+  ].filter((line) => line !== null).join('\n');
+
+  await sendToAdmins('notify_admin_registration', message, 'admin_registration_alert');
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -448,16 +524,28 @@ const confirmLink = async (token, chatId, telegramUsername) => {
   await TelegramLinkTokenModel.deleteToken(token);
 
   const user = await UserModel.findById(user_id);
-  const displayName = telegramUsername || user?.username || 'ผู้เช่า';
+  const isAdmin = user?.role === 'admin';
+  const displayName = telegramUsername || user?.username || (isAdmin ? 'ผู้ดูแล' : 'ผู้เช่า');
 
-  const message = [
-    `✅ *เชื่อมต่อ Telegram สำเร็จ!*`,
-    ``,
-    `สวัสดี @${escapeMarkdown(displayName)}!`,
-    `คุณจะได้รับการแจ้งเตือนค่าเช่า บิล และข่าวสารจากหอพักผ่าน Telegram นี้`,
-    ``,
-    `พิมพ์ /status เพื่อดูสถานะบิลปัจจุบัน`,
-  ].join('\n');
+  const message = (isAdmin
+    ? [
+        `✅ *เชื่อมต่อ Telegram สำเร็จ!*`,
+        ``,
+        `สวัสดี @${escapeMarkdown(displayName)}!`,
+        `คุณจะได้รับแจ้งเตือนสลิปใหม่ แจ้งซ่อมใหม่ คำร้องขอย้ายออก และผู้เช่าสมัครใหม่ผ่าน Telegram นี้`,
+        `เลือกประเภทที่ต้องการรับได้ที่หน้าโปรไฟล์ในระบบ`,
+        ``,
+        `พิมพ์ /status เพื่อดูงานที่รอดำเนินการ`,
+      ]
+    : [
+        `✅ *เชื่อมต่อ Telegram สำเร็จ!*`,
+        ``,
+        `สวัสดี @${escapeMarkdown(displayName)}!`,
+        `คุณจะได้รับการแจ้งเตือนค่าเช่า บิล และข่าวสารจากหอพักผ่าน Telegram นี้`,
+        ``,
+        `พิมพ์ /status เพื่อดูสถานะบิลปัจจุบัน`,
+      ]
+  ).join('\n');
 
   // ข้อความต้อนรับเป็น nice-to-have — ถ้าส่งไม่สำเร็จไม่ควรทำให้ /link ทั้ง request fail
   // sendMessage() จัดการ try/catch + log ให้อยู่แล้ว จึงไม่ต้อง wrap ซ้ำตรงนี้
@@ -476,6 +564,8 @@ module.exports = {
   sendContractExpired,
   notifyAdminNewPayment,
   notifyAdminNewMaintenance,
+  notifyAdminNewMoveOut,
+  notifyAdminNewRegistration,
   broadcastAnnouncement,
   confirmLink,
 };

@@ -64,7 +64,19 @@ async function upsertOAuthUser({ provider, providerId, email, displayName }) {
     'SELECT * FROM users WHERE oauth_provider = ? AND oauth_provider_id = ? LIMIT 1',
     [provider, String(providerId)]
   );
-  if (existing.length > 0) return existing[0];
+  if (existing.length > 0) {
+    const found = existing[0];
+    // ⚠️ FIX: บัญชีที่แอดมินลบไปแล้ว (deleteTenant → is_active = 0 +
+    // username = deleted_<id>) แต่ยังค้างการผูก provider ไว้จากข้อมูลก่อนแก้
+    // บั๊ก — ปลดการผูกออกแล้วไปสร้างบัญชีใหม่ตามปกติ แทนที่จะคืนบัญชีที่ถูกลบ
+    // (บัญชีที่ inactive แต่ไม่ได้ถูกลบ ยังคืนไปให้ /oauth/exchange ปฏิเสธเหมือนเดิม)
+    const isDeleted = !found.is_active && String(found.username).startsWith('deleted_');
+    if (!isDeleted) return found;
+    await pool.query(
+      'UPDATE users SET oauth_provider = NULL, oauth_provider_id = NULL WHERE user_id = ?',
+      [found.user_id]
+    );
+  }
 
   // 2. Find by email (link accounts)
   if (email) {

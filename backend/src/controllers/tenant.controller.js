@@ -294,13 +294,19 @@ const deleteTenant = async (req, res, next) => {
     // "ลบ" ไปแล้วก็ตาม) — เติม prefix ให้ค่าที่ users/tenants ทั้งคู่พร้อมกัน
     // ในทรานแซกชันเดียว เพื่อปลดล็อกให้ค่าจริงกลับมาใช้สมัครใหม่ได้ทันที
     // (ยังเก็บแถวเดิมไว้ครบสำหรับประวัติสัญญา/บิลเก่าที่อ้างอิง user_id)
+    //
+    // ⚠️ FIX: ปลดการผูก Google/Telegram (oauth_provider_id) ด้วย — เดิมไม่ได้
+    // ล้าง ทำให้ OAuth login ไปเจอบัญชีที่ถูกลบนี้ก่อนเสมอ แล้วตอบ "บัญชีนี้
+    // ถูกปิดการใช้งาน" คนที่เคยสมัครด้วย Google จึงกลับมาใช้ระบบไม่ได้อีกเลย
     await conn.beginTransaction();
     await conn.query(
       `UPDATE users
        SET is_active = 0,
            username = CONCAT('deleted_', user_id),
            phone = IF(phone IS NULL, NULL, CONCAT('deleted_', user_id)),
-           email = IF(email IS NULL, NULL, CONCAT('deleted_', user_id, '@deleted.local'))
+           email = IF(email IS NULL, NULL, CONCAT('deleted_', user_id, '@deleted.local')),
+           oauth_provider = NULL,
+           oauth_provider_id = NULL
        WHERE user_id = ?`,
       [tenant.user_id]
     );
